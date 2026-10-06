@@ -1,0 +1,18 @@
+# Kilo local state
+/.kilo/
+/.kilo-tmp/
+
+# Xcode and macOS local state
+**/xcuserdata/
+**/DerivedData/
+.DS_Store
+
+# Local build and test output
+**/.build/
+**/.swiftpm/
+**/.test-tmp/
+**/build/
+**/Build/
+**/*.xcresult
+/dist/
+*.txt

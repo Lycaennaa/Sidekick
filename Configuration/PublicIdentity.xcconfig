@@ -1,0 +1,6 @@
+APP_PRODUCT_NAME = Sidekick
+APP_BUNDLE_IDENTIFIER = com.lycaennaa.sidekick
+INFOPLIST_KEY_NSMicrophoneUsageDescription = $(APP_PRODUCT_NAME) uses microphone access to show which microphone is active.
+
+PRODUCT_NAME = $(APP_PRODUCT_NAME)
+PRODUCT_BUNDLE_IDENTIFIER = $(APP_BUNDLE_IDENTIFIER)

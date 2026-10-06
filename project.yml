@@ -1,0 +1,150 @@
+name: Sidekick
+options:
+  defaultConfig: Release
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+packages:
+  libwebp-Xcode:
+    url: https://github.com/SDWebImage/libwebp-Xcode.git
+    from: 1.5.0
+  swift-markdown:
+    url: https://github.com/swiftlang/swift-markdown
+    from: 0.8.0
+  TiktokenSwiftPort:
+    path: TiktokenSwiftPort
+settings:
+  base:
+    SDKROOT: macosx
+    SWIFT_VERSION: "6.0"
+targets:
+  sidekick:
+    type: application
+    platform: macOS
+    productName: "$(APP_PRODUCT_NAME)"
+    info:
+      path: build/generated/SidekickInfo.plist
+      properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        TwitchOAuthClientID: none
+    sources:
+      - path: Sidekick
+        excludes:
+          - data.min.json
+      - path: Configuration/TwitchOAuthConfiguration.swift
+      - path: build/generated/Resources/data.min.json
+        buildPhase: resources
+    configFiles:
+      Debug: Configuration/PublicIdentity.xcconfig
+      Release: Configuration/PublicIdentity.xcconfig
+    dependencies:
+      - package: libwebp-Xcode
+        product: libwebp
+      - package: swift-markdown
+        product: Markdown
+      - package: TiktokenSwiftPort
+        product: TiktokenSwiftPort
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_STYLE: Manual
+        COMBINE_HIDPI_IMAGES: YES
+        CURRENT_PROJECT_VERSION: 1
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_INCOMING_NETWORK_CONNECTIONS: NO
+        ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES
+        ENABLE_PREVIEWS: YES
+        ENABLE_RESOURCE_ACCESS_AUDIO_INPUT: YES
+        ENABLE_RESOURCE_ACCESS_BLUETOOTH: NO
+        ENABLE_RESOURCE_ACCESS_CALENDARS: NO
+        ENABLE_RESOURCE_ACCESS_CAMERA: NO
+        ENABLE_RESOURCE_ACCESS_CONTACTS: NO
+        ENABLE_RESOURCE_ACCESS_LOCATION: NO
+        ENABLE_RESOURCE_ACCESS_PRINTING: NO
+        ENABLE_RESOURCE_ACCESS_USB: NO
+        ENABLE_USER_SELECTED_FILES: readonly
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_EXPAND_BUILD_SETTINGS: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        MARKETING_VERSION: 0.1.0
+        OTHER_CODE_SIGN_FLAGS: '-r "$(SRCROOT)/Configuration/SidekickCodeRequirement.txt"'
+        REGISTER_APP_GROUPS: YES
+        STRING_CATALOG_GENERATE_SYMBOLS: YES
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_EMIT_LOC_STRINGS: YES
+        SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
+      configs:
+        Debug:
+          ENABLE_TESTABILITY: YES
+          SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG $(inherited)"
+        Release:
+          SWIFT_COMPILATION_MODE: wholemodule
+  sidekickTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: SidekickTests
+      - path: Sidekick/Clipboard
+      - path: Sidekick/Microphone
+      - path: Sidekick/Toast
+      - path: Sidekick/Volume
+        excludes:
+          - TemporaryVolumeFeature.swift
+          - TemporaryVolumeMenu.swift
+      - path: Sidekick/Twitch
+        excludes:
+          - TwitchNotificationView.swift
+          - TwitchNotificationController+Delegate.swift
+      - path: Sidekick/System/KeychainStore.swift
+      - path: Sidekick/App/AppSettings.swift
+      - path: Sidekick/App/AppTheme.swift
+      - path: Sidekick/App/ToastPresentationCoordinator.swift
+      - path: Sidekick/Screenshot/ScreenCaptureService.swift
+      - path: Sidekick/Screenshot/ScreenshotCaptureController.swift
+      - path: Sidekick/Screenshot/ScreenshotClipboardMetadataRegistry.swift
+      - path: Sidekick/Screenshot/ScreenshotSelectionOverlay.swift
+      - path: Sidekick/Screenshot/ScreenshotSelectionView.swift
+      - path: Sidekick/Screenshot/ScreenshotPixelInspectionHUD.swift
+      - path: Sidekick/Screenshot/ScreenshotPixelInspection.swift
+      - path: Configuration/TwitchOAuthConfiguration.swift
+      - path: build/generated/Resources/data.min.json
+        buildPhase: resources
+    configFiles:
+      Debug: Configuration/PublicTestIdentity.xcconfig
+      Release: Configuration/PublicTestIdentity.xcconfig
+    dependencies:
+      - package: libwebp-Xcode
+        product: libwebp
+      - package: swift-markdown
+        product: Markdown
+      - package: TiktokenSwiftPort
+        product: TiktokenSwiftPort
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_STYLE: Manual
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_NAME: "$(TARGET_NAME)"
+schemes:
+  sidekick:
+    build:
+      targets:
+        sidekick: all
+        sidekickTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: sidekickTests
+          parallelizable: true
+    archive:
+      config: Release

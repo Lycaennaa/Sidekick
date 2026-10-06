@@ -1,0 +1,356 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: New vX.Y.Z tag to create on the default branch
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate-and-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate version, CI, and tag
+        id: release
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            printf 'Dispatch release from default branch %s\n' "$DEFAULT_BRANCH" >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf 'Release tag must match vX.Y.Z: %s\n' "$RELEASE_TAG" >&2
+            exit 1
+          fi
+          version="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          matches = re.findall(
+              r"(?m)^\s*MARKETING_VERSION:\s*([0-9]+\.[0-9]+\.[0-9]+)\s*$",
+              Path("project.yml").read_text(),
+          )
+          if len(matches) != 1:
+              raise SystemExit("project.yml must define one numeric MARKETING_VERSION")
+          print(matches[0])
+          PY
+          )"
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            printf 'Tag %s does not match project.yml version %s\n' "$RELEASE_TAG" "$version" >&2
+            exit 1
+          fi
+
+          release_sha="$(git rev-parse HEAD)"
+          ci_runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${release_sha}&branch=${DEFAULT_BRANCH}&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.conclusion == "success" and .event == "push")] | length')"
+          if [[ "$ci_runs" == 0 ]]; then
+            printf 'No successful CI push run for %s on %s\n' "$release_sha" "$DEFAULT_BRANCH" >&2
+            exit 1
+          fi
+          compare="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${release_sha}...${DEFAULT_BRANCH}" --jq .status)"
+          if [[ "$compare" != ahead && "$compare" != identical ]]; then
+            printf '%s\n' 'Release commit is not contained in the default branch' >&2
+            exit 1
+          fi
+
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_TAG}" --jq .sha)"
+            if [[ "$tag_sha" != "$release_sha" ]]; then
+              printf 'Tag %s already points to another commit\n' "$RELEASE_TAG" >&2
+              exit 1
+            fi
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f "ref=refs/tags/${RELEASE_TAG}" -f "sha=${release_sha}" >/dev/null
+          fi
+          printf 'tag=%s\nsha=%s\nversion=%s\n' "$RELEASE_TAG" "$release_sha" "$version" >> "$GITHUB_OUTPUT"
+
+  package:
+    needs: validate-and-tag
+    runs-on: macos-15
+    permissions:
+      contents: read
+    env:
+      XCODE_DEVELOPER_DIR: ${{ vars.XCODE_DEVELOPER_DIR }}
+      RELEASE_VERSION: ${{ needs.validate-and-tag.outputs.version }}
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.validate-and-tag.outputs.sha }}
+          persist-credentials: false
+
+      - name: Select and report toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Darwin
+          if [ -n "${XCODE_DEVELOPER_DIR:-}" ]; then
+            export DEVELOPER_DIR="$XCODE_DEVELOPER_DIR"
+            printf 'DEVELOPER_DIR=%s\n' "$XCODE_DEVELOPER_DIR" >> "$GITHUB_ENV"
+          fi
+          xcode_version="$(xcodebuild -version | awk 'NR == 1 { print $2 }')"
+          XCODE_VERSION="$xcode_version" python3 - <<'PY'
+          import os
+          import re
+
+          version = tuple(int(part) for part in re.findall(r"\d+", os.environ["XCODE_VERSION"])[:2])
+          if version < (16, 4):
+              raise SystemExit(f"Xcode 16.4 or later required; found {os.environ['XCODE_VERSION']}")
+          PY
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen and SwiftLint
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in xcodegen swiftlint; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              HOMEBREW_NO_AUTO_UPDATE=1 brew install "$tool"
+            fi
+          done
+
+      - name: Fetch ClearURLs build resource and generate Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh scripts/fetch-clearurls-rules.sh --force
+          xcodegen generate --spec project.yml
+          git diff --exit-code -- Sidekick.xcodeproj/project.pbxproj
+
+      - name: Validate repository metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B scripts/check-package-locks.py
+          python3 -B scripts/check-pbx-identifiers.py
+          python3 -B scripts/check-client-id.py
+
+      - name: Run SwiftLint
+        shell: bash
+        run: swiftlint lint --config .swiftlint.yml
+
+      - name: Run tests with committed configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Sidekick.xcodeproj \
+            -scheme sidekick \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/derived-data" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/source-packages" \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            SDKROOT=auto \
+            test
+
+      - name: Build Release app
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Sidekick.xcodeproj \
+            -scheme sidekick \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/derived-data" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/source-packages" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            SDKROOT=auto \
+            build
+
+      - name: Locate built app
+        id: app
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$(python3 - "$RUNNER_TEMP/derived-data/Build/Products/Release" <<'PY'
+          import sys
+          from pathlib import Path
+
+          apps = sorted(Path(sys.argv[1]).glob("*.app"))
+          if len(apps) != 1:
+              raise SystemExit(f"expected exactly one app product, found {len(apps)}")
+          print(apps[0])
+          PY
+          )"
+          printf 'path=%s\n' "$app_path" >> "$GITHUB_OUTPUT"
+
+      - name: Ad-hoc sign and package ZIP and DMG
+        env:
+          APP_NAME: Sidekick
+          BUNDLE_IDENTIFIER: com.lycaennaa.sidekick
+          DERIVED_DATA: ${{ github.workspace }}/.build/package-derived-data
+          DIST_DIR: ${{ runner.temp }}/sidekick-release
+          PREBUILT_APP_PATH: ${{ steps.app.outputs.path }}
+          VERSION: ${{ needs.validate-and-tag.outputs.version }}
+        shell: bash
+        run: sh scripts/package-release.sh
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sidekick-release-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/sidekick-release/Sidekick-${{ needs.validate-and-tag.outputs.version }}.zip
+            ${{ runner.temp }}/sidekick-release/Sidekick-${{ needs.validate-and-tag.outputs.version }}.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+  attest:
+    if: github.event.repository.visibility == 'public'
+    needs: [validate-and-tag, package]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --name "sidekick-release-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/sidekick-release"
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2.2.3
+        with:
+          subject-path: |
+            ${{ runner.temp }}/sidekick-release/Sidekick-${{ needs.validate-and-tag.outputs.version }}.zip
+            ${{ runner.temp }}/sidekick-release/Sidekick-${{ needs.validate-and-tag.outputs.version }}.dmg
+
+  publish:
+    needs: [validate-and-tag, package, attest]
+    if: >-
+      always() &&
+      needs.validate-and-tag.result == 'success' &&
+      needs.package.result == 'success' &&
+      (needs.attest.result == 'success' || needs.attest.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.validate-and-tag.outputs.tag }}
+      RELEASE_SHA: ${{ needs.validate-and-tag.outputs.sha }}
+      RELEASE_VERSION: ${{ needs.validate-and-tag.outputs.version }}
+    steps:
+      - name: Download and validate release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sidekick-release"
+          gh run download "$GITHUB_RUN_ID" --name "sidekick-release-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/sidekick-release"
+          zip="$RUNNER_TEMP/sidekick-release/Sidekick-$RELEASE_VERSION.zip"
+          dmg="$RUNNER_TEMP/sidekick-release/Sidekick-$RELEASE_VERSION.dmg"
+          test -f "$zip"
+          test -f "$dmg"
+          unzip -t "$zip"
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f "tag_name=$RELEASE_TAG" --jq .body > "$RUNNER_TEMP/release-notes.md"
+          printf '\nThe ZIP and DMG contain an ad-hoc-signed app. They are not Developer ID signed or notarized. GitHub displays a SHA-256 digest for each asset.\n' >> "$RUNNER_TEMP/release-notes.md"
+          if [[ "${{ github.event.repository.visibility }}" == public ]]; then
+            printf 'Verify public release provenance with gh attestation verify <asset> --repo %s.\n' "$GITHUB_REPOSITORY" >> "$RUNNER_TEMP/release-notes.md"
+          fi
+          printf '\n<!-- release-source=%s -->\n' "$RELEASE_SHA" >> "$RUNNER_TEMP/release-notes.md"
+
+      - name: Create or resume draft, verify uploaded digests, then publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip_name="Sidekick-$RELEASE_VERSION.zip"
+          dmg_name="Sidekick-$RELEASE_VERSION.dmg"
+          notes="$RUNNER_TEMP/release-notes.md"
+          state="$RUNNER_TEMP/release.json"
+          verify_asset() {
+            local path="$1"
+            local name actual digest
+            name="$(basename "$path")"
+            actual="sha256:$(sha256sum "$path" | cut -d ' ' -f 1)"
+            digest="$(ASSET_NAME="$name" gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.assets[] | select(.name == env.ASSET_NAME) | .digest')"
+            if [[ "$digest" != "$actual" ]]; then
+              printf 'GitHub digest mismatch for %s: %s != %s\n' "$name" "$digest" "$actual" >&2
+              return 1
+            fi
+          }
+          verify_tag() {
+            local tag_sha
+            tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_TAG}" --jq .sha)"
+            [[ "$tag_sha" == "$RELEASE_SHA" ]]
+          }
+
+          if gh release view "$RELEASE_TAG" --json isDraft,body > "$state"; then
+            release_state="$(python3 - "$state" "$RELEASE_SHA" <<'PY'
+          import json
+          import re
+          import sys
+
+          release = json.load(open(sys.argv[1], encoding="utf-8"))
+          match = re.search(r'<!-- release-source=([0-9a-f]+) -->', release.get("body") or "")
+          if match is None or match.group(1) != sys.argv[2]:
+              raise SystemExit("existing release belongs to another source commit")
+          print("draft" if release["isDraft"] else "published")
+          PY
+          )"
+            if [[ "$release_state" == published ]]; then
+              mkdir -p "$RUNNER_TEMP/verify-release"
+              gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/verify-release" --pattern "$zip_name"
+              gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/verify-release" --pattern "$dmg_name"
+              unzip -t "$RUNNER_TEMP/verify-release/$zip_name"
+              verify_asset "$RUNNER_TEMP/verify-release/$zip_name"
+              verify_asset "$RUNNER_TEMP/verify-release/$dmg_name"
+              verify_tag
+              printf 'Release %s is already published with verified GitHub digests.\n' "$RELEASE_TAG"
+              exit 0
+            fi
+            gh release edit "$RELEASE_TAG" --title "Sidekick $RELEASE_VERSION" --notes-file "$notes"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Sidekick $RELEASE_VERSION" --notes-file "$notes"
+          fi
+
+          gh release upload "$RELEASE_TAG" \
+            "$RUNNER_TEMP/sidekick-release/$zip_name" \
+            "$RUNNER_TEMP/sidekick-release/$dmg_name" \
+            --clobber
+          mkdir -p "$RUNNER_TEMP/verify-release"
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/verify-release" --pattern "$zip_name"
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/verify-release" --pattern "$dmg_name"
+          unzip -t "$RUNNER_TEMP/verify-release/$zip_name"
+          verify_asset "$RUNNER_TEMP/verify-release/$zip_name"
+          verify_asset "$RUNNER_TEMP/verify-release/$dmg_name"
+          verify_tag
+          gh release edit "$RELEASE_TAG" --draft=false
