@@ -3,6 +3,65 @@ import XCTest
 
 @MainActor
 final class AppSettingsTests: XCTestCase {
+    func testAppearanceDefaultsToSystemAndPersistsSelection() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        var generalChangeCount = 0
+        var appearanceChangeCount = 0
+        var twitchSettingsChangeCount = 0
+        settings.onChange = { generalChangeCount += 1 }
+        settings.onAppearanceChange = { appearanceChangeCount += 1 }
+        settings.onTwitchSettingsChange = { twitchSettingsChangeCount += 1 }
+
+        XCTAssertEqual(settings.appearance, .system)
+        settings.appearance = .amoledBlack
+
+        XCTAssertEqual(AppSettings(defaults: defaults).appearance, .amoledBlack)
+        XCTAssertEqual(generalChangeCount, 0)
+        XCTAssertEqual(appearanceChangeCount, 1)
+        XCTAssertEqual(twitchSettingsChangeCount, 0)
+    }
+
+    func testAppearanceModeUsesNativeAppKitAppearances() {
+        let application = NSApplication.shared
+        let previousAppearance = AppTheme.appearance
+        defer { AppTheme.apply(previousAppearance) }
+
+        AppTheme.apply(.light)
+        XCTAssertEqual(application.appearance?.name, NSAppearance.Name.aqua)
+
+        AppTheme.apply(.dark)
+        XCTAssertEqual(application.appearance?.name, NSAppearance.Name.darkAqua)
+
+        AppTheme.apply(.system)
+        XCTAssertNil(application.appearance)
+
+        AppTheme.apply(.amoledBlack)
+        XCTAssertEqual(application.appearance?.name, NSAppearance.Name.darkAqua)
+        XCTAssertEqual(AppTheme.surface, .black)
+    }
+
+    func testSystemDarkAppearanceUsesSidekickDarkPalette() throws {
+        let application = NSApplication.shared
+        let previousMode = AppTheme.appearance
+        let previousAppAppearance = application.appearance
+        defer {
+            AppTheme.apply(previousMode)
+            application.appearance = previousAppAppearance
+        }
+
+        AppTheme.apply(.system)
+        application.appearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
+
+        XCTAssertEqual(AppTheme.resolvedAppearance, .dark)
+        let expectedSurface = NSColor(srgbRed: 18 / 255, green: 18 / 255, blue: 18 / 255, alpha: 1)
+        XCTAssertTrue(AppTheme.surface.isEqual(expectedSurface))
+
+        application.appearance = try XCTUnwrap(NSAppearance(named: .aqua))
+        XCTAssertEqual(AppTheme.resolvedAppearance, .light)
+    }
+
     func testWebPClipboardConverterDefaultsEnabledAndPersists() {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }

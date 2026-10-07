@@ -109,6 +109,19 @@ targets:
       - path: Sidekick/App/AppSettings.swift
       - path: Sidekick/App/ScreenshotHotKeyRecorderView.swift
       - path: Sidekick/App/AppTheme.swift
+      - path: Sidekick/App/ToolsSidebarViewController.swift
+      - path: Sidekick/App/AudioSettingsView.swift
+      - path: Sidekick/App/ToolsContentViewController.swift
+      - path: Sidekick/App/ToolsSettingsPageHost.swift
+      - path: Sidekick/App/ClipboardSettingsView.swift
+      - path: Sidekick/App/ScreenshotSettingsView.swift
+      - path: Sidekick/App/ScreenshotSaveSettingsView.swift
+      - path: Sidekick/App/NotificationsSettingsView.swift
+      - path: Sidekick/App/OutputVolumeSettingsView.swift
+      - path: Sidekick/App/AppearanceSettingsView.swift
+      - path: Sidekick/App/ClipboardImageOpeningApplicationPickerView.swift
+      - path: Sidekick/Twitch/TwitchNotificationView.swift
+      - path: Sidekick/App/SettingsPageStackLayout.swift
       - path: Sidekick/App/ToastPresentationCoordinator.swift
       - path: Sidekick/Screenshot/ScreenCaptureService.swift
       - path: Sidekick/Screenshot/ScreenshotCaptureController.swift

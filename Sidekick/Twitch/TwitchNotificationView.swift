@@ -40,10 +40,10 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
                TwitchOAuthToken.normalized(self.tokenField.stringValue) == savedToken {
                 self.tokenField.stringValue = ""
             }
+            guard self.window?.isVisible == true, !self.isHiddenOrHasHiddenAncestor else { return }
             self.refresh()
         }
         buildView()
-        refresh()
     }
 
     @available(*, unavailable)

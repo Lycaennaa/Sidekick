@@ -35,10 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusMenuController: StatusMenuController?
     var twitchNotificationController: TwitchNotificationController?
     var toolsWindowController: ToolsWindowController?
+    private var systemAppearanceObservation: NSKeyValueObservation?
     var utilityToastGeneration: UInt64 = UInt64.max / 2
     var utilityToastPresentationToken: UInt64 = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppTheme.apply(settings.appearance)
+        observeSystemAppearanceChanges()
         installApplicationMenu()
         installClipboardFoundation()
         installClipboardToastController()
@@ -335,15 +338,38 @@ extension AppDelegate {
 
     private func installSettingsChangeHandler() {
         settings.onChange = { [weak self] in
-            self?.clipboardToastController?.applySettings()
-            self?.twitchNotificationController?.applySettings()
-            self?.syncWebPClipboardConverter()
-            self?.syncMarkdownHotKey()
-            self?.syncClearURLsClipboardCleaner()
-            self?.microphoneToastController?.applySettings()
-            self?.refreshStatusMenu()
-            self?.toolsWindowController?.refreshTwitchView()
-            self?.toolsWindowController?.refreshScreenshotSaveSettingsView()
+            guard let self else { return }
+            self.clipboardToastController?.applySettings()
+            self.syncWebPClipboardConverter()
+            self.syncMarkdownHotKey()
+            self.syncClearURLsClipboardCleaner()
+            self.microphoneToastController?.applySettings()
+            self.refreshStatusMenu()
+            self.toolsWindowController?.refreshSettings()
+        }
+        settings.onTwitchSettingsChange = { [weak self] in
+            guard let self else { return }
+            self.twitchNotificationController?.applySettings()
+            self.toolsWindowController?.refreshTwitchView()
+        }
+        settings.onAppearanceChange = { [weak self] in
+            guard let self else { return }
+            AppTheme.apply(self.settings.appearance)
+            self.toastPresentationCoordinator?.refreshAppearance()
+            self.toolsWindowController?.refreshAppearance()
+        }
+    }
+
+    private func observeSystemAppearanceChanges() {
+        systemAppearanceObservation = NSApplication.shared.observe(
+            \.effectiveAppearance,
+            options: [.new]
+        ) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.settings.appearance == .system else { return }
+                self.toastPresentationCoordinator?.refreshAppearance()
+                self.toolsWindowController?.refreshAppearance()
+            }
         }
     }
 

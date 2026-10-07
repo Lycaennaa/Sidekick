@@ -38,6 +38,10 @@ final class ToastPresentationCoordinator {
     func relayoutForScreenChanges() {
         stack.relayoutForScreenChanges()
     }
+
+    func refreshAppearance() {
+        stack.refreshAppearance()
+    }
     @discardableResult
     func presentGeneral(
         _ model: ToastModel,

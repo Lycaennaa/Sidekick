@@ -20,15 +20,23 @@ actor PendingQueryGate {
 final class TokenStorage: @unchecked Sendable {
     private let lock = NSLock()
     private var storedValue: String?
+    private var storedReadCount = 0
 
     init(value: String?) {
         storedValue = value
     }
 
     var value: String? {
-        get { lock.withLock { storedValue } }
+        get {
+            lock.withLock {
+                storedReadCount += 1
+                return storedValue
+            }
+        }
         set { lock.withLock { storedValue = newValue } }
     }
+
+    var readCount: Int { lock.withLock { storedReadCount } }
 }
 
 actor AsyncGate {

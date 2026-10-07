@@ -116,6 +116,7 @@ final class ClipboardImageOpeningApplicationPickerView: NSView {
     private func buildView() {
         let titleLabel = NSTextField(labelWithString: "Copied Image Preview")
         titleLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+        titleLabel.alignment = .left
 
         let detailLabel = NSTextField(
             wrappingLabelWithString:
@@ -123,8 +124,10 @@ final class ClipboardImageOpeningApplicationPickerView: NSView {
                 + "its clipboard toast."
         )
         detailLabel.textColor = .secondaryLabelColor
+        detailLabel.alignment = .left
 
         let pickerLabel = NSTextField(labelWithString: "Open images in:")
+        pickerLabel.alignment = .left
         popupButton.target = self
         popupButton.action = #selector(selectionChanged)
         popupButton.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -136,6 +139,7 @@ final class ClipboardImageOpeningApplicationPickerView: NSView {
 
         selectionDescription.textColor = .secondaryLabelColor
         selectionDescription.font = .systemFont(ofSize: 12)
+        selectionDescription.alignment = .left
 
         let stack = NSStackView(views: [titleLabel, detailLabel, row, selectionDescription])
         stack.orientation = .vertical

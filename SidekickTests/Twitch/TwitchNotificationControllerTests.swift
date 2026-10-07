@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import WebKit
 import XCTest
@@ -118,6 +119,56 @@ final class TwitchNotificationControllerTests: XCTestCase {
 
         XCTAssertTrue(settings.twitchSelectedChannelIDs(for: .allExceptSelected).isEmpty)
         XCTAssertTrue(settings.twitchSelectedChannelIDs(for: .onlySelected).isEmpty)
+    }
+
+    func testHiddenTokenSaveClearsInputWithoutReadingStoredToken() throws {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        let session = twitchTestSession()
+        let storage = TokenStorage(value: nil)
+        let controller = makeController(
+            settings: settings,
+            authenticate: { _ in session },
+            followedStreams: { _ in [] },
+            sleeper: sleepForever,
+            tokenStorage: storage
+        )
+        defer { controller.terminate() }
+
+        _ = NSApplication.shared
+        let view = TwitchNotificationView(settings: settings, controller: controller)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView?.addSubview(view)
+        window.makeKeyAndOrderFront(nil)
+        defer { window.orderOut(nil) }
+        XCTAssertTrue(window.isVisible)
+        view.isHidden = true
+
+        func findTokenField(in view: NSView) -> NSTextField? {
+            if let field = view as? NSTextField,
+               field.placeholderString == "paste Twitch OAuth access token" {
+                return field
+            }
+            for subview in view.subviews {
+                if let field = findTokenField(in: subview) { return field }
+            }
+            return nil
+        }
+
+        let tokenField = try XCTUnwrap(findTokenField(in: view))
+        tokenField.stringValue = "saved-token"
+        let readCount = storage.readCount
+
+        controller.onTokenSave?(true, "saved-token")
+
+        XCTAssertEqual(tokenField.stringValue, "")
+        XCTAssertEqual(storage.readCount, readCount)
     }
 
     func testTerminalAuthorizationFailureClearsCurrentStreams() async {

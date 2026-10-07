@@ -126,6 +126,16 @@ final class ToastPanelController: NSObject {
         relayout(bottomOffset: currentBottomOffset)
     }
 
+    func refreshAppearance() {
+        contentView.effectiveAppearance.performAsCurrentDrawingAppearance {
+            contentView.layer?.backgroundColor = AppTheme.surface.cgColor
+            contentView.layer?.borderColor = AppTheme.border.cgColor
+            summaryLabel.textColor = AppTheme.primaryText
+            detailLabel.textColor = AppTheme.secondaryText
+            sourceLabel.textColor = AppTheme.primaryText
+        }
+    }
+
     func relayout(bottomOffset: CGFloat) {
         guard hasActiveToast else { return }
         currentBottomOffset = bottomOffset
@@ -275,13 +285,12 @@ extension ToastPanelController {
 
     private func configureContent() {
         contentView.wantsLayer = true
-        contentView.layer?.backgroundColor = AppTheme.surface.cgColor
-        contentView.layer?.borderColor = AppTheme.border.cgColor
         contentView.layer?.borderWidth = 1
         contentView.layer?.cornerRadius = Self.cornerRadius
         contentView.layer?.masksToBounds = true
         contentView.onPress = { [weak self] in self?.dismissFromUserInteraction() }
         contentView.onAction = { [weak self] in self?.performUserAction() }
+        contentView.onEffectiveAppearanceChange = { [weak self] in self?.refreshAppearance() }
         contentView.setAccessibilityElement(true)
         contentView.setAccessibilityRole(.button)
         contentView.setAccessibilityLabel("Dismiss notification")
@@ -321,6 +330,7 @@ extension ToastPanelController {
         sourceLabel.lineBreakMode = .byWordWrapping
         sourceLabel.maximumNumberOfLines = 0
         contentView.addSubview(sourceLabel)
+        refreshAppearance()
     }
 
     private func updateContent(for model: ToastModel) {

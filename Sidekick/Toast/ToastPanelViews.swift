@@ -8,6 +8,8 @@ final class ToastPanel: NSPanel {
 final class ToastContentView: NSView, NSGestureRecognizerDelegate {
     var onPress: (() -> Void)?
     var onAction: (() -> Void)?
+
+    var onEffectiveAppearanceChange: (() -> Void)?
     var isActionAvailable = false {
         didSet {
             previewClickRecognizer?.isEnabled = isActionAvailable
@@ -42,6 +44,11 @@ final class ToastContentView: NSView, NSGestureRecognizerDelegate {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onEffectiveAppearanceChange?()
     }
 
     override func accessibilityPerformPress() -> Bool {

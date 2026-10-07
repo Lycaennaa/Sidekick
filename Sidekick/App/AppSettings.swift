@@ -14,6 +14,8 @@ final class AppSettings {
     static let defaultToastDuration: TimeInterval = 2.5
 
     var onChange: (() -> Void)?
+    var onAppearanceChange: (() -> Void)?
+    var onTwitchSettingsChange: (() -> Void)?
 
     static let defaultScreenshotFilenameTemplate = ScreenshotFilenameTemplate.defaultTemplate
     static var defaultScreenshotSaveDirectoryURL: URL {
@@ -40,6 +42,7 @@ final class AppSettings {
         static let screenshotFilenameTemplate = "screenshotFilenameTemplate"
         static let screenshotCursorIncludedByDefault = "screenshotCursorIncludedByDefault"
         static let screenshotSaveAndCopyShortcut = "screenshotSaveAndCopyShortcut"
+        static let appearance = "appearance"
     }
 
     private let defaults: UserDefaults
@@ -57,7 +60,8 @@ final class AppSettings {
             Key.twitchNotificationsEnabled: false,
             Key.screenshotCursorIncludedByDefault: false,
             Key.screenshotSaveDirectoryPath: Self.defaultScreenshotSaveDirectoryURL.path,
-            Key.screenshotFilenameTemplate: Self.defaultScreenshotFilenameTemplate
+            Key.screenshotFilenameTemplate: Self.defaultScreenshotFilenameTemplate,
+            Key.appearance: AppAppearance.system.rawValue
         ])
 
         let storedDuration = defaults.double(forKey: Key.toastDuration)
@@ -81,6 +85,7 @@ final class AppSettings {
             guard newValue != twitchNotificationsEnabled else { return }
             defaults.set(newValue, forKey: Key.twitchNotificationsEnabled)
             onChange?()
+            onTwitchSettingsChange?()
         }
     }
 
@@ -186,6 +191,19 @@ final class AppSettings {
                 defaults.set(normalized, forKey: Key.twitchOAuthClientID)
             }
             onChange?()
+            onTwitchSettingsChange?()
+        }
+    }
+
+    var appearance: AppAppearance {
+        get {
+            guard let rawValue = defaults.string(forKey: Key.appearance) else { return .system }
+            return AppAppearance(rawValue: rawValue) ?? .system
+        }
+        set {
+            guard newValue != appearance else { return }
+            defaults.set(newValue.rawValue, forKey: Key.appearance)
+            onAppearanceChange?()
         }
     }
 

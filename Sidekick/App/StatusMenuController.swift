@@ -188,6 +188,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         statusItem.button?.title = "\(twitchLiveMenu.liveCount)"
     }
 
+    var microphoneToastOptionsMenu: NSMenu { microphoneToastMenu.menu }
+
     private func installMenu() {
         let menu = NSMenu()
         menu.autoenablesItems = false

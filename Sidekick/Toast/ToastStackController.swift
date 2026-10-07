@@ -120,6 +120,12 @@ final class ToastStackController {
         entries.removeAll()
     }
 
+    func refreshAppearance() {
+        for entry in entries {
+            entry.panel.refreshAppearance()
+        }
+    }
+
     func presentedFrame(for id: ID) -> CGRect? {
         entries.first { $0.id == id }?.panel.presentedFrame
     }
