@@ -8,6 +8,8 @@ final class ClipboardSettingsView: NSView {
     private let webPSwitch = NSSwitch()
     private let markdownSwitch = NSSwitch()
     private let clearURLsSwitch = NSSwitch()
+    private let clipboardToastSwitch = NSSwitch()
+    private let toastDurationPopup = NSPopUpButton()
 
     init(
         settings: AppSettings,
@@ -33,6 +35,9 @@ final class ClipboardSettingsView: NSView {
         markdownSwitch.state = settings.markdownClipboardCleanerEnabled ? .on : .off
         clearURLsSwitch.state = clearURLsAvailable && settings.clearURLsClipboardEnabled ? .on : .off
         clearURLsSwitch.isEnabled = clearURLsAvailable
+        clipboardToastSwitch.state = settings.clipboardToastEnabled ? .on : .off
+        let selectedDuration = AppSettings.allowedToastDurations.firstIndex(of: settings.toastDuration) ?? 0
+        toastDurationPopup.selectItem(at: selectedDuration)
         imageOpeningApplicationPicker.refresh()
     }
 
@@ -46,6 +51,15 @@ final class ClipboardSettingsView: NSView {
 
     @objc private func toggleClearURLs() {
         settings.clearURLsClipboardEnabled = clearURLsSwitch.state == .on
+    }
+
+    @objc private func toggleClipboardToast() {
+        settings.clipboardToastEnabled = clipboardToastSwitch.state == .on
+    }
+
+    @objc private func selectToastDuration() {
+        guard let duration = toastDurationPopup.selectedItem?.representedObject as? NSNumber else { return }
+        settings.toastDuration = duration.doubleValue
     }
 
     private func buildView() {
@@ -63,7 +77,9 @@ final class ClipboardSettingsView: NSView {
         configureSwitches()
 
         let stack = NSStackView(
-            views: [title, detail, imageOpeningApplicationPicker, makeSeparator(), sectionTitle] + makeToolRows()
+            views: [title, detail, imageOpeningApplicationPicker, makeSeparator(), sectionTitle]
+                + makeToolRows()
+                + [makeSeparator(), makeClipboardNotificationSettings()]
         )
         stack.orientation = .vertical
         configureSettingsPageStack(stack)
@@ -88,7 +104,79 @@ final class ClipboardSettingsView: NSView {
         clearURLsSwitch.target = self
         clearURLsSwitch.action = #selector(toggleClearURLs)
         clearURLsSwitch.setAccessibilityLabel("Clean tracking parameters from clipboard URLs")
+        clipboardToastSwitch.target = self
+        clipboardToastSwitch.action = #selector(toggleClipboardToast)
+        clipboardToastSwitch.setAccessibilityLabel("Clipboard notifications")
+        toastDurationPopup.target = self
+        toastDurationPopup.action = #selector(selectToastDuration)
+        toastDurationPopup.setAccessibilityLabel("Clipboard toast duration")
+        for duration in AppSettings.allowedToastDurations {
+            toastDurationPopup.addItem(withTitle: Self.durationTitle(duration))
+            toastDurationPopup.lastItem?.representedObject = NSNumber(value: duration)
+        }
     }
+    private func makeClipboardNotificationSettings() -> NSView {
+        let title = NSTextField(labelWithString: "Clipboard notifications")
+        title.font = .systemFont(ofSize: 17, weight: .semibold)
+        title.alignment = .left
+
+        let notificationRow = makeToggleRow(
+            title: "Clipboard notifications",
+            detail: "Show a toast when new clipboard content is detected.",
+            toggle: clipboardToastSwitch
+        )
+
+        let durationTitle = NSTextField(labelWithString: "Toast duration")
+        durationTitle.font = .systemFont(ofSize: 14, weight: .semibold)
+        let durationDetail = NSTextField(
+            wrappingLabelWithString: "How long clipboard toasts remain visible."
+        )
+        durationDetail.textColor = .secondaryLabelColor
+        let durationLabels = NSStackView(views: [durationTitle, durationDetail])
+        durationLabels.orientation = .vertical
+        durationLabels.alignment = .leading
+        durationLabels.distribution = .fill
+        durationLabels.spacing = 4
+        durationLabels.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let durationRow = NSStackView(views: [durationLabels, toastDurationPopup])
+        durationRow.orientation = .horizontal
+        durationRow.alignment = .centerY
+        durationRow.distribution = .fill
+        durationRow.spacing = 18
+
+        let stack = NSStackView(views: [title, notificationRow, durationRow])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.distribution = .fill
+        stack.spacing = 12
+        return stack
+    }
+
+    private func makeToggleRow(title: String, detail: String, toggle: NSSwitch) -> NSView {
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        let detailLabel = NSTextField(wrappingLabelWithString: detail)
+        detailLabel.textColor = .secondaryLabelColor
+
+        let labels = NSStackView(views: [titleLabel, detailLabel])
+        labels.orientation = .vertical
+        labels.alignment = .leading
+        labels.distribution = .fill
+        labels.spacing = 4
+        labels.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let row = NSStackView(views: [labels, toggle])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.distribution = .fill
+        row.spacing = 18
+        return row
+    }
+
+    private static func durationTitle(_ duration: TimeInterval) -> String {
+        duration == duration.rounded() ? "\(Int(duration)) seconds" : "\(duration) seconds"
+    }
+
 
     private func makeToolRows() -> [NSView] {
         [

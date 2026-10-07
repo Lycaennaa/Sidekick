@@ -116,7 +116,7 @@ targets:
       - path: Sidekick/App/ClipboardSettingsView.swift
       - path: Sidekick/App/ScreenshotSettingsView.swift
       - path: Sidekick/App/ScreenshotSaveSettingsView.swift
-      - path: Sidekick/App/NotificationsSettingsView.swift
+      - path: Sidekick/App/TwitchSettingsView.swift
       - path: Sidekick/App/OutputVolumeSettingsView.swift
       - path: Sidekick/App/AppearanceSettingsView.swift
       - path: Sidekick/App/ClipboardImageOpeningApplicationPickerView.swift

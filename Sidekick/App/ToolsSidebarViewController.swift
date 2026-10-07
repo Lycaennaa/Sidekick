@@ -3,7 +3,7 @@ import AppKit
 enum ToolsSettingsPage: Int, CaseIterable {
     case clipboard
     case screenshots
-    case notifications
+    case twitch
     case audio
     case outputVolume
     case appearance
@@ -12,7 +12,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         switch self {
         case .clipboard: "Clipboard"
         case .screenshots: "Screenshots"
-        case .notifications: "Notifications"
+        case .twitch: "Twitch"
         case .audio: "Audio"
         case .outputVolume: "Output Volume"
         case .appearance: "Appearance"
@@ -23,7 +23,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         switch self {
         case .clipboard: "doc.on.clipboard"
         case .screenshots: "viewfinder"
-        case .notifications: "bell.badge"
+        case .twitch: "bell.badge"
         case .audio: "waveform"
         case .outputVolume: "speaker.wave.2"
         case .appearance: "paintpalette"

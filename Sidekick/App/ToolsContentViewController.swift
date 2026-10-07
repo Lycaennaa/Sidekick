@@ -5,7 +5,7 @@ final class ToolsContentViewController: NSViewController {
     private let clipboardView: ClipboardSettingsView
     private let screenshotView: ScreenshotSettingsView
     private let screenshotSaveSettingsView: ScreenshotSaveSettingsView
-    private let notificationsView: NotificationsSettingsView
+    private let twitchView: TwitchSettingsView
     private let audioView: AudioSettingsView
     private let outputVolumeView: OutputVolumeSettingsView
     private let appearanceView: AppearanceSettingsView
@@ -29,10 +29,7 @@ final class ToolsContentViewController: NSViewController {
         )
         self.screenshotSaveSettingsView = screenshotSaveSettingsView
         screenshotView = ScreenshotSettingsView(settings: settings, onCapture: onCaptureScreenshot)
-        notificationsView = NotificationsSettingsView(
-            settings: settings,
-            twitchNotificationView: twitchNotificationView
-        )
+        twitchView = TwitchSettingsView(twitchNotificationView: twitchNotificationView)
         audioView = AudioSettingsView(
             settings: settings,
             microphoneToastOptionsMenu: microphoneToastOptionsMenu
@@ -58,15 +55,15 @@ final class ToolsContentViewController: NSViewController {
     func select(_ page: ToolsSettingsPage) {
         selectedPage = page
         pageHost?.select(page)
-        if page == .notifications {
-            notificationsView.refreshTwitchView()
+        if page == .twitch {
+            twitchView.refresh()
         }
     }
 
     func refreshViews() {
         refreshSettings()
-        if selectedPage == .notifications {
-            notificationsView.refreshTwitchView()
+        if selectedPage == .twitch {
+            twitchView.refresh()
         }
     }
 
@@ -74,7 +71,7 @@ final class ToolsContentViewController: NSViewController {
         clipboardView.refresh()
         screenshotView.refresh()
         screenshotSaveSettingsView.refresh()
-        notificationsView.refreshSettings()
+        twitchView.refresh()
         audioView.refresh()
     }
 
@@ -83,15 +80,15 @@ final class ToolsContentViewController: NSViewController {
     }
 
     func refreshTwitchView() {
-        guard selectedPage == .notifications else { return }
-        notificationsView.refreshTwitchView()
+        guard selectedPage == .twitch else { return }
+        twitchView.refresh()
     }
 
     private func contentView(for page: ToolsSettingsPage) -> NSView {
         switch page {
         case .clipboard: clipboardView
         case .screenshots: screenshotPage
-        case .notifications: notificationsView
+        case .twitch: twitchView
         case .audio: audioView
         case .outputVolume: outputVolumeView
         case .appearance: appearanceView

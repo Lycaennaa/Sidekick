@@ -11,6 +11,7 @@ final class ToolsContentViewControllerTests: XCTestCase {
         sidebar.onSelection = { pageHost.select($0) }
         sidebar.loadViewIfNeeded()
         let tableView = try XCTUnwrap(findView(NSTableView.self, in: sidebar.view))
+        XCTAssertEqual(ToolsSettingsPage.twitch.title, "Twitch")
 
         for page in ToolsSettingsPage.allCases {
             tableView.selectRowIndexes(IndexSet(integer: page.rawValue), byExtendingSelection: false)
@@ -41,7 +42,10 @@ final class ToolsContentViewControllerTests: XCTestCase {
         let heading = try XCTUnwrap(findTextField("Clipboard", in: clipboardView))
         let section = try XCTUnwrap(findTextField("Clipboard tools", in: clipboardView))
         let firstTool = try XCTUnwrap(findTextField("Convert clipboard images to WebP", in: clipboardView))
-
+        let clipboardNotifications = try XCTUnwrap(findTextField("Clipboard notifications", in: clipboardView))
+        let toastDuration = try XCTUnwrap(findTextField("Toast duration", in: clipboardView))
+        XCTAssertEqual(clipboardNotifications.stringValue, "Clipboard notifications")
+        XCTAssertEqual(toastDuration.stringValue, "Toast duration")
         XCTAssertEqual(heading.alignment, .left)
         XCTAssertEqual(section.alignment, .left)
         XCTAssertEqual(firstTool.alignment, .left)
