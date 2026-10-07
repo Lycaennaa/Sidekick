@@ -153,6 +153,72 @@ final class TwitchAPIClientTests: XCTestCase {
         }
     }
 
+    func testFollowedChannelsPaginatesAndDecodesTwitchChannelIDs() async throws {
+        StubURLProtocol.handler = { request in
+            let url = try XCTUnwrap(request.url)
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            XCTAssertEqual(url.path, "/helix/channels/followed")
+            XCTAssertEqual(components?.queryItems?.first(where: { $0.name == "user_id" })?.value, "user")
+            XCTAssertEqual(components?.queryItems?.first(where: { $0.name == "first" })?.value, "100")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Client-ID"), "client")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+            if components?.queryItems?.first(where: { $0.name == "after" })?.value == "next" {
+                return .json(
+                    Data(
+                        #"""
+                        {"data":[
+                          {"broadcaster_id":"id-2","broadcaster_login":"second","broadcaster_name":"Second"}
+                        ],"pagination":{}}
+                        """#.utf8
+                    )
+                )
+            }
+            return .json(
+                Data(
+                    #"""
+                    {"data":[
+                      {"broadcaster_id":"id-1","broadcaster_login":"first","broadcaster_name":"First"}
+                    ],"pagination":{"cursor":"next"}}
+                    """#.utf8
+                )
+            )
+        }
+
+        let channels = try await makeClient().followedChannels(for: session)
+
+        XCTAssertEqual(
+            channels,
+            [
+                TwitchFollowedChannel(id: "id-1", login: "first", name: "First"),
+                TwitchFollowedChannel(id: "id-2", login: "second", name: "Second")
+            ]
+        )
+    }
+
+    func testFollowedEndpointsRejectNonconsecutiveCursorCycles() async {
+        await assertCursorCycleRejected { client in
+            _ = try await client.followedStreams(for: session)
+        }
+        await assertCursorCycleRejected { client in
+            _ = try await client.followedChannels(for: session)
+        }
+    }
+
+    func testFollowedChannelsSucceedsThroughDefaultURLSessionOverLoopback() async throws {
+        let response = Data(
+            #"""
+            {"data":[{"broadcaster_id":"id","broadcaster_login":"login","broadcaster_name":"Channel"}],"pagination":{}}
+            """#.utf8
+        )
+        let server = try LoopbackHTTPServer(responseBody: response)
+        defer { server.stop() }
+        let client = TwitchAPIClient(apiBaseURL: try XCTUnwrap(server.baseURL))
+
+        let channels = try await client.followedChannels(for: session)
+
+        XCTAssertEqual(channels, [TwitchFollowedChannel(id: "id", login: "login", name: "Channel")])
+    }
+
     func testFollowedStreamsRejectsPageLargerThanConfiguredPageSize() async throws {
         StubURLProtocol.handler = { _ in
             let page = (0...TwitchAPIClient.pageSize).map { index in
@@ -181,6 +247,42 @@ final class TwitchAPIClientTests: XCTestCase {
         .init(accessToken: "token", clientID: "client", userID: "user")
     }
 
+    private func assertCursorCycleRejected(
+        fetch: (TwitchAPIClient) async throws -> Void
+    ) async {
+        StubURLProtocol.handler = { request in
+            let components = URLComponents(
+                url: try XCTUnwrap(request.url),
+                resolvingAgainstBaseURL: false
+            )
+            let currentCursor = components?.queryItems?.first(where: { $0.name == "after" })?.value
+            let nextCursor: String
+            if currentCursor == nil {
+                nextCursor = "A"
+            } else if currentCursor == "A" {
+                nextCursor = "B"
+            } else {
+                nextCursor = "A"
+            }
+            let page = """
+            {"data":[{
+              "id":"stream-id","user_id":"user-id","user_login":"login","user_name":"name",
+              "title":"title","game_name":"game",
+              "broadcaster_id":"channel-id","broadcaster_login":"login","broadcaster_name":"name"
+            }],"pagination":{"cursor":"\(nextCursor)"}}
+            """
+            return .json(Data(page.utf8))
+        }
+
+        do {
+            try await fetch(makeClient())
+            XCTFail("Expected a repeated cursor to be rejected")
+        } catch let error as TwitchAPIClient.APIError {
+            XCTAssertEqual(error, .invalidResponse)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
     private func makeClient() -> TwitchAPIClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]

@@ -26,6 +26,68 @@ final class TwitchNotificationModelsTests: XCTestCase {
         )
     }
 
+    func testNotificationChannelModesIncludeAndExcludeCheckedChannels() {
+        let checkedIDs: Set<String> = ["channel-1"]
+
+        XCTAssertTrue(TwitchNotificationChannelMode.all.includes(
+            channelID: "channel-1",
+            selectedChannelIDs: checkedIDs
+        ))
+        XCTAssertTrue(TwitchNotificationChannelMode.all.includes(
+            channelID: "channel-2",
+            selectedChannelIDs: checkedIDs
+        ))
+        XCTAssertFalse(TwitchNotificationChannelMode.allExceptSelected.includes(
+            channelID: "channel-1",
+            selectedChannelIDs: checkedIDs
+        ))
+        XCTAssertTrue(TwitchNotificationChannelMode.allExceptSelected.includes(
+            channelID: "channel-2",
+            selectedChannelIDs: checkedIDs
+        ))
+        XCTAssertTrue(TwitchNotificationChannelMode.onlySelected.includes(
+            channelID: "channel-1",
+            selectedChannelIDs: checkedIDs
+        ))
+        XCTAssertFalse(TwitchNotificationChannelMode.onlySelected.includes(
+            channelID: "channel-2",
+            selectedChannelIDs: checkedIDs
+        ))
+    }
+
+    func testLocalFollowedChannelSearchMatchesFuzzyNamesAndLogins() {
+        let channel = TwitchFollowedChannel(id: "id", login: "alpha_gamer", name: "Fúzzy Channel")
+        let channels = [channel]
+
+        XCTAssertEqual(TwitchFollowedChannelSearch.filter(channels, query: "fzch"), [channel])
+        XCTAssertEqual(TwitchFollowedChannelSearch.filter(channels, query: "AG"), [channel])
+        XCTAssertEqual(TwitchFollowedChannelSearch.filter(channels, query: "  "), channels)
+        XCTAssertTrue(TwitchFollowedChannelSearch.filter(channels, query: "unmatched").isEmpty)
+    }
+
+    func testFollowedChannelDirectoryRetainsLastListAfterRefreshFailure() {
+        var directory = TwitchFollowedChannelDirectory()
+        let channels = [
+            TwitchFollowedChannel(id: "b", login: "second", name: "Second"),
+            TwitchFollowedChannel(id: "a", login: "first", name: "First")
+        ]
+
+        XCTAssertTrue(directory.update(nil))
+        XCTAssertTrue(directory.hasFailed)
+        XCTAssertFalse(directory.hasLoaded)
+        XCTAssertTrue(directory.update(channels))
+        XCTAssertTrue(directory.hasLoaded)
+        XCTAssertFalse(directory.hasFailed)
+        XCTAssertEqual(directory.channels.map(\.id), ["a", "b"])
+        XCTAssertTrue(directory.update(nil))
+        XCTAssertTrue(directory.hasLoaded)
+        XCTAssertTrue(directory.hasFailed)
+        XCTAssertEqual(directory.channels.map(\.id), ["a", "b"])
+        XCTAssertFalse(directory.update(nil))
+        XCTAssertTrue(directory.reset())
+        XCTAssertEqual(directory.state, .waiting)
+    }
+
     func testOAuthPrefixAndWhitespaceAreNormalized() {
         XCTAssertEqual(TwitchOAuthToken.normalized("  OAuth:abc123\n"), "abc123")
         XCTAssertEqual(TwitchOAuthToken.normalized("  abc123  "), "abc123")

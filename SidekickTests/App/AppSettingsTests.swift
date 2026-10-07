@@ -47,6 +47,63 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertTrue(AppSettings(defaults: defaults).twitchNotificationsEnabled)
     }
 
+    func testTwitchChannelSelectionsAreIndependentUnlessKeptBetweenModes() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.twitchNotificationChannelMode, .all)
+        XCTAssertFalse(settings.twitchKeepChannelSelectionsBetweenModes)
+        settings.twitchNotificationChannelMode = .allExceptSelected
+        settings.setTwitchSelectedChannelIDs(["excluded"], for: .allExceptSelected)
+        settings.setTwitchSelectedChannelIDs(["included"], for: .onlySelected)
+        XCTAssertEqual(settings.twitchSelectedChannelIDs(for: .allExceptSelected), ["excluded"])
+        XCTAssertEqual(settings.twitchSelectedChannelIDs(for: .onlySelected), ["included"])
+
+        settings.setTwitchKeepChannelSelectionsBetweenModes(true, using: .allExceptSelected)
+        XCTAssertEqual(settings.twitchSelectedChannelIDs(for: .onlySelected), ["excluded"])
+        settings.setTwitchSelectedChannelIDs(["shared"], for: .onlySelected)
+        XCTAssertEqual(settings.twitchSelectedChannelIDs(for: .allExceptSelected), ["shared"])
+
+        settings.setTwitchKeepChannelSelectionsBetweenModes(false, using: .onlySelected)
+        settings.setTwitchSelectedChannelIDs(["only"], for: .onlySelected)
+        XCTAssertEqual(settings.twitchSelectedChannelIDs(for: .allExceptSelected), ["shared"])
+        XCTAssertEqual(AppSettings(defaults: defaults).twitchSelectedChannelIDs(for: .onlySelected), ["only"])
+    }
+
+    func testTwitchChannelFilterChangesDoNotTriggerGlobalSettingsChange() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        var changeCount = 0
+        settings.onChange = { changeCount += 1 }
+
+        settings.twitchNotificationChannelMode = .allExceptSelected
+        settings.setTwitchSelectedChannelIDs(["stale"], for: .allExceptSelected)
+        settings.setTwitchKeepChannelSelectionsBetweenModes(true, using: .allExceptSelected)
+        settings.setTwitchSelectedChannelIDs(["retained", "stale"], for: .onlySelected)
+        settings.setTwitchKeepChannelSelectionsBetweenModes(false, using: .onlySelected)
+        settings.pruneTwitchChannelSelections(keeping: ["retained"])
+
+        XCTAssertEqual(changeCount, 0)
+    }
+
+    func testLegacySharedChannelSelectionMigratesAndUnfollowedIDsArePruned() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        defaults.set(["legacy-id"], forKey: "twitchSelectedChannelIDs")
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.twitchSelectedChannelIDs(for: .allExceptSelected), ["legacy-id"])
+        XCTAssertEqual(settings.twitchSelectedChannelIDs(for: .onlySelected), ["legacy-id"])
+        settings.setTwitchSelectedChannelIDs(["legacy-id", "unfollowed-id"], for: .onlySelected)
+        XCTAssertNil(defaults.object(forKey: "twitchSelectedChannelIDs"))
+        settings.pruneTwitchChannelSelections(keeping: ["legacy-id"])
+
+        XCTAssertEqual(settings.twitchSelectedChannelIDs(for: .allExceptSelected), ["legacy-id"])
+        XCTAssertEqual(settings.twitchSelectedChannelIDs(for: .onlySelected), ["legacy-id"])
+    }
+
     func testTwitchOAuthClientIDDefaultsEmptyAndPersistsTrimmedOverride() {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }

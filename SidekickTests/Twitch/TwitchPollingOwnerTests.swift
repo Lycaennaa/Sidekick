@@ -7,22 +7,29 @@ final class TwitchPollingOwnerTests: XCTestCase {
         let sleeper = CancellationRecordingSleeper()
         let notifications = NotificationRecorder()
         let pollingSession = twitchTestSession()
+        let followedChannel = TwitchFollowedChannel(id: "channel-id", login: "channel", name: "Channel")
         let owner = TwitchPollingOwner(
             dependencies: .init(
                 authenticate: { _ in pollingSession },
                 followedStreams: { _ in [] },
+                followedChannels: { _ in [followedChannel] },
                 notifications: notifications.client,
                 sleeper: .init(sleep: { interval in try await sleeper.sleep(interval) }),
                 pollInterval: 150
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
+        var followedChannelIDs: [String] = []
         owner.start(
             token: "token",
             onStatus: { statuses.append($0) },
-            onStreams: { _, _, _ in [] }
+            onStreams: { _, _, _ in [] },
+            onFollowedChannels: { channels, _ in
+                followedChannelIDs = channels?.map(\.id) ?? []
+            }
         )
         await twitchEventually { statuses.contains(.active) }
+        await twitchEventually { followedChannelIDs == ["channel-id"] }
 
         owner.stop()
         await twitchEventuallyAsync { await sleeper.wasCancelled }
@@ -34,25 +41,6 @@ final class TwitchPollingOwnerTests: XCTestCase {
             [.requestingPermission, .checking, .active]
         )
     }
-    func testPollingStatusMessagesRemainStable() {
-        let statuses: [(TwitchPollingOwner.Status, String)] = [
-            (.requestingPermission, "requesting notification permission…"),
-            (.checking, "checking twitch…"),
-            (
-                .active,
-                "watching followed channels · checks every \(TwitchAPIClient.pollInterval.formatted()) seconds"
-            ),
-            (.notificationPermissionDenied, "macos notifications are denied for this app"),
-            (.invalidOAuthToken, "oauth token is invalid or expired"),
-            (.missingFollowedStreamsScope, "token needs user:read:follows permission"),
-            (.notificationPermissionError, "could not request macos notification permission; retrying"),
-            (.error("custom polling error"), "custom polling error")
-        ]
-
-        for (status, expectedMessage) in statuses {
-            XCTAssertEqual(status.message, expectedMessage)
-        }
-    }
 
     func testPollingOwnerReportsDeniedPermissionAndStops() async {
         let session = twitchTestSession()
@@ -60,6 +48,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
             dependencies: .init(
                 authenticate: { _ in session },
                 followedStreams: { _ in [] },
+                followedChannels: { _ in [] },
                 notifications: makeTwitchNotificationClient(authorizationStatus: .denied),
                 sleeper: .init(sleep: { _ in try Task.checkCancellation() }),
                 pollInterval: 1
@@ -98,6 +87,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
             dependencies: .init(
                 authenticate: { _ in session },
                 followedStreams: { _ in [] },
+                followedChannels: { _ in [] },
                 notifications: notifications,
                 sleeper: .init(sleep: { _ in try Task.checkCancellation() }),
                 pollInterval: 1
@@ -129,6 +119,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
             dependencies: .init(
                 authenticate: { _ in session },
                 followedStreams: { _ in [] },
+                followedChannels: { _ in [] },
                 notifications: makeTwitchNotificationClient(
                     authorizationStatus: .notDetermined,
                     requestAuthorization: { try await permissionPlan.request() }
@@ -170,6 +161,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
             dependencies: .init(
                 authenticate: { _ in throw TwitchAPIClient.APIError.invalidToken },
                 followedStreams: { _ in [] },
+                followedChannels: { _ in [] },
                 notifications: makeTwitchNotificationClient(authorizationStatus: .authorized),
                 sleeper: .init(sleep: { _ in
                     try await Task.sleep(nanoseconds: UInt64.max)
@@ -200,6 +192,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
             dependencies: .init(
                 authenticate: { _ in throw TwitchAPIClient.APIError.missingFollowedStreamsScope },
                 followedStreams: { _ in [] },
+                followedChannels: { _ in [] },
                 notifications: makeTwitchNotificationClient(authorizationStatus: .authorized),
                 sleeper: .init(sleep: { _ in
                     try await Task.sleep(nanoseconds: UInt64.max)
@@ -232,6 +225,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
             dependencies: .init(
                 authenticate: { _ in throw TwitchAPIClient.APIError.network },
                 followedStreams: { _ in [] },
+                followedChannels: { _ in [] },
                 notifications: notifications.client,
                 sleeper: .init(sleep: { interval in try await sleeper.sleep(interval) }),
                 pollInterval: 150
@@ -266,6 +260,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
             dependencies: .init(
                 authenticate: { _ in session },
                 followedStreams: { _ in try await responses.next() },
+                followedChannels: { _ in [] },
                 notifications: notifications.client,
                 sleeper: .init(sleep: { _ in
                     await sleeperGate.wait()
@@ -305,6 +300,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
             dependencies: .init(
                 authenticate: { _ in session },
                 followedStreams: { _ in [] },
+                followedChannels: { _ in [] },
                 notifications: notifications.client,
                 sleeper: .init(sleep: { _ in
                     try await Task.sleep(nanoseconds: UInt64.max)
@@ -339,6 +335,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
             dependencies: .init(
                 authenticate: { _ in session },
                 followedStreams: { _ in await responses.next() },
+                followedChannels: { _ in [] },
                 notifications: notifications.client,
                 sleeper: .init(sleep: { _ in
                     await sleeperGate.wait()
@@ -385,6 +382,29 @@ final class TwitchPollingOwnerTests: XCTestCase {
         owner.stop()
         await sleeperGate.open()
         XCTAssertFalse(owner.isRunning)
+    }
+}
+
+@MainActor
+final class TwitchPollingOwnerStatusTests: XCTestCase {
+    func testPollingStatusMessagesRemainStable() {
+        let statuses: [(TwitchPollingOwner.Status, String)] = [
+            (.requestingPermission, "requesting notification permission…"),
+            (.checking, "checking twitch…"),
+            (
+                .active,
+                "watching followed channels · checks every \(TwitchAPIClient.pollInterval.formatted()) seconds"
+            ),
+            (.notificationPermissionDenied, "macos notifications are denied for this app"),
+            (.invalidOAuthToken, "oauth token is invalid or expired"),
+            (.missingFollowedStreamsScope, "token needs user:read:follows permission"),
+            (.notificationPermissionError, "could not request macos notification permission; retrying"),
+            (.error("custom polling error"), "custom polling error")
+        ]
+
+        for (status, expectedMessage) in statuses {
+            XCTAssertEqual(status.message, expectedMessage)
+        }
     }
 }
 @MainActor

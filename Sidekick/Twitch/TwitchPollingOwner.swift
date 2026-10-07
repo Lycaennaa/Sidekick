@@ -6,6 +6,7 @@ final class TwitchPollingOwner {
     struct Dependencies: Sendable {
         let authenticate: @Sendable (String) async throws -> TwitchAPIClient.Session
         let followedStreams: @Sendable (TwitchAPIClient.Session) async throws -> [TwitchFollowedStream]
+        let followedChannels: @Sendable (TwitchAPIClient.Session) async throws -> [TwitchFollowedChannel]
         let notifications: TwitchNotificationCenterClient
         let sleeper: TwitchSleepClient
         let pollInterval: TimeInterval
@@ -55,11 +56,18 @@ final class TwitchPollingOwner {
     typealias StatusHandler = @MainActor @Sendable (Status) -> Void
     typealias GenerationStatusHandler = @MainActor @Sendable (Status, UInt64) -> Void
     typealias CurrentStreamsHandler = @MainActor @Sendable ([TwitchFollowedStream], UInt64) -> Void
+    typealias FollowedChannelsHandler = @MainActor @Sendable ([TwitchFollowedChannel]?, UInt64) -> Void
     typealias StreamsHandler = @MainActor @Sendable (
         [TwitchFollowedStream],
         TwitchAPIClient.Session,
         UInt64
     ) async -> Set<String>
+    private struct Callbacks: Sendable {
+        let onStatus: GenerationStatusHandler
+        let onStreams: StreamsHandler
+        let onCurrentStreams: CurrentStreamsHandler?
+        let onFollowedChannels: FollowedChannelsHandler?
+    }
 
     private enum StreamBaseline {
         case awaitingFirstFetch
@@ -120,13 +128,15 @@ final class TwitchPollingOwner {
         token: String,
         onStatus: @escaping StatusHandler,
         onStreams: @escaping StreamsHandler,
-        onCurrentStreams: CurrentStreamsHandler? = nil
+        onCurrentStreams: CurrentStreamsHandler? = nil,
+        onFollowedChannels: FollowedChannelsHandler? = nil
     ) -> UInt64 {
         start(
             token: token,
             onStatusWithGeneration: { status, _ in onStatus(status) },
             onStreams: onStreams,
-            onCurrentStreams: onCurrentStreams
+            onCurrentStreams: onCurrentStreams,
+            onFollowedChannels: onFollowedChannels
         )
     }
 
@@ -135,21 +145,22 @@ final class TwitchPollingOwner {
         token: String,
         onStatusWithGeneration: @escaping GenerationStatusHandler,
         onStreams: @escaping StreamsHandler,
-        onCurrentStreams: CurrentStreamsHandler? = nil
+        onCurrentStreams: CurrentStreamsHandler? = nil,
+        onFollowedChannels: FollowedChannelsHandler? = nil
     ) -> UInt64 {
         stop()
         generation &+= 1
         let requestedGeneration = generation
         self.token = token
         streamBaseline = .awaitingFirstFetch
+        let callbacks = Callbacks(
+            onStatus: onStatusWithGeneration,
+            onStreams: onStreams,
+            onCurrentStreams: onCurrentStreams,
+            onFollowedChannels: onFollowedChannels
+        )
         task = Task { [weak self] in
-            await self?.run(
-                token: token,
-                generation: requestedGeneration,
-                onStatus: onStatusWithGeneration,
-                onStreams: onStreams,
-                onCurrentStreams: onCurrentStreams
-            )
+            await self?.run(token: token, generation: requestedGeneration, callbacks: callbacks)
         }
         return requestedGeneration
     }
@@ -162,13 +173,7 @@ final class TwitchPollingOwner {
         streamBaseline = .awaitingFirstFetch
     }
 
-    private func run(
-        token: String,
-        generation: UInt64,
-        onStatus: @escaping GenerationStatusHandler,
-        onStreams: @escaping StreamsHandler,
-        onCurrentStreams: CurrentStreamsHandler?
-    ) async {
+    private func run(token: String, generation: UInt64, callbacks: Callbacks) async {
         defer {
             if self.generation == generation {
                 task = nil
@@ -176,15 +181,9 @@ final class TwitchPollingOwner {
         }
 
         guard isCurrent(generation) else { return }
-        onStatus(.requestingPermission, generation)
-        guard await waitForPermission(generation: generation, onStatus: onStatus) else { return }
-        await poll(
-            token: token,
-            generation: generation,
-            onStatus: onStatus,
-            onStreams: onStreams,
-            onCurrentStreams: onCurrentStreams
-        )
+        callbacks.onStatus(.requestingPermission, generation)
+        guard await waitForPermission(generation: generation, onStatus: callbacks.onStatus) else { return }
+        await poll(token: token, generation: generation, callbacks: callbacks)
     }
 
     func isCurrent(_ requestedGeneration: UInt64) -> Bool {
@@ -219,21 +218,9 @@ extension TwitchPollingOwner {
         return false
     }
 
-    private func poll(
-        token: String,
-        generation: UInt64,
-        onStatus: @escaping GenerationStatusHandler,
-        onStreams: @escaping StreamsHandler,
-        onCurrentStreams: CurrentStreamsHandler?
-    ) async {
+    private func poll(token: String, generation: UInt64, callbacks: Callbacks) async {
         while isCurrent(generation) {
-            guard await pollOnce(
-                token: token,
-                generation: generation,
-                onStatus: onStatus,
-                onStreams: onStreams,
-                onCurrentStreams: onCurrentStreams
-            ) else {
+            guard await pollOnce(token: token, generation: generation, callbacks: callbacks) else {
                 return
             }
             guard isCurrent(generation) else { return }
@@ -245,57 +232,50 @@ extension TwitchPollingOwner {
         }
     }
 
-    private func pollOnce(
-        token: String,
-        generation: UInt64,
-        onStatus: @escaping GenerationStatusHandler,
-        onStreams: @escaping StreamsHandler,
-        onCurrentStreams: CurrentStreamsHandler?
-    ) async -> Bool {
-        onStatus(.checking, generation)
+    private func pollOnce(token: String, generation: UInt64, callbacks: Callbacks) async -> Bool {
+        callbacks.onStatus(.checking, generation)
         do {
-            try await fetchAndDeliver(
-                token: token,
-                generation: generation,
-                onStatus: onStatus,
-                onStreams: onStreams,
-                onCurrentStreams: onCurrentStreams
-            )
+            try await fetchAndDeliver(token: token, generation: generation, callbacks: callbacks)
             return true
         } catch is CancellationError {
             return false
         } catch let error as TwitchAPIClient.APIError {
             guard isCurrent(generation) else { return false }
-            return handle(error: error, generation: generation, onStatus: onStatus)
+            return handle(error: error, generation: generation, onStatus: callbacks.onStatus)
         } catch {
             guard isCurrent(generation) else { return false }
-            onStatus(.error("unexpected twitch notification error"), generation)
+            callbacks.onStatus(.error("unexpected twitch notification error"), generation)
             return true
         }
     }
 
-    private func fetchAndDeliver(
-        token: String,
-        generation: UInt64,
-        onStatus: @escaping GenerationStatusHandler,
-        onStreams: @escaping StreamsHandler,
-        onCurrentStreams: CurrentStreamsHandler?
-    ) async throws {
+    private func fetchAndDeliver(token: String, generation: UInt64, callbacks: Callbacks) async throws {
         guard isCurrent(generation) else { throw CancellationError() }
         let session = try await dependencies.authenticate(token)
         guard isCurrent(generation) else { throw CancellationError() }
         let streams = try await dependencies.followedStreams(session)
         guard isCurrent(generation) else { throw CancellationError() }
-        onCurrentStreams?(streams, generation)
+        callbacks.onCurrentStreams?(streams, generation)
         guard isCurrent(generation) else { throw CancellationError() }
 
         let newStreams = streamBaseline.streamsToNotify(currentStreams: streams)
         streamBaseline = streamBaseline.afterSuccessfulFetch(streams)
-        onStatus(.active, generation)
+        callbacks.onStatus(.active, generation)
         guard isCurrent(generation) else { throw CancellationError() }
-        let failedIDs = await onStreams(newStreams, session, generation)
+        let failedIDs = await callbacks.onStreams(newStreams, session, generation)
         guard isCurrent(generation) else { throw CancellationError() }
         streamBaseline = streamBaseline.afterDeliveryFailure(failedIDs)
+
+        do {
+            let channels = try await dependencies.followedChannels(session)
+            guard isCurrent(generation) else { throw CancellationError() }
+            callbacks.onFollowedChannels?(channels, generation)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            guard isCurrent(generation) else { throw CancellationError() }
+            callbacks.onFollowedChannels?(nil, generation)
+        }
     }
 
     private func handle(

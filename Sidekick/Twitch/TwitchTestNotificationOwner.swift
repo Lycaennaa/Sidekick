@@ -181,7 +181,7 @@ final class TwitchTestNotificationOwner {
                 return "could not reach twitch"
             case .rateLimited:
                 return "twitch api rate limit reached"
-            case .server, .invalidResponse, .tooManyFollowedStreams, .tooManyProfileImages:
+            case .server, .invalidResponse, .tooManyFollowedStreams, .tooManyFollowedChannels, .tooManyProfileImages:
                 return "could not fetch twitch profile picture"
             }
         }

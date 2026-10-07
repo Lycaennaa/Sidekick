@@ -34,6 +34,7 @@
 		14E804D77372190964F622D8 /* CoreAudioOutputDeviceDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4A98ECD36E9B3E0DEC02185 /* CoreAudioOutputDeviceDiscovery.swift */; };
 		152FF67ACBACC49423AE3F28 /* ScreenshotPixelInspectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 186962446950854B29731D65 /* ScreenshotPixelInspectionTests.swift */; };
 		155244374E7DD2A159D1ECAB /* ScreenshotCaptureIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3AE4E94A7318638C554EDE7 /* ScreenshotCaptureIntegrationTests.swift */; };
+		1562C8681BF0E0AA57E1C473 /* TwitchFollowedChannelSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EEF2270E113161BB73EE17 /* TwitchFollowedChannelSelectionView.swift */; };
 		15D88008EE15663D66304465 /* AppDelegate+Toasts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D70F55118211449961B6964 /* AppDelegate+Toasts.swift */; };
 		17374FF0D64EFB32F089E042 /* ScreenshotCaptureController+Clipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BADC7D59D3A3A13E21FFD7E7 /* ScreenshotCaptureController+Clipboard.swift */; };
 		17AF148FCFCFDA83A04456B8 /* ToastStackEntryConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A75A9BCB6CD7C64BAC0CFB18 /* ToastStackEntryConfiguration.swift */; };
@@ -131,6 +132,8 @@
 		7915C20FCBBA556B33A9C5B3 /* TwitchNotificationAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C8A04D25EE6B21B9E68A064 /* TwitchNotificationAuthorization.swift */; };
 		7BB9DA51A7199BBC21D26F41 /* ToastModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105C41FF777B1055D29CBF50 /* ToastModel.swift */; };
 		7BE9603C301AE62574433C1C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF2D8E65725F89E4AA6A6D57 /* Assets.xcassets */; };
+		7C411974C64EEBC7470127C3 /* TwitchFollowedChannelSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EEF2270E113161BB73EE17 /* TwitchFollowedChannelSelectionView.swift */; };
+		7D01C1366E87562E8FC65D61 /* TwitchAPIClientLoopbackServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A5552F91829FBA839B5BFE /* TwitchAPIClientLoopbackServer.swift */; };
 		7D29623ECC8BDDCFEA7A085C /* TwitchTokenOwnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BF3708A92E882E46FBACB2 /* TwitchTokenOwnerTests.swift */; };
 		7F28081330F23274AAAA7776 /* TwitchNotificationTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C8B2F053608E0E983D376E /* TwitchNotificationTestSupport.swift */; };
 		7FDCDC773431B33B762708F7 /* TwitchNotificationModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BC90ACD74795EC235457804 /* TwitchNotificationModelsTests.swift */; };
@@ -373,6 +376,7 @@
 		A00063CA1051EC11ED50C5E7 /* TwitchNotificationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchNotificationController.swift; sourceTree = "<group>"; };
 		A21EB17EEE7A2A9BECC0DF55 /* ToastPanelViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastPanelViews.swift; sourceTree = "<group>"; };
 		A4A98ECD36E9B3E0DEC02185 /* CoreAudioOutputDeviceDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioOutputDeviceDiscovery.swift; sourceTree = "<group>"; };
+		A6A5552F91829FBA839B5BFE /* TwitchAPIClientLoopbackServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchAPIClientLoopbackServer.swift; sourceTree = "<group>"; };
 		A75A9BCB6CD7C64BAC0CFB18 /* ToastStackEntryConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastStackEntryConfiguration.swift; sourceTree = "<group>"; };
 		AA045718501E867027618562 /* TwitchLiveMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchLiveMenu.swift; sourceTree = "<group>"; };
 		AB365EA476E8B2A203F17B3B /* ScreenshotSelectionViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSelectionViewTests.swift; sourceTree = "<group>"; };
@@ -394,6 +398,7 @@
 		C325ECBBAF83B81DDCD5530C /* ScreenshotSaveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSaveService.swift; sourceTree = "<group>"; };
 		C3429608103FDD5A93935D2C /* TwitchNotificationController+State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TwitchNotificationController+State.swift"; sourceTree = "<group>"; };
 		C6CA0CEFA8FBE3A76A2199E3 /* ScreenshotCaptureTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureTestSupport.swift; sourceTree = "<group>"; };
+		C7EEF2270E113161BB73EE17 /* TwitchFollowedChannelSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchFollowedChannelSelectionView.swift; sourceTree = "<group>"; };
 		C84DBC8E527A464BB3363632 /* ClipboardMarkdownController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMarkdownController.swift; sourceTree = "<group>"; };
 		C97E81BC330DD650BCA5C538 /* KeychainStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreTests.swift; sourceTree = "<group>"; };
 		C9FA6045839EF59AC25A4427 /* PasteboardSnapshotTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardSnapshotTestSupport.swift; sourceTree = "<group>"; };
@@ -537,7 +542,6 @@
 				B73637422B77C5747E174F16 /* main.swift */,
 				939A28FC5B4536D33C94AC35 /* App */,
 				9816266CC195969B15C45258 /* Clipboard */,
-				BDCFCB83635C801C76FBFE58 /* MacOSUtilitiesCodex */,
 				5CF0F134E450E68DA30D1ED9 /* Microphone */,
 				DACA2B9356FD97A39FBFDE38 /* Screenshot */,
 				DFF3F1C57002408EDE12F671 /* System */,
@@ -690,6 +694,7 @@
 		9A6FBD4744FDB78991BCC699 /* Twitch */ = {
 			isa = PBXGroup;
 			children = (
+				A6A5552F91829FBA839B5BFE /* TwitchAPIClientLoopbackServer.swift */,
 				9431F198B24C03EEADD0612D /* TwitchAPIClientTests.swift */,
 				1F2011C9FADE401F11DA408E /* TwitchLiveMenuTests.swift */,
 				D628359C2DCC14C55550DFC8 /* TwitchNotificationConcurrencySupport.swift */,
@@ -719,6 +724,7 @@
 			children = (
 				2674B3229A339883101E87C8 /* TwitchAPIClient.swift */,
 				3FEEFA532DDEBF7BA3110CCE /* TwitchDeliveryOwner.swift */,
+				C7EEF2270E113161BB73EE17 /* TwitchFollowedChannelSelectionView.swift */,
 				AA045718501E867027618562 /* TwitchLiveMenu.swift */,
 				3C8A04D25EE6B21B9E68A064 /* TwitchNotificationAuthorization.swift */,
 				6EC830E8C99905C33D3532AC /* TwitchNotificationClients.swift */,
@@ -746,13 +752,6 @@
 				535F91351B6022C060192507 /* sidekickTests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		BDCFCB83635C801C76FBFE58 /* MacOSUtilitiesCodex */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = MacOSUtilitiesCodex;
 			sourceTree = "<group>";
 		};
 		C72809A777B0DDA18A96D441 /* App */ = {
@@ -1025,6 +1024,7 @@
 				C59521A8618D9B22AD99D5A7 /* ToolsWindowController.swift in Sources */,
 				533E6AE465E8EC2C8CC52336 /* TwitchAPIClient.swift in Sources */,
 				9469989579FE6443D61DF3D5 /* TwitchDeliveryOwner.swift in Sources */,
+				7C411974C64EEBC7470127C3 /* TwitchFollowedChannelSelectionView.swift in Sources */,
 				A1DE6F9F516DFE53F6CE7537 /* TwitchLiveMenu.swift in Sources */,
 				7915C20FCBBA556B33A9C5B3 /* TwitchNotificationAuthorization.swift in Sources */,
 				5F6EC9CB0461D795BFE80DBD /* TwitchNotificationClients.swift in Sources */,
@@ -1166,8 +1166,10 @@
 				741F4365FAFB39C3AE0467F6 /* ToastStackController.swift in Sources */,
 				17AF148FCFCFDA83A04456B8 /* ToastStackEntryConfiguration.swift in Sources */,
 				9119E946D648FD09269490AA /* TwitchAPIClient.swift in Sources */,
+				7D01C1366E87562E8FC65D61 /* TwitchAPIClientLoopbackServer.swift in Sources */,
 				643102F17B15F2854FFCF784 /* TwitchAPIClientTests.swift in Sources */,
 				6465CAD74BEA8CE523B4A354 /* TwitchDeliveryOwner.swift in Sources */,
+				1562C8681BF0E0AA57E1C473 /* TwitchFollowedChannelSelectionView.swift in Sources */,
 				57BB5FE6848D15B6C2234908 /* TwitchLiveMenu.swift in Sources */,
 				EFC17E3DE6B0D86E87C8B208 /* TwitchLiveMenuTests.swift in Sources */,
 				26E5253AE60E608B0D154262 /* TwitchNotificationAuthorization.swift in Sources */,
