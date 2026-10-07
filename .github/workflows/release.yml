@@ -143,7 +143,6 @@ jobs:
           set -euo pipefail
           sh scripts/fetch-clearurls-rules.sh --force
           xcodegen generate --spec project.yml
-          git diff --exit-code -- Sidekick.xcodeproj/project.pbxproj
 
       - name: Validate repository metadata
         shell: bash

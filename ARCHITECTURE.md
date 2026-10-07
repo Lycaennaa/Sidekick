@@ -8,7 +8,7 @@ Pure transformations stay separate from platform I/O. Clipboard URL cleaning com
 
 ## Build inputs
 
-`project.yml` is the XcodeGen source of truth; `Sidekick.xcodeproj` is generated. Swift packages are pinned by the checked-in `Package.resolved` file. ClearURLs rules are fetched from the upstream mutable `master` branch during project preparation and included as a resource. Twitch OAuth resolves client ID from the app's UserDefaults override, then the app Info.plist; the build-time default is `none`.
+`project.yml` is the XcodeGen source of truth; `Sidekick.xcodeproj/project.pbxproj` is generated and ignored. Swift packages are pinned by the checked-in `Package.resolved` file. ClearURLs rules are fetched from the upstream mutable `master` branch during project preparation and included as a resource. Twitch OAuth resolves client ID from the app's UserDefaults override, then the app Info.plist; the build-time default is `none`.
 
 ## Tests
 

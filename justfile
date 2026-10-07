@@ -55,7 +55,7 @@ release_products := derived_data + "/Build/Products/Release"
 @check-package-locks:
     python3 -B scripts/check-package-locks.py
 
-@check-pbx:
+@check-pbx: generate-project
     python3 -B scripts/check-pbx-identifiers.py
 
 @check-client-id: generate-project

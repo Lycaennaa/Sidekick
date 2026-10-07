@@ -3,6 +3,8 @@
 /.kilo-tmp/
 
 # Xcode and macOS local state
+# Generated XcodeGen project
+/Sidekick.xcodeproj/project.pbxproj
 **/xcuserdata/
 **/DerivedData/
 .DS_Store

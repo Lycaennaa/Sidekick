@@ -20,29 +20,14 @@ IDENTITY_SETTINGS = {
 }
 
 
-def indexed_project_paths(root):
-    result = subprocess.run(
-        ["git", "ls-files", "-z", "--", "*.pbxproj"],
-        cwd=root,
-        check=True,
-        stdout=subprocess.PIPE,
-    )
-    return [Path(path) for path in result.stdout.decode().split("\0") if path]
-
-
-def staged_contents(root, path):
-    result = subprocess.run(
-        ["git", "show", ":" + path.as_posix()],
-        cwd=root,
-        check=True,
-        stdout=subprocess.PIPE,
-    )
-    return result.stdout.decode("utf-8", errors="replace")
-
-
-def check_file(root, path):
+def check_file(path):
     failures = []
-    for line_number, line in enumerate(staged_contents(root, path).splitlines(), 1):
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        return [(0, f"cannot read generated project: {error}")]
+
+    for line_number, line in enumerate(lines, 1):
         if PRIVATE_PATH.search(line):
             failures.append((line_number, "contains a machine-specific absolute path"))
 
@@ -72,12 +57,20 @@ def main():
             ["git", "rev-parse", "--show-toplevel"], text=True
         ).strip()
     )
-    failures = []
-    for path in indexed_project_paths(root):
-        failures.extend(
-            (path, line_number, reason)
-            for line_number, reason in check_file(root, path)
+    path = Path("Sidekick.xcodeproj/project.pbxproj")
+    project = root / path
+    if not project.is_file():
+        print(f"generated project not found: {path}", file=sys.stderr)
+        print(
+            "Run xcodegen generate --spec project.yml before this check.",
+            file=sys.stderr,
         )
+        return 1
+
+    failures = [
+        (path, line_number, reason)
+        for line_number, reason in check_file(project)
+    ]
 
     if not failures:
         return 0

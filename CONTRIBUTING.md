@@ -8,7 +8,7 @@
 4. Update user and developer documentation when behavior or commands change.
 5. Open a pull request with the reason for the change, observable behavior, and validation results.
 
-`project.yml` is the Xcode project source of truth. Do not hand-edit the generated `Sidekick.xcodeproj/project.pbxproj`.
+`project.yml` is the Xcode project source of truth. `Sidekick.xcodeproj/project.pbxproj` is generated and ignored; run `just generate-project` before opening or building locally. Do not hand-edit the generated file.
 
 ## AI-use disclosure
 
