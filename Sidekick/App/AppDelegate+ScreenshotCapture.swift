@@ -14,11 +14,14 @@ extension AppDelegate {
             },
             onFailure: { [weak self] failure in
                 self?.handleScreenshotCaptureFailure(failure)
+            },
+            onSavedAndCopied: { [weak self] url in
+                self?.presentScreenshotSavedCopiedToast(url)
             }
         )
-        screenshotClipboardHotKey = GlobalHotKey(shortcut: .screenshotClipboard) { [weak self] in
-            self?.captureScreenshotToClipboard()
-        }
+        screenshotSaveAndClipboardHotKey = makeScreenshotSaveAndCopyHotKey(
+            settings.screenshotSaveAndCopyShortcut
+        )
     }
     private func presentScreenshotCopiedToast() {
         let model = ToastModel(
@@ -35,28 +38,105 @@ extension AppDelegate {
         )
     }
 
+    private func presentScreenshotSavedCopiedToast(_ url: URL) {
+        let model = ToastModel(
+            generation: utilityToastGeneration,
+            presentationStyle: .image,
+            summary: "Saved and copied SDR screenshot; HDR was not preserved.",
+            detail: url.lastPathComponent,
+            icon: NSImage(systemSymbolName: "camera", accessibilityDescription: "Screenshot"),
+            footer: nil
+        )
+        toastPresentationCoordinator?.presentScreenshot(model, duration: settings.toastDuration)
+    }
+
     private func presentPixelValueCopiedToast() {
         presentUtilityToast("Copied pixel data to clipboard.", style: .image, symbolName: "eyedropper")
     }
 
-    func startScreenshotClipboardHotKey() {
-        guard screenshotClipboardHotKey?.start() == noErr else {
-            presentUtilityToast(
-                "Screenshot shortcut unavailable; use the status menu.",
-                style: .image,
-                symbolName: "camera.badge.exclamationmark"
-            )
+    func startScreenshotSaveAndClipboardHotKey() {
+        guard screenshotSaveAndClipboardHotKey?.start() == noErr else {
+            guard restoreDefaultScreenshotSaveAndCopyHotKey() else {
+                presentScreenshotShortcutUnavailableToast()
+                return
+            }
             return
         }
     }
 
-    func captureScreenshotToClipboard(cursorOverride: Bool? = nil) {
-        guard let controller = screenshotCaptureController,
+    func updateScreenshotSaveAndCopyHotKey(_ shortcut: GlobalHotKey.Shortcut) -> Bool {
+        guard !shortcut.conflictsWithApplicationMenuShortcut else { return false }
+        guard !shortcut.hasSameChord(as: .webPClipboard),
+              !shortcut.hasSameChord(as: .cleanMarkdown) else {
+            return false
+        }
+        if screenshotSaveAndClipboardHotKey?.hasShortcut(shortcut) == true {
+            settings.screenshotSaveAndCopyShortcut = shortcut
+            return true
+        }
+        let replacement = makeScreenshotSaveAndCopyHotKey(shortcut)
+        guard replacement.start() == noErr else { return false }
+        screenshotSaveAndClipboardHotKey?.stop()
+        screenshotSaveAndClipboardHotKey = replacement
+        settings.screenshotSaveAndCopyShortcut = shortcut
+        return true
+    }
+
+    func setScreenshotSaveAndCopyHotKeyRecording(_ isRecording: Bool) {
+        guard isScreenshotSaveAndCopyHotKeyRecording != isRecording else { return }
+        isScreenshotSaveAndCopyHotKeyRecording = isRecording
+        if isRecording {
+            screenshotSaveAndClipboardHotKey?.stop()
+            clipboardWebPHotKey?.stop()
+            clipboardMarkdownHotKey?.stop()
+            return
+        }
+        guard !isTerminating else { return }
+        syncWebPClipboardConverter()
+        syncMarkdownHotKey()
+        startScreenshotSaveAndClipboardHotKey()
+    }
+
+    private func restoreDefaultScreenshotSaveAndCopyHotKey() -> Bool {
+        let defaultShortcut = GlobalHotKey.Shortcut.screenshotSaveAndClipboard
+        guard screenshotSaveAndClipboardHotKey?.hasShortcut(defaultShortcut) != true else { return false }
+        let replacement = makeScreenshotSaveAndCopyHotKey(defaultShortcut)
+        guard replacement.start() == noErr else { return false }
+        screenshotSaveAndClipboardHotKey?.stop()
+        screenshotSaveAndClipboardHotKey = replacement
+        settings.screenshotSaveAndCopyShortcut = defaultShortcut
+        presentUtilityToast(
+            "Screenshot shortcut became unavailable; restored ⌘⌥⇧5.",
+            style: .image,
+            symbolName: "camera"
+        )
+        return true
+    }
+
+    private func presentScreenshotShortcutUnavailableToast() {
+        presentUtilityToast(
+            "Screenshot shortcut unavailable; use the status menu.",
+            style: .image,
+            symbolName: "camera.badge.exclamationmark"
+        )
+    }
+    private func makeScreenshotSaveAndCopyHotKey(_ shortcut: GlobalHotKey.Shortcut) -> GlobalHotKey {
+        GlobalHotKey(shortcut: shortcut) { [weak self] in
+            self?.captureScreenshotToClipboard(mode: .saveAndCopy)
+        }
+    }
+
+    func captureScreenshotToClipboard(
+        cursorOverride: Bool? = nil,
+        mode: ScreenshotCaptureMode = .copy
+    ) {
+        guard !isTerminating,
+              let controller = screenshotCaptureController,
               screenshotCaptureTask == nil else { return }
         let requestID = UUID()
         screenshotCaptureRequestID = requestID
         screenshotCaptureTask = Task { @MainActor [weak self, controller] in
-            await controller.copyActiveDisplayToClipboard(cursorOverride: cursorOverride)
+            await controller.copyActiveDisplayToClipboard(cursorOverride: cursorOverride, mode: mode)
             guard let self, self.screenshotCaptureRequestID == requestID else { return }
             self.screenshotCaptureTask = nil
             self.screenshotCaptureRequestID = nil
@@ -64,34 +144,10 @@ extension AppDelegate {
     }
 
     private func handleScreenshotCaptureFailure(_ failure: ScreenshotCaptureController.Failure) {
-        let message: String
-        switch failure {
-        case .capture:
-            message = ScreenshotCaptureFailurePresentation.permissionAwareCaptureMessage(
-                screenRecordingAllowed: CGPreflightScreenCaptureAccess()
-            )
-        case .windowCapture:
-            message = ScreenshotCaptureFailurePresentation.permissionAwareCaptureMessage(
-                screenRecordingAllowed: CGPreflightScreenCaptureAccess(),
-                isWindowCapture: true
-            )
-        case .selectionDisplayUnavailable:
-            message = "The captured display changed before selection; retry the screenshot."
-        case .selectionCropFailed:
-            message = "Couldn’t create the selected screenshot; try again."
-        case .selectionWindowUnavailable:
-            message = "That window is fully hidden or unavailable; choose an exposed portion or drag a region."
-        case .clipboardSnapshot:
-            message = "Couldn’t safely preserve the existing clipboard; it was not replaced."
-        case .clipboardRestore:
-            message = "Copy failed and the previous clipboard could not be restored."
-        case .encoding:
-            message = "Couldn’t prepare the selected content for the clipboard."
-        case .clipboard:
-            message = "Couldn’t copy the selected content; your previous clipboard was restored."
-        case .clipboardChanged:
-            message = "Clipboard changed during capture; newer clipboard contents were kept."
-        }
+        let message = ScreenshotCaptureFailurePresentation.message(
+            for: failure,
+            screenRecordingAllowed: { CGPreflightScreenCaptureAccess() }
+        )
         presentUtilityToast(
             message,
             style: .image,

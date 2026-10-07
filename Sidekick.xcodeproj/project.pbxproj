@@ -16,6 +16,7 @@
 		05C1C8B8317C48E0960022FF /* ClipboardImageEnrichmentWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 891314DC168BE66D7807015A /* ClipboardImageEnrichmentWorker.swift */; };
 		0629B9C15622F7BE389C311B /* data.min.json in Resources */ = {isa = PBXBuildFile; fileRef = C08E2B6DF356BF31277827CA /* data.min.json */; };
 		07E265C8B8312904C14E0D36 /* TemporaryVolumeDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1980FC48BE5741F6723100 /* TemporaryVolumeDependencies.swift */; };
+		09A8BFA81E0D2493ADD5B77B /* ScreenshotClipboardWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C8DC804711A22F0CC54221 /* ScreenshotClipboardWriter.swift */; };
 		0A9124ACD356EF38E926078F /* TwitchPollingOwnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 064034C6D9D8BD83101722A4 /* TwitchPollingOwnerTests.swift */; };
 		0BBFD17BB1D08B98A2DCA52C /* TwitchNotificationController+State.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3429608103FDD5A93935D2C /* TwitchNotificationController+State.swift */; };
 		0BC6B4A6962EF5E23E56FC27 /* ClearURLsClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E5655479ED8530A4765080C /* ClearURLsClipboardTests.swift */; };
@@ -34,6 +35,7 @@
 		152FF67ACBACC49423AE3F28 /* ScreenshotPixelInspectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 186962446950854B29731D65 /* ScreenshotPixelInspectionTests.swift */; };
 		155244374E7DD2A159D1ECAB /* ScreenshotCaptureIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3AE4E94A7318638C554EDE7 /* ScreenshotCaptureIntegrationTests.swift */; };
 		15D88008EE15663D66304465 /* AppDelegate+Toasts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D70F55118211449961B6964 /* AppDelegate+Toasts.swift */; };
+		17374FF0D64EFB32F089E042 /* ScreenshotCaptureController+Clipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BADC7D59D3A3A13E21FFD7E7 /* ScreenshotCaptureController+Clipboard.swift */; };
 		17AF148FCFCFDA83A04456B8 /* ToastStackEntryConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A75A9BCB6CD7C64BAC0CFB18 /* ToastStackEntryConfiguration.swift */; };
 		19C91F8976CC87DC524CBB8E /* PasteboardSnapshotTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34299BF41639943EA3138C6D /* PasteboardSnapshotTransaction.swift */; };
 		1A20D58D6B3C366C0B4ACDC0 /* ClipboardWebPWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358FCA257AAC824ABE35A811 /* ClipboardWebPWorker.swift */; };
@@ -93,6 +95,7 @@
 		57BB5FE6848D15B6C2234908 /* TwitchLiveMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA045718501E867027618562 /* TwitchLiveMenu.swift */; };
 		58466DAB06DBDC9ED8D9D9C4 /* ClipboardWebPTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11DD94E1658B7DA9F599934 /* ClipboardWebPTypes.swift */; };
 		58574C44F47373908B11361A /* CoreAudioOutputPropertyAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A63357A16A4B62473F8DE38 /* CoreAudioOutputPropertyAccess.swift */; };
+		588C1851D4BFA0CB3CB323CB /* ScreenshotHotKeyRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A330526FFCEFEB5BB6A16B6 /* ScreenshotHotKeyRecorderTests.swift */; };
 		5A45B68A93843C58491AA2DD /* ScreenshotSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FA787418E202D7F8BCA9518 /* ScreenshotSelectionView.swift */; };
 		5E5E829942BE1EE3838C8E5D /* ClipboardToastController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B90C5A90D637FA8E731FB3D /* ClipboardToastController.swift */; };
 		5F6EC9CB0461D795BFE80DBD /* TwitchNotificationClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC830E8C99905C33D3532AC /* TwitchNotificationClients.swift */; };
@@ -104,9 +107,12 @@
 		64CE236E21E0D8FBB8F57513 /* PasteboardFileProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813CD6B6401C58926DB11536 /* PasteboardFileProviderTests.swift */; };
 		6511997653C6D5C81C83A45A /* TemporaryVolumeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBF682E790864581F1DED86 /* TemporaryVolumeController.swift */; };
 		66073E225890143F46949FBB /* TwitchNotificationController+Delegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E27ABCAA3E85007054C673 /* TwitchNotificationController+Delegate.swift */; };
+		6973047527D54B9AF507F14C /* ScreenshotPNGEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD8DD765333985D23B2E1995 /* ScreenshotPNGEncoder.swift */; };
 		6A31D14EC53216559095AF92 /* ToastPanelControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130A6A1392BF11318AF1AF18 /* ToastPanelControllerTests.swift */; };
+		6B4ECD6BFFF0A42055C274B3 /* ScreenshotCaptureMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FC3CB0F00416DAB1DC754E7 /* ScreenshotCaptureMenu.swift */; };
 		6C7BDDCB806EC0C59F6D5D48 /* ClipboardWebPControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6668C9DD6951F2C0B5D2D3C7 /* ClipboardWebPControllerTests.swift */; };
 		6CC923B99C6662A956FEAA16 /* ToastContentLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D538F3EE5AF03C10AE02710 /* ToastContentLayout.swift */; };
+		6E500F77B244354782A94B9A /* ScreenshotSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BA41A95792FB25BD199BBDD /* ScreenshotSaveTests.swift */; };
 		6E978E27DF916A986BA5DB55 /* ScreenshotPixelCopyIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B67D27FCE45DD75F896C09B /* ScreenshotPixelCopyIntegrationTests.swift */; };
 		6EDFA88E77142880CDA02236 /* TemporaryVolumeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBF682E790864581F1DED86 /* TemporaryVolumeController.swift */; };
 		6EFD6FDB213EAC9BA11676F8 /* ClipboardWorkerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB10D137EBEFF7C5BADC679E /* ClipboardWorkerTests.swift */; };
@@ -120,6 +126,7 @@
 		78182A453ADD7955FC90BE9E /* ScreenshotSelectionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F90BCA14EC6299D98942F1 /* ScreenshotSelectionOverlay.swift */; };
 		78A541F33E328B5B126C3D62 /* TwitchNotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D90E358B275DAB95B5902F /* TwitchNotificationModels.swift */; };
 		78A7913A75111DAD1454E187 /* TemporaryVolumeMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B8C4B8BF40D621BC9E7898 /* TemporaryVolumeMenu.swift */; };
+		78D7CC0C1572D16AA59CBF26 /* ScreenshotClipboardWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C8DC804711A22F0CC54221 /* ScreenshotClipboardWriter.swift */; };
 		790F174C5EC1B6445D84EC0E /* ClipboardMarkdownControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76F7261B0E7CBB39CFD99C7 /* ClipboardMarkdownControllerTests.swift */; };
 		7915C20FCBBA556B33A9C5B3 /* TwitchNotificationAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C8A04D25EE6B21B9E68A064 /* TwitchNotificationAuthorization.swift */; };
 		7BB9DA51A7199BBC21D26F41 /* ToastModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105C41FF777B1055D29CBF50 /* ToastModel.swift */; };
@@ -138,6 +145,7 @@
 		8A4E98C44E5CEF0832CE8B85 /* ClipboardWebPArtifactOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762F42D8E4AA915ACEDA2FEF /* ClipboardWebPArtifactOwner.swift */; };
 		8A71DAF2C74D40AE3F60488D /* ClipboardWebPEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 647AC24AE6DE2DCF02098F30 /* ClipboardWebPEncoder.swift */; };
 		8AF78782DFCE71F190D7A732 /* TwitchNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0F0670BDAD91AC895A7FC5 /* TwitchNotificationScheduler.swift */; };
+		8B599FB1366EFCD2CFAD35BA /* ScreenshotCaptureController+Clipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BADC7D59D3A3A13E21FFD7E7 /* ScreenshotCaptureController+Clipboard.swift */; };
 		8BE0C2770F8375B62A44C15F /* ScreenshotWindowCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83E31505B25350A4414C0C16 /* ScreenshotWindowCaptureTests.swift */; };
 		8C35E14EDC1497D87C09CF39 /* TwitchNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69E407BC45E7EEE8625A17F8 /* TwitchNotificationView.swift */; };
 		8CB4C032A89516CB5CD8E139 /* TwitchPollingOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD10A43CC95ABB9D2628C2D8 /* TwitchPollingOwner.swift */; };
@@ -185,12 +193,14 @@
 		B7793CC42D3ECC8CD29A2C2E /* ClipboardTokenizerBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBC90614E5FCDE4C708BB0B0 /* ClipboardTokenizerBootstrapTests.swift */; };
 		B7C42A04F2DA712ACC344490 /* TemporaryVolumeDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1980FC48BE5741F6723100 /* TemporaryVolumeDependencies.swift */; };
 		B9317828EBE24DD7757BEF77 /* PasteboardSnapshotTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9FA6045839EF59AC25A4427 /* PasteboardSnapshotTestSupport.swift */; };
+		B9C2AEBFE957959193B5D6E0 /* ScreenshotHotKeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7E28D6B4A1B60C6CDA437B /* ScreenshotHotKeyRecorderView.swift */; };
 		BA34CB6EC6FC74CF97A78CC6 /* CoreAudioMicrophoneActivityReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6C116F769959032C46B8A4 /* CoreAudioMicrophoneActivityReader.swift */; };
 		BA49A3990325DCE7E7A3D508 /* libwebp in Frameworks */ = {isa = PBXBuildFile; productRef = D97C85FB2B37EFA2D66629C6 /* libwebp */; };
 		BA5505B0AA75E11301C2B88F /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE12A1ABA51A9C049F8EAA9D /* AppTheme.swift */; };
 		BA90D356B3C6246DFC2623A5 /* ClipboardImageDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 423BBB0D06180684DF999A93 /* ClipboardImageDecoder.swift */; };
 		BAE698CBB21C20AD799FADB6 /* TwitchNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0F0670BDAD91AC895A7FC5 /* TwitchNotificationScheduler.swift */; };
 		BB106D4AC0E66F6973B5BC19 /* TwitchOAuthFallbackPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93BAE844D9074B0944F351A1 /* TwitchOAuthFallbackPage.swift */; };
+		BD24A34CC191A82EB666140C /* ScreenshotSaveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C325ECBBAF83B81DDCD5530C /* ScreenshotSaveService.swift */; };
 		BDC5DBC5CD50FA67D6B08BEF /* TwitchOAuthBrowserFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E4EF001883095F181591657 /* TwitchOAuthBrowserFallback.swift */; };
 		BF720C62BDAE90B2F0B6709D /* ScreenshotPixelInspectionHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD27EB6FE4DDF209B91E42DE /* ScreenshotPixelInspectionHUD.swift */; };
 		C00FC6426CE303E6EE1D8023 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C714449DD7894EA9480EC1A /* AppSettingsTests.swift */; };
@@ -198,9 +208,12 @@
 		C062DBAB3E45A5CB2F5073A3 /* ToastPresentationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF5EEC8CF6C5694DF30132E7 /* ToastPresentationCoordinator.swift */; };
 		C1068CA1AA1AD1B20A78BE8A /* AppDelegate+TwitchTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3840A9BB38F76305D01AB847 /* AppDelegate+TwitchTools.swift */; };
 		C1616AE82B4B27EEBFBBA31A /* ClipboardWebPPasteboardCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75450C2C78F3732F75A16F2A /* ClipboardWebPPasteboardCapture.swift */; };
+		C3670BE94DADEDDBF8E8B570 /* ScreenshotSaveSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 478DBF92BE5FEB5B1B0707B6 /* ScreenshotSaveSettingsView.swift */; };
 		C4996C927395F6C453E45D7A /* ClipboardWebPTranscoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCE5DAA3EBDE15A84B780D96 /* ClipboardWebPTranscoderTests.swift */; };
 		C5086A89499978EEEEFC24F4 /* ClipboardBackgroundWorkCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 017E10BB711039098576DB88 /* ClipboardBackgroundWorkCoordinatorTests.swift */; };
 		C59521A8618D9B22AD99D5A7 /* ToolsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E8C0F5A948DB30989742293 /* ToolsWindowController.swift */; };
+		C5B7282D2F10E4D53116D291 /* ScreenshotSaveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C325ECBBAF83B81DDCD5530C /* ScreenshotSaveService.swift */; };
+		C90FB60B15E13E612C719426 /* GlobalHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3749CDC1B48A3B3FAE5EE77 /* GlobalHotKey.swift */; };
 		C93401A38E8C40E94614B9F8 /* ClipboardImagePreviewIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCFECCE7AE7C196AEFF8B234 /* ClipboardImagePreviewIntegrationTests.swift */; };
 		CA8F14A3AAFE4526E57A2B2D /* CoreAudioOutputVolumeStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CA6274C479960197EDC74E /* CoreAudioOutputVolumeStoreTests.swift */; };
 		CB084EA6940D36E0A1872F6E /* AppDelegate+Window.swift in Sources */ = {isa = PBXBuildFile; fileRef = 688251E857353EC27E1BB5E6 /* AppDelegate+Window.swift */; };
@@ -227,14 +240,20 @@
 		EA18CEB9ADC44B802A2145ED /* CoreAudioOutputVolumeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A6D222C82EF433A4E5238B3 /* CoreAudioOutputVolumeStore.swift */; };
 		EA90EF465A2EEEBCD93E8C0C /* ClipboardWebPFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F150247E3055901260E302 /* ClipboardWebPFileService.swift */; };
 		ECEA4EB8B7CD143735C1FD5B /* ClipboardImageDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0B39B5C28E7FD7ADA64CCE4 /* ClipboardImageDecoderTests.swift */; };
+		EEC7A29D00E63871E7F496EA /* ScreenshotSelectionViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB365EA476E8B2A203F17B3B /* ScreenshotSelectionViewTests.swift */; };
 		EFC17E3DE6B0D86E87C8B208 /* TwitchLiveMenuTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F2011C9FADE401F11DA408E /* TwitchLiveMenuTests.swift */; };
 		EFFBDF34EE2B4C9AB73D75A2 /* ClipboardToastPayloadPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3816AF41522A67337334A705 /* ClipboardToastPayloadPipeline.swift */; };
 		F0D581AD69A4189039B1A888 /* ToastLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A657FD4FF666692EB12BF40 /* ToastLayout.swift */; };
 		F16B4A24D2B9061CF15E0F10 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6E317949E10B0616DEF731 /* AppSettings.swift */; };
 		F22BD43B7ED21EB89963CBAB /* ClipboardPayloadPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4C146D8FAF8ABD36319D49 /* ClipboardPayloadPresentation.swift */; };
+		F22D53AB0DAF34B90D16605E /* ScreenshotCaptureMenuTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C884ACE2D63C0A33AF34256 /* ScreenshotCaptureMenuTests.swift */; };
+		F2B13C4E95193D09FC2D747E /* ScreenshotHotKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 623FC2BDE4C9529D63CED4F0 /* ScreenshotHotKeyTests.swift */; };
 		F35AF278EC348AC0C0B6D7D5 /* ClipboardChangeObservationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EAFFF2F20CE77CBD9A66D3A /* ClipboardChangeObservationState.swift */; };
 		F366780D036D8F2EC5123C94 /* PasteboardSnapshotCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2DA43F90FE850FFC34ABA5 /* PasteboardSnapshotCapture.swift */; };
 		F3AFBCD5B088490E927DCB4B /* ClipboardWebPArtifactOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762F42D8E4AA915ACEDA2FEF /* ClipboardWebPArtifactOwner.swift */; };
+		F52E64926F9CD236E32B782D /* ScreenshotPNGEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD8DD765333985D23B2E1995 /* ScreenshotPNGEncoder.swift */; };
+		F5919B112183B8101D654FBB /* ScreenshotHotKeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7E28D6B4A1B60C6CDA437B /* ScreenshotHotKeyRecorderView.swift */; };
+		F64935430B92FD2BE01EF975 /* ScreenshotSaveValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FF280D7D7F07B11A8848F2 /* ScreenshotSaveValidationTests.swift */; };
 		F6BAD8FDA21B88698B884E76 /* ToastStackEntryConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A75A9BCB6CD7C64BAC0CFB18 /* ToastStackEntryConfiguration.swift */; };
 		F7387C8F8E8A6792EB57704B /* TemporaryVolumeFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ECEF60457EA7B0809083294 /* TemporaryVolumeFeature.swift */; };
 		FA9ABE880ECC969FC858B243 /* ToastPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50872774A0A8D25B63FE0029 /* ToastPanelController.swift */; };
@@ -266,6 +285,7 @@
 		1B67D27FCE45DD75F896C09B /* ScreenshotPixelCopyIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotPixelCopyIntegrationTests.swift; sourceTree = "<group>"; };
 		1BAB489ADA90DAA5AF7807DB /* ClipboardPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPayload.swift; sourceTree = "<group>"; };
 		1BADBA1494456DAF146FE7B8 /* TiktokenSwiftPort */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TiktokenSwiftPort; path = TiktokenSwiftPort; sourceTree = SOURCE_ROOT; };
+		1C884ACE2D63C0A33AF34256 /* ScreenshotCaptureMenuTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureMenuTests.swift; sourceTree = "<group>"; };
 		1D538F3EE5AF03C10AE02710 /* ToastContentLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastContentLayout.swift; sourceTree = "<group>"; };
 		1ECEF60457EA7B0809083294 /* TemporaryVolumeFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryVolumeFeature.swift; sourceTree = "<group>"; };
 		1F2011C9FADE401F11DA408E /* TwitchLiveMenuTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchLiveMenuTests.swift; sourceTree = "<group>"; };
@@ -291,6 +311,7 @@
 		423BBB0D06180684DF999A93 /* ClipboardImageDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardImageDecoder.swift; sourceTree = "<group>"; };
 		4680760B2E65C8C0F63E455A /* ClipboardToastStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardToastStateTests.swift; sourceTree = "<group>"; };
 		46BCEED960283DA36F55ECE4 /* ClipboardPayloadClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPayloadClassifier.swift; sourceTree = "<group>"; };
+		478DBF92BE5FEB5B1B0707B6 /* ScreenshotSaveSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSaveSettingsView.swift; sourceTree = "<group>"; };
 		49B5D9F979E799FE9F1068F8 /* ClipboardImagePreviewOpenerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardImagePreviewOpenerTests.swift; sourceTree = "<group>"; };
 		4A0392452F4D392A3CCE1113 /* TwitchTestNotificationOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchTestNotificationOwner.swift; sourceTree = "<group>"; };
 		4B25EC5BB0E1EB34D0C27F59 /* ClipboardToastPreviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardToastPreviewTests.swift; sourceTree = "<group>"; };
@@ -303,6 +324,7 @@
 		5CF03918D2070467E20954B9 /* ClipboardToastObservationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardToastObservationState.swift; sourceTree = "<group>"; };
 		5E2DA43F90FE850FFC34ABA5 /* PasteboardSnapshotCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardSnapshotCapture.swift; sourceTree = "<group>"; };
 		5EE3AAB559F2CB20D0000404 /* CoreAudioMicrophoneActivityProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioMicrophoneActivityProvider.swift; sourceTree = "<group>"; };
+		623FC2BDE4C9529D63CED4F0 /* ScreenshotHotKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotHotKeyTests.swift; sourceTree = "<group>"; };
 		645C0251B7B23A113E787942 /* AppDelegate+WorkspaceObservers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+WorkspaceObservers.swift"; sourceTree = "<group>"; };
 		647AC24AE6DE2DCF02098F30 /* ClipboardWebPEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebPEncoder.swift; sourceTree = "<group>"; };
 		6668C9DD6951F2C0B5D2D3C7 /* ClipboardWebPControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebPControllerTests.swift; sourceTree = "<group>"; };
@@ -320,7 +342,10 @@
 		76A1BF5769884F243D73746A /* PublicIdentity.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = PublicIdentity.xcconfig; sourceTree = "<group>"; };
 		76CA6274C479960197EDC74E /* CoreAudioOutputVolumeStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioOutputVolumeStoreTests.swift; sourceTree = "<group>"; };
 		77BE997AA5D5EFA78D54D1E6 /* ClipboardImageOpeningApplicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardImageOpeningApplicationPickerView.swift; sourceTree = "<group>"; };
+		79FF280D7D7F07B11A8848F2 /* ScreenshotSaveValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSaveValidationTests.swift; sourceTree = "<group>"; };
+		7A330526FFCEFEB5BB6A16B6 /* ScreenshotHotKeyRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotHotKeyRecorderTests.swift; sourceTree = "<group>"; };
 		7A6C116F769959032C46B8A4 /* CoreAudioMicrophoneActivityReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioMicrophoneActivityReader.swift; sourceTree = "<group>"; };
+		7BA41A95792FB25BD199BBDD /* ScreenshotSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSaveTests.swift; sourceTree = "<group>"; };
 		7C017635DCA064C9383F86AC /* TwitchTokenOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchTokenOwner.swift; sourceTree = "<group>"; };
 		7EBC50F2AAB5A22D66E23415 /* ClipboardClearURLsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardClearURLsController.swift; sourceTree = "<group>"; };
 		8029079C8D93DEE5103409BB /* TemporaryVolumeDuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryVolumeDuration.swift; sourceTree = "<group>"; };
@@ -350,18 +375,23 @@
 		A4A98ECD36E9B3E0DEC02185 /* CoreAudioOutputDeviceDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioOutputDeviceDiscovery.swift; sourceTree = "<group>"; };
 		A75A9BCB6CD7C64BAC0CFB18 /* ToastStackEntryConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastStackEntryConfiguration.swift; sourceTree = "<group>"; };
 		AA045718501E867027618562 /* TwitchLiveMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchLiveMenu.swift; sourceTree = "<group>"; };
+		AB365EA476E8B2A203F17B3B /* ScreenshotSelectionViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSelectionViewTests.swift; sourceTree = "<group>"; };
 		AB82F8580049361CB045E169 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B3283EA224B5D57070490DB2 /* TemporaryVolumeTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryVolumeTypes.swift; sourceTree = "<group>"; };
 		B73637422B77C5747E174F16 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		B8C8B2F053608E0E983D376E /* TwitchNotificationTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchNotificationTestSupport.swift; sourceTree = "<group>"; };
 		B929288A282E296877FDC792 /* ClearURLsRuleSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClearURLsRuleSet.swift; sourceTree = "<group>"; };
+		BADC7D59D3A3A13E21FFD7E7 /* ScreenshotCaptureController+Clipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScreenshotCaptureController+Clipboard.swift"; sourceTree = "<group>"; };
 		BCAC3AFD4C1223FC244E3C6D /* ClipboardWebPArtifactOwnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebPArtifactOwnerTests.swift; sourceTree = "<group>"; };
+		BD8DD765333985D23B2E1995 /* ScreenshotPNGEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotPNGEncoder.swift; sourceTree = "<group>"; };
 		BDDB7AA6FC44311F6D9B297D /* MicrophoneToastControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophoneToastControllerTests.swift; sourceTree = "<group>"; };
 		BF2D8E65725F89E4AA6A6D57 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BF5D0FB48D6601C24BADE7FD /* ScreenshotCaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureController.swift; sourceTree = "<group>"; };
 		C08E2B6DF356BF31277827CA /* data.min.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = data.min.json; sourceTree = "<group>"; };
 		C098C3494922B55CEF0CAA52 /* PublicTestIdentity.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = PublicTestIdentity.xcconfig; sourceTree = "<group>"; };
+		C0C8DC804711A22F0CC54221 /* ScreenshotClipboardWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotClipboardWriter.swift; sourceTree = "<group>"; };
 		C210955B9A6DF44C66065876 /* ToastLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastLayoutTests.swift; sourceTree = "<group>"; };
+		C325ECBBAF83B81DDCD5530C /* ScreenshotSaveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSaveService.swift; sourceTree = "<group>"; };
 		C3429608103FDD5A93935D2C /* TwitchNotificationController+State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TwitchNotificationController+State.swift"; sourceTree = "<group>"; };
 		C6CA0CEFA8FBE3A76A2199E3 /* ScreenshotCaptureTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureTestSupport.swift; sourceTree = "<group>"; };
 		C84DBC8E527A464BB3363632 /* ClipboardMarkdownController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMarkdownController.swift; sourceTree = "<group>"; };
@@ -369,6 +399,7 @@
 		C9FA6045839EF59AC25A4427 /* PasteboardSnapshotTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardSnapshotTestSupport.swift; sourceTree = "<group>"; };
 		CA69D1914335D8E2E849CA17 /* TwitchOAuthBrowserFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwitchOAuthBrowserFallbackTests.swift; sourceTree = "<group>"; };
 		CB6E317949E10B0616DEF731 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		CB7E28D6B4A1B60C6CDA437B /* ScreenshotHotKeyRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotHotKeyRecorderView.swift; sourceTree = "<group>"; };
 		CBC90614E5FCDE4C708BB0B0 /* ClipboardTokenizerBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTokenizerBootstrapTests.swift; sourceTree = "<group>"; };
 		CCE5DAA3EBDE15A84B780D96 /* ClipboardWebPTranscoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebPTranscoderTests.swift; sourceTree = "<group>"; };
 		CD4C2FEA09245EBAACE56B41 /* PasteboardTypePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardTypePolicy.swift; sourceTree = "<group>"; };
@@ -607,6 +638,8 @@
 				CB6E317949E10B0616DEF731 /* AppSettings.swift */,
 				DE12A1ABA51A9C049F8EAA9D /* AppTheme.swift */,
 				77BE997AA5D5EFA78D54D1E6 /* ClipboardImageOpeningApplicationPickerView.swift */,
+				CB7E28D6B4A1B60C6CDA437B /* ScreenshotHotKeyRecorderView.swift */,
+				478DBF92BE5FEB5B1B0707B6 /* ScreenshotSaveSettingsView.swift */,
 				4E9179DE6D4119F1D4CA758E /* StatusMenuController.swift */,
 				CF5EEC8CF6C5694DF30132E7 /* ToastPresentationCoordinator.swift */,
 				8E8C0F5A948DB30989742293 /* ToolsWindowController.swift */,
@@ -752,10 +785,14 @@
 			children = (
 				29FD8D68537DF0F8705E7144 /* ScreenCaptureService.swift */,
 				BF5D0FB48D6601C24BADE7FD /* ScreenshotCaptureController.swift */,
+				BADC7D59D3A3A13E21FFD7E7 /* ScreenshotCaptureController+Clipboard.swift */,
 				9FC3CB0F00416DAB1DC754E7 /* ScreenshotCaptureMenu.swift */,
 				E80CEEC97D118FD9479F45DE /* ScreenshotClipboardMetadataRegistry.swift */,
+				C0C8DC804711A22F0CC54221 /* ScreenshotClipboardWriter.swift */,
 				CE9FA76515D2A0EB3C239FD5 /* ScreenshotPixelInspection.swift */,
 				DD27EB6FE4DDF209B91E42DE /* ScreenshotPixelInspectionHUD.swift */,
+				BD8DD765333985D23B2E1995 /* ScreenshotPNGEncoder.swift */,
+				C325ECBBAF83B81DDCD5530C /* ScreenshotSaveService.swift */,
 				08F90BCA14EC6299D98942F1 /* ScreenshotSelectionOverlay.swift */,
 				9FA787418E202D7F8BCA9518 /* ScreenshotSelectionView.swift */,
 			);
@@ -775,9 +812,15 @@
 			isa = PBXGroup;
 			children = (
 				F3AE4E94A7318638C554EDE7 /* ScreenshotCaptureIntegrationTests.swift */,
+				1C884ACE2D63C0A33AF34256 /* ScreenshotCaptureMenuTests.swift */,
 				C6CA0CEFA8FBE3A76A2199E3 /* ScreenshotCaptureTestSupport.swift */,
+				7A330526FFCEFEB5BB6A16B6 /* ScreenshotHotKeyRecorderTests.swift */,
+				623FC2BDE4C9529D63CED4F0 /* ScreenshotHotKeyTests.swift */,
 				1B67D27FCE45DD75F896C09B /* ScreenshotPixelCopyIntegrationTests.swift */,
 				186962446950854B29731D65 /* ScreenshotPixelInspectionTests.swift */,
+				7BA41A95792FB25BD199BBDD /* ScreenshotSaveTests.swift */,
+				79FF280D7D7F07B11A8848F2 /* ScreenshotSaveValidationTests.swift */,
+				AB365EA476E8B2A203F17B3B /* ScreenshotSelectionViewTests.swift */,
 				83E31505B25350A4414C0C16 /* ScreenshotWindowCaptureTests.swift */,
 			);
 			path = Screenshot;
@@ -950,11 +993,17 @@
 				19C91F8976CC87DC524CBB8E /* PasteboardSnapshotTransaction.swift in Sources */,
 				9A40AD74B4E27A726CE45F61 /* PasteboardTypePolicy.swift in Sources */,
 				B65D026C696439F022DBD39F /* ScreenCaptureService.swift in Sources */,
+				17374FF0D64EFB32F089E042 /* ScreenshotCaptureController+Clipboard.swift in Sources */,
 				3AF724845318852B48A1B71D /* ScreenshotCaptureController.swift in Sources */,
 				3D37FA728ACB837DB8439D1E /* ScreenshotCaptureMenu.swift in Sources */,
 				FB08B7846845F1185142C9D9 /* ScreenshotClipboardMetadataRegistry.swift in Sources */,
+				09A8BFA81E0D2493ADD5B77B /* ScreenshotClipboardWriter.swift in Sources */,
+				B9C2AEBFE957959193B5D6E0 /* ScreenshotHotKeyRecorderView.swift in Sources */,
+				F52E64926F9CD236E32B782D /* ScreenshotPNGEncoder.swift in Sources */,
 				1C19D6220179C7A377FF5EBB /* ScreenshotPixelInspection.swift in Sources */,
 				BF720C62BDAE90B2F0B6709D /* ScreenshotPixelInspectionHUD.swift in Sources */,
+				C5B7282D2F10E4D53116D291 /* ScreenshotSaveService.swift in Sources */,
+				C3670BE94DADEDDBF8E8B570 /* ScreenshotSaveSettingsView.swift in Sources */,
 				78182A453ADD7955FC90BE9E /* ScreenshotSelectionOverlay.swift in Sources */,
 				5A45B68A93843C58491AA2DD /* ScreenshotSelectionView.swift in Sources */,
 				844F686774F026C25C99A991 /* StatusMenuController.swift in Sources */,
@@ -1057,6 +1106,7 @@
 				AA47CF1716063AE945BE97BE /* CoreAudioOutputPropertyAccess.swift in Sources */,
 				DB31B3D846314660BD6F844B /* CoreAudioOutputVolumeStore.swift in Sources */,
 				CA8F14A3AAFE4526E57A2B2D /* CoreAudioOutputVolumeStoreTests.swift in Sources */,
+				C90FB60B15E13E612C719426 /* GlobalHotKey.swift in Sources */,
 				DAE97791D2D24FB2C605BE4A /* KeychainStore.swift in Sources */,
 				E3CFDCD87430B0A03E3F2550 /* KeychainStoreTests.swift in Sources */,
 				2A6179CFABCF080779688B35 /* MarkdownTextCleaner.swift in Sources */,
@@ -1074,16 +1124,28 @@
 				41348867E8F82E61AAAB40A3 /* PasteboardSnapshotTransactionTests.swift in Sources */,
 				CC16E54DD6A144548316130B /* PasteboardTypePolicy.swift in Sources */,
 				33E3505535C6E9F2684ABDB8 /* ScreenCaptureService.swift in Sources */,
+				8B599FB1366EFCD2CFAD35BA /* ScreenshotCaptureController+Clipboard.swift in Sources */,
 				263B3E1759B4E08FCD8E867F /* ScreenshotCaptureController.swift in Sources */,
 				155244374E7DD2A159D1ECAB /* ScreenshotCaptureIntegrationTests.swift in Sources */,
+				6B4ECD6BFFF0A42055C274B3 /* ScreenshotCaptureMenu.swift in Sources */,
+				F22D53AB0DAF34B90D16605E /* ScreenshotCaptureMenuTests.swift in Sources */,
 				564A37700F431A1A0EB95F10 /* ScreenshotCaptureTestSupport.swift in Sources */,
 				89066B692B5506FD6778C511 /* ScreenshotClipboardMetadataRegistry.swift in Sources */,
+				78D7CC0C1572D16AA59CBF26 /* ScreenshotClipboardWriter.swift in Sources */,
+				588C1851D4BFA0CB3CB323CB /* ScreenshotHotKeyRecorderTests.swift in Sources */,
+				F5919B112183B8101D654FBB /* ScreenshotHotKeyRecorderView.swift in Sources */,
+				F2B13C4E95193D09FC2D747E /* ScreenshotHotKeyTests.swift in Sources */,
+				6973047527D54B9AF507F14C /* ScreenshotPNGEncoder.swift in Sources */,
 				6E978E27DF916A986BA5DB55 /* ScreenshotPixelCopyIntegrationTests.swift in Sources */,
 				FAD8A171AD772E07B556E5C5 /* ScreenshotPixelInspection.swift in Sources */,
 				470BE3F64F8B5F9AA40CFB43 /* ScreenshotPixelInspectionHUD.swift in Sources */,
 				152FF67ACBACC49423AE3F28 /* ScreenshotPixelInspectionTests.swift in Sources */,
+				BD24A34CC191A82EB666140C /* ScreenshotSaveService.swift in Sources */,
+				6E500F77B244354782A94B9A /* ScreenshotSaveTests.swift in Sources */,
+				F64935430B92FD2BE01EF975 /* ScreenshotSaveValidationTests.swift in Sources */,
 				1B5BD09F9F6580996CD82556 /* ScreenshotSelectionOverlay.swift in Sources */,
 				9885D54467EC7F331809491D /* ScreenshotSelectionView.swift in Sources */,
+				EEC7A29D00E63871E7F496EA /* ScreenshotSelectionViewTests.swift in Sources */,
 				8BE0C2770F8375B62A44C15F /* ScreenshotWindowCaptureTests.swift in Sources */,
 				6511997653C6D5C81C83A45A /* TemporaryVolumeController.swift in Sources */,
 				0E008F3FD8B41601F3B44EC3 /* TemporaryVolumeControllerTests.swift in Sources */,

@@ -3,8 +3,13 @@ import AppKit
 @MainActor
 final class ScreenshotCaptureMenu: NSObject {
     private let settings: AppSettings
-    private let onCaptureScreenshot: (Bool?) -> Void
+    private let onCaptureScreenshot: (ScreenshotCaptureMode, Bool?) -> Void
     private let captureItem = NSMenuItem(title: "Capture Display to Clipboard", action: nil, keyEquivalent: "")
+    private let saveAndCopyItem = NSMenuItem(
+        title: "Save Screenshot and Copy",
+        action: nil,
+        keyEquivalent: ""
+    )
     private let cursorOptionsItem = NSMenuItem(
         title: "Screenshot Cursor Options",
         action: nil,
@@ -25,21 +30,37 @@ final class ScreenshotCaptureMenu: NSObject {
         action: nil,
         keyEquivalent: ""
     )
+    private let saveAndCopyWithCursorItem = NSMenuItem(
+        title: "Save and copy with Cursor",
+        action: nil,
+        keyEquivalent: ""
+    )
+    private let saveAndCopyWithoutCursorItem = NSMenuItem(
+        title: "Save and copy without Cursor",
+        action: nil,
+        keyEquivalent: ""
+    )
     private weak var statusMenu: NSMenu?
 
-    init(settings: AppSettings, onCaptureScreenshot: @escaping (Bool?) -> Void) {
+    init(settings: AppSettings, onCaptureScreenshot: @escaping (ScreenshotCaptureMode, Bool?) -> Void) {
         self.settings = settings
         self.onCaptureScreenshot = onCaptureScreenshot
         super.init()
 
         captureItem.action = #selector(captureUsingDefaultCursorSetting)
         captureItem.target = self
+        saveAndCopyItem.action = #selector(saveAndCopy)
+        saveAndCopyItem.target = self
         includeCursorByDefaultItem.action = #selector(toggleCursorDefault)
         includeCursorByDefaultItem.target = self
         captureWithCursorItem.action = #selector(captureWithCursor)
         captureWithCursorItem.target = self
         captureWithoutCursorItem.action = #selector(captureWithoutCursor)
         captureWithoutCursorItem.target = self
+        saveAndCopyWithCursorItem.action = #selector(saveAndCopyWithCursor)
+        saveAndCopyWithCursorItem.target = self
+        saveAndCopyWithoutCursorItem.action = #selector(saveAndCopyWithoutCursor)
+        saveAndCopyWithoutCursorItem.target = self
 
         let cursorMenu = NSMenu()
         cursorMenu.autoenablesItems = false
@@ -47,41 +68,58 @@ final class ScreenshotCaptureMenu: NSObject {
         cursorMenu.addItem(.separator())
         cursorMenu.addItem(captureWithCursorItem)
         cursorMenu.addItem(captureWithoutCursorItem)
+        cursorMenu.addItem(.separator())
+        cursorMenu.addItem(saveAndCopyWithCursorItem)
+        cursorMenu.addItem(saveAndCopyWithoutCursorItem)
         cursorOptionsItem.submenu = cursorMenu
     }
 
     func add(to menu: NSMenu) {
         statusMenu = menu
         menu.addItem(captureItem)
-        menu.addItem(cursorOptionsItem)
+        menu.addItem(saveAndCopyItem)
         menu.addItem(.separator())
+        menu.addItem(cursorOptionsItem)
         refresh()
     }
 
     func refresh() {
+        saveAndCopyItem.title = "Save Screenshot and Copy (\(settings.screenshotSaveAndCopyShortcut.displayName))"
         includeCursorByDefaultItem.state = settings.screenshotCursorIncludedByDefault ? .on : .off
     }
 
-    @objc private func captureUsingDefaultCursorSetting() {
-        capture(cursorOverride: nil)
+    @objc func captureUsingDefaultCursorSetting() {
+        capture(mode: .copy, cursorOverride: nil)
     }
 
-    @objc private func toggleCursorDefault() {
+    @objc func saveAndCopy() {
+        capture(mode: .saveAndCopy, cursorOverride: nil)
+    }
+
+    @objc func toggleCursorDefault() {
         settings.screenshotCursorIncludedByDefault.toggle()
     }
 
-    @objc private func captureWithCursor() {
-        capture(cursorOverride: true)
+    @objc func captureWithCursor() {
+        capture(mode: .copy, cursorOverride: true)
     }
 
-    @objc private func captureWithoutCursor() {
-        capture(cursorOverride: false)
+    @objc func captureWithoutCursor() {
+        capture(mode: .copy, cursorOverride: false)
     }
 
-    private func capture(cursorOverride: Bool?) {
+    @objc func saveAndCopyWithCursor() {
+        capture(mode: .saveAndCopy, cursorOverride: true)
+    }
+
+    @objc func saveAndCopyWithoutCursor() {
+        capture(mode: .saveAndCopy, cursorOverride: false)
+    }
+
+    private func capture(mode: ScreenshotCaptureMode, cursorOverride: Bool?) {
         statusMenu?.cancelTracking()
         DispatchQueue.main.async { [onCaptureScreenshot] in
-            onCaptureScreenshot(cursorOverride)
+            onCaptureScreenshot(mode, cursorOverride)
         }
     }
 }

@@ -15,7 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var clipboardWebPController: ClipboardWebPController?
     var clipboardWebPHotKey: GlobalHotKey?
     var screenshotCaptureController: ScreenshotCaptureController?
-    var screenshotClipboardHotKey: GlobalHotKey?
+    var screenshotSaveAndClipboardHotKey: GlobalHotKey?
+    var isScreenshotSaveAndCopyHotKeyRecording = false
+    var isTerminating = false
     var screenshotCaptureTask: Task<Void, Never>?
     var screenshotCaptureRequestID: UUID?
     var screenshotTerminationPending = false
@@ -55,17 +57,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let captureTask = screenshotCaptureTask else { return .terminateNow }
-        guard !screenshotTerminationPending else { return .terminateLater }
+        if screenshotTerminationPending {
+            isTerminating = true
+            stopGlobalHotKeys()
+            return .terminateLater
+        }
 
         screenshotCaptureRequestID = nil
         screenshotCaptureController?.terminate()
         captureTask.cancel()
-        guard screenshotCaptureController?.hasPendingPasteboardMutation == true else {
+        guard screenshotCaptureController?.hasPendingPasteboardMutation == true
+                || screenshotCaptureController?.hasPendingSavePreparation == true else {
             screenshotCaptureTask = nil
             return .terminateNow
         }
 
         screenshotTerminationPending = true
+        isTerminating = true
+        stopGlobalHotKeys()
         Task { @MainActor [weak self, sender] in
             await captureTask.value
             guard let self else { return }
@@ -76,7 +85,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateLater
     }
 
+    private func stopGlobalHotKeys() {
+        clipboardWebPHotKey?.stop()
+        clipboardMarkdownHotKey?.stop()
+        screenshotSaveAndClipboardHotKey?.stop()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        isTerminating = true
+        stopGlobalHotKeys()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         DistributedNotificationCenter.default().removeObserver(self)
         temporaryVolumeFeature?.stop()
@@ -87,9 +104,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await clipboardTokenizer.shutdown()
             }
         }
-        clipboardWebPHotKey?.stop()
-        clipboardMarkdownHotKey?.stop()
-        screenshotClipboardHotKey?.stop()
         screenshotCaptureRequestID = nil
         screenshotCaptureTask?.cancel()
         screenshotCaptureTask = nil
@@ -291,8 +305,8 @@ extension AppDelegate {
             clearURLsClipboardAvailable: clipboardClearURLsController != nil,
             onShowTools: { [weak self] in self?.showTools() },
             onCleanMarkdown: { [weak self] in self?.cleanMarkdownClipboard() },
-            onCaptureScreenshot: { [weak self] cursorOverride in
-                self?.captureScreenshotToClipboard(cursorOverride: cursorOverride)
+            onCaptureScreenshot: { [weak self] mode, cursorOverride in
+                self?.captureScreenshotToClipboard(cursorOverride: cursorOverride, mode: mode)
             },
             onToggleTwitchNotifications: { [weak self] in
                 self?.settings.twitchNotificationsEnabled.toggle()
@@ -329,13 +343,14 @@ extension AppDelegate {
             self?.microphoneToastController?.applySettings()
             self?.refreshStatusMenu()
             self?.toolsWindowController?.refreshTwitchView()
+            self?.toolsWindowController?.refreshScreenshotSaveSettingsView()
         }
     }
 
     private func startServices() {
         syncWebPClipboardConverter()
         syncMarkdownHotKey()
-        startScreenshotClipboardHotKey()
+        startScreenshotSaveAndClipboardHotKey()
         syncClearURLsClipboardCleaner()
         installWorkspaceObservers()
         clipboardToastController?.start()

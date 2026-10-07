@@ -8,6 +8,12 @@ extension AppDelegate {
         let windowController = toolsWindowController ?? ToolsWindowController(
             settings: settings,
             twitchNotificationController: twitchNotificationController,
+            onScreenshotShortcutChange: { [weak self] shortcut in
+                self?.updateScreenshotSaveAndCopyHotKey(shortcut) ?? false
+            },
+            onScreenshotShortcutRecordingChanged: { [weak self] isRecording in
+                self?.setScreenshotSaveAndCopyHotKeyRecording(isRecording)
+            },
             onClose: { [weak self] in
                 self?.toolsWindowDidClose()
             }

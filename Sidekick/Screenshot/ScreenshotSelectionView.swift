@@ -21,6 +21,8 @@ final class ScreenshotSelectionView: NSView {
     private var cursorPoint: NSPoint?
     private var selection = NSRect.zero
     private var hoveredWindow: ScreenshotWindowTarget?
+    private var selectedWindowTarget: ScreenshotWindowTarget?
+    private let saveAndCopyButton = NSButton(title: "Save & Copy", target: nil, action: nil)
     var choiceContinuation: AsyncStream<ScreenshotSelectionChoice>.Continuation?
     private var hasFinishedSelection = false
     private var isCopyingPixelValues = false
@@ -32,6 +34,10 @@ final class ScreenshotSelectionView: NSView {
         inspectionHUD = ScreenshotPixelInspectionHUD(image: image)
         super.init(frame: frame)
         wantsLayer = true
+        saveAndCopyButton.target = self
+        saveAndCopyButton.action = #selector(saveAndCopySelection)
+        saveAndCopyButton.setAccessibilityLabel("Save and copy screenshot")
+        addSubview(saveAndCopyButton)
 
         imageLayer.contents = image
         imageLayer.contentsGravity = .resize
@@ -54,8 +60,8 @@ final class ScreenshotSelectionView: NSView {
         layer?.addSublayer(cursorRulerLayer)
 
         instructionLayer.string = [
-            "A next • Shift-A previous • C copies all •",
-            "Drag region • Hover pixels • W windows • Return • Esc"
+            "C copies area (full screen if none) • Shift-C pixel details • F full screen •",
+            "Drag region • W then click a window • Save & Copy • Return • Esc"
         ].joined(separator: " ")
         instructionLayer.font = NSFont.systemFont(ofSize: 14)
         instructionLayer.fontSize = 14
@@ -84,6 +90,7 @@ final class ScreenshotSelectionView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         cursorPoint = point
         if mode == .window {
+            guard selectedWindowTarget == nil else { return }
             updateHoveredWindow(at: point)
         } else {
             updateSelectionLayers()
@@ -104,14 +111,21 @@ final class ScreenshotSelectionView: NSView {
         if mode == .window {
             switch ScreenshotWindowTargeting.selection(at: point, from: windowTargets ?? []) {
             case .none:
-                return
+                selectedWindowTarget = nil
+                hoveredWindow = nil
+                selection = .zero
+                updateSelectionLayers()
             case .unavailable:
                 send(.windowUnavailable)
             case let .selected(target):
-                send(.windowSelected(target.windowID))
+                selectedWindowTarget = target
+                hoveredWindow = target
+                selection = target.bounds
+                updateSelectionLayers()
             }
             return
         }
+        selectedWindowTarget = nil
         dragStart = point
         selection = .zero
         updateSelectionLayers()
@@ -141,14 +155,14 @@ final class ScreenshotSelectionView: NSView {
             imageSize: CGSize(width: image.width, height: image.height)
         )
         self.dragStart = nil
-        selection = rect.width < 2 || rect.height < 2 ? bounds : rect
+        selection = rect.width < 2 || rect.height < 2 ? .zero : rect
         updateSelectionLayers()
-        finishSelection(selection)
     }
 
-    private func copyAllPixelValues() {
-        guard let value = inspectionHUD.allValuesForKeyboardCopy() else { return }
-        send(.copyPixelValues(value))
+    private func copySelectionOnly() {
+        let rect = selection.isEmpty ? bounds : selection
+        guard let selectedImage = selectedImage(in: rect) else { return }
+        send(.copyOnly(selectedImage))
     }
 
     private func send(_ choice: ScreenshotSelectionChoice) {
@@ -181,13 +195,14 @@ final class ScreenshotSelectionView: NSView {
 
     private func handleKeyAction(_ event: NSEvent) -> Bool {
         guard !isCapturingWindow else { return true }
+        if handlePixelCopyKey(event) { return true }
         switch event.keyCode {
-        case 8: copyAllPixelValues()
+        case 3: finishFullDisplay()
         case 0 where event.modifierFlags.contains(.shift): cycleAspectRatio(reverse: true)
         case 0: cycleAspectRatio()
         case 13: selectWindowMode()
         case 15: selectRegionMode()
-        case 36, 76: finishSelection(bounds)
+        case 36, 76: acceptSelection()
         case 53: send(.cancelled)
         default: return false
         }
@@ -212,7 +227,11 @@ final class ScreenshotSelectionView: NSView {
             return
         }
         mode = .window
-        instructionLayer.string = "A next • Shift-A previous • C copies all • Click window • R region • Return • Esc"
+        instructionLayer.string = [
+            "C copies the selected area • Shift-C pixel details • F full screen •",
+            "Click window • R region • Save & Copy button • Return • Esc"
+        ].joined(separator: " ")
+        selectedWindowTarget = nil
         selection = .zero
         hoveredWindow = nil
         updateSelectionLayers()
@@ -222,6 +241,7 @@ final class ScreenshotSelectionView: NSView {
         mode = .window
         selection = target.bounds
         hoveredWindow = target
+        selectedWindowTarget = target
         instructionLayer.string = "Capturing selected window…"
         updateSelectionLayers()
     }
@@ -229,9 +249,10 @@ final class ScreenshotSelectionView: NSView {
     private func selectRegionMode() {
         mode = .region
         instructionLayer.string = [
-            "A next • Shift-A previous • C copies all •",
-            "Hover pixels • Drag region • W windows • Return • Esc"
+            "C copies the selected area • Shift-C pixel details • F full screen •",
+            "Drag region • Hover pixels • W windows • Save & Copy button • Return • Esc"
         ].joined(separator: " ")
+        selectedWindowTarget = nil
         selection = .zero
         hoveredWindow = nil
         updateSelectionLayers()
@@ -243,20 +264,40 @@ final class ScreenshotSelectionView: NSView {
         updateSelectionLayers()
     }
 
-    private func finishSelection(_ rect: NSRect?) {
-        guard let rect else {
-            send(.cancelled)
+    private func acceptSelection(forceSaveAndCopy: Bool = false) {
+        if let selectedWindowTarget {
+            let selectionChoice = forceSaveAndCopy
+                ? ScreenshotSelectionChoice.saveAndCopyWindow(selectedWindowTarget.windowID)
+                : .windowSelected(selectedWindowTarget.windowID)
+            send(selectionChoice)
             return
         }
-        guard let pixelRect = ScreenshotPixelInspector.imagePixelRect(
-            for: rect,
-            in: bounds,
-            imageSize: CGSize(width: image.width, height: image.height)
-        ), let selectedImage = image.cropping(to: pixelRect) else {
+        finishSelection(selection.isEmpty ? bounds : selection, forceSaveAndCopy: forceSaveAndCopy)
+    }
+
+    private func finishFullDisplay() {
+        selectedWindowTarget = nil
+        hoveredWindow = nil
+        selection = bounds
+        updateSelectionLayers()
+        finishSelection(bounds)
+    }
+
+    @objc func saveAndCopySelection() {
+        acceptSelection(forceSaveAndCopy: true)
+    }
+
+    private func finishSelection(_ rect: NSRect, forceSaveAndCopy: Bool = false) {
+        guard let selectedImage = selectedImage(in: rect) else { return }
+        send(forceSaveAndCopy ? .saveAndCopy(selectedImage) : .selected(selectedImage))
+    }
+
+    private func selectedImage(in rect: NSRect) -> CGImage? {
+        guard let selectedImage = screenshotCrop(image, in: rect, bounds: bounds) else {
             send(.cropFailed)
-            return
+            return nil
         }
-        send(.selected(selectedImage))
+        return selectedImage
     }
 
     private func updateLayerFrames() {
@@ -269,6 +310,13 @@ final class ScreenshotSelectionView: NSView {
         selectionBorder.frame = bounds
         cursorRulerLayer.frame = bounds
         instructionLayer.frame = CGRect(x: 24, y: 24, width: max(0, bounds.width - 48), height: 24)
+        let buttonSize = saveAndCopyButton.fittingSize
+        saveAndCopyButton.frame = NSRect(
+            x: max(bounds.minX + 24, bounds.maxX - buttonSize.width - 24),
+            y: bounds.maxY - buttonSize.height - 24,
+            width: buttonSize.width,
+            height: buttonSize.height
+        )
         instructionLayer.contentsScale = window?.backingScaleFactor ?? 1
         CATransaction.commit()
         updateSelectionLayers()
@@ -333,4 +381,32 @@ final class ScreenshotSelectionView: NSView {
         }
         cursorRulerLayer.path = path
     }
+}
+
+private extension ScreenshotSelectionView {
+    func copyAllPixelValues() {
+        guard let value = inspectionHUD.allValuesForKeyboardCopy() else { return }
+        send(.copyPixelValues(value))
+    }
+
+    func handlePixelCopyKey(_ event: NSEvent) -> Bool {
+        guard event.keyCode == 8 else { return false }
+        if event.modifierFlags.contains(.shift) {
+            copyAllPixelValues()
+        } else {
+            copySelectionOnly()
+        }
+        return true
+    }
+}
+@MainActor
+private func screenshotCrop(_ image: CGImage, in rect: NSRect, bounds: NSRect) -> CGImage? {
+    guard let pixelRect = ScreenshotPixelInspector.imagePixelRect(
+        for: rect,
+        in: bounds,
+        imageSize: CGSize(width: image.width, height: image.height)
+    ) else {
+        return nil
+    }
+    return image.cropping(to: pixelRect)
 }

@@ -37,9 +37,17 @@ extension AppDelegate {
     }
 
     func syncWebPClipboardConverter() {
+        guard !isTerminating else {
+            clipboardWebPHotKey?.stop()
+            return
+        }
         guard settings.webPClipboardConverterEnabled else {
             clipboardWebPHotKey?.stop()
             cancelPendingUtilityToast()
+            return
+        }
+        guard !isScreenshotSaveAndCopyHotKeyRecording else {
+            clipboardWebPHotKey?.stop()
             return
         }
         guard clipboardWebPHotKey?.start() != noErr else { return }
@@ -52,7 +60,7 @@ extension AppDelegate {
     }
 
     func startWebPConversion() {
-        guard settings.webPClipboardConverterEnabled else { return }
+        guard !isTerminating, settings.webPClipboardConverterEnabled else { return }
         _ = beginUtilityOperation()
         let mutationGeneration = beginClipboardMutation()
         clipboardWebPController?.convertClipboardImage { [weak self] _ in
@@ -63,9 +71,17 @@ extension AppDelegate {
     }
 
     func syncMarkdownHotKey() {
+        guard !isTerminating else {
+            clipboardMarkdownHotKey?.stop()
+            return
+        }
         guard settings.markdownClipboardCleanerEnabled else {
             clipboardMarkdownHotKey?.stop()
             cancelPendingMarkdownHotKeyCleaning()
+            return
+        }
+        guard !isScreenshotSaveAndCopyHotKeyRecording else {
+            clipboardMarkdownHotKey?.stop()
             return
         }
         guard clipboardMarkdownHotKey?.start() != noErr else { return }
@@ -90,6 +106,7 @@ extension AppDelegate {
     func cleanMarkdownClipboard(
         trigger: MarkdownCleaningTrigger = .manual
     ) {
+        guard !isTerminating else { return }
         guard let clipboardMarkdownController else { return }
         let generation = beginUtilityOperation()
         let mutationGeneration = beginClipboardMutation()

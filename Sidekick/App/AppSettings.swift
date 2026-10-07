@@ -15,6 +15,12 @@ final class AppSettings {
 
     var onChange: (() -> Void)?
 
+    static let defaultScreenshotFilenameTemplate = ScreenshotFilenameTemplate.defaultTemplate
+    static var defaultScreenshotSaveDirectoryURL: URL {
+        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent("Pictures", isDirectory: true)
+    }
+
     private enum Key {
         static let clipboardToastEnabled = "clipboardToastEnabled"
         static let twitchNotificationsEnabled = "twitchNotificationsEnabled"
@@ -26,7 +32,10 @@ final class AppSettings {
         static let clearURLsClipboardEnabled = "clearURLsClipboardEnabled"
         static let microphoneToastEnabled = "microphoneToastEnabled"
         static let clipboardImageOpeningApplicationPath = "clipboardImageOpeningApplicationPath"
+        static let screenshotSaveDirectoryPath = "screenshotSaveDirectoryPath"
+        static let screenshotFilenameTemplate = "screenshotFilenameTemplate"
         static let screenshotCursorIncludedByDefault = "screenshotCursorIncludedByDefault"
+        static let screenshotSaveAndCopyShortcut = "screenshotSaveAndCopyShortcut"
     }
 
     private let defaults: UserDefaults
@@ -42,7 +51,9 @@ final class AppSettings {
             Key.clearURLsClipboardEnabled: true,
             Key.microphoneToastEnabled: true,
             Key.twitchNotificationsEnabled: false,
-            Key.screenshotCursorIncludedByDefault: false
+            Key.screenshotCursorIncludedByDefault: false,
+            Key.screenshotSaveDirectoryPath: Self.defaultScreenshotSaveDirectoryURL.path,
+            Key.screenshotFilenameTemplate: Self.defaultScreenshotFilenameTemplate
         ])
 
         let storedDuration = defaults.double(forKey: Key.toastDuration)
@@ -123,6 +134,63 @@ final class AppSettings {
         set {
             guard newValue != screenshotCursorIncludedByDefault else { return }
             defaults.set(newValue, forKey: Key.screenshotCursorIncludedByDefault)
+            onChange?()
+        }
+    }
+
+    var screenshotSaveDirectoryURL: URL {
+        get {
+            URL(fileURLWithPath: defaults.string(forKey: Key.screenshotSaveDirectoryPath)
+                ?? Self.defaultScreenshotSaveDirectoryURL.path, isDirectory: true)
+        }
+        set {
+            guard newValue.isFileURL else { return }
+            let normalizedURL = newValue.standardizedFileURL
+            guard normalizedURL.path != screenshotSaveDirectoryURL.path else { return }
+            defaults.set(normalizedURL.path, forKey: Key.screenshotSaveDirectoryPath)
+            onChange?()
+        }
+    }
+
+    var screenshotFilenameTemplate: String {
+        get {
+            defaults.string(forKey: Key.screenshotFilenameTemplate)
+                ?? Self.defaultScreenshotFilenameTemplate
+        }
+        set {
+            let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? Self.defaultScreenshotFilenameTemplate
+                : newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard normalized != screenshotFilenameTemplate else { return }
+            defaults.set(normalized, forKey: Key.screenshotFilenameTemplate)
+            onChange?()
+        }
+    }
+
+    var screenshotSaveAndCopyShortcut: GlobalHotKey.Shortcut {
+        get {
+            guard let stored = defaults.dictionary(forKey: Key.screenshotSaveAndCopyShortcut),
+                  let keyCodeValue = stored["keyCode"] as? Int,
+                  let modifiersValue = stored["modifiers"] as? Int,
+                  let keyCode = UInt32(exactly: keyCodeValue),
+                  let modifiers = UInt32(exactly: modifiersValue),
+                  let keyName = stored["keyName"] as? String,
+                  let shortcut = GlobalHotKey.Shortcut.recorded(
+                    keyCode: keyCode,
+                    modifiers: modifiers,
+                    keyName: keyName
+                  ) else {
+                return .screenshotSaveAndClipboard
+            }
+            return shortcut
+        }
+        set {
+            guard newValue != screenshotSaveAndCopyShortcut else { return }
+            defaults.set([
+                "keyCode": Int(newValue.keyCode),
+                "modifiers": Int(newValue.modifiers),
+                "keyName": newValue.keyName
+            ], forKey: Key.screenshotSaveAndCopyShortcut)
             onChange?()
         }
     }

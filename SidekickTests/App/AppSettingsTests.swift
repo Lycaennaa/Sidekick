@@ -173,6 +173,26 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertTrue(AppSettings(defaults: defaults).screenshotCursorIncludedByDefault)
         XCTAssertEqual(changeCount, 1)
     }
+
+    func testScreenshotSaveSettingsDefaultAndPersistChanges() throws {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var changeCount = 0
+        settings.onChange = { changeCount += 1 }
+
+        XCTAssertEqual(settings.screenshotSaveDirectoryURL, AppSettings.defaultScreenshotSaveDirectoryURL)
+        XCTAssertEqual(settings.screenshotFilenameTemplate, AppSettings.defaultScreenshotFilenameTemplate)
+        settings.screenshotSaveDirectoryURL = directory
+        settings.screenshotFilenameTemplate = "Shot_{date}_{windowTitle}"
+
+        let restored = AppSettings(defaults: defaults)
+        XCTAssertEqual(restored.screenshotSaveDirectoryURL.path, directory.standardizedFileURL.path)
+        XCTAssertEqual(restored.screenshotFilenameTemplate, "Shot_{date}_{windowTitle}")
+        XCTAssertEqual(changeCount, 2)
+    }
     private var defaultsSuiteName: String {
         "AppSettingsTests"
     }

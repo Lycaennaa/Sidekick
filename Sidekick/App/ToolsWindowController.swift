@@ -7,14 +7,22 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
     private let onClose: () -> Void
     private let twitchNotificationView: TwitchNotificationView
     private let imageOpeningApplicationPicker: ClipboardImageOpeningApplicationPickerView
+    private let screenshotSaveSettingsView: ScreenshotSaveSettingsView
 
     init(
         settings: AppSettings,
         twitchNotificationController: TwitchNotificationController,
+        onScreenshotShortcutChange: @escaping (GlobalHotKey.Shortcut) -> Bool,
+        onScreenshotShortcutRecordingChanged: @escaping (Bool) -> Void,
         onClose: @escaping () -> Void
     ) {
         self.onClose = onClose
         self.imageOpeningApplicationPicker = ClipboardImageOpeningApplicationPickerView(settings: settings)
+        self.screenshotSaveSettingsView = ScreenshotSaveSettingsView(
+            settings: settings,
+            onShortcutChange: onScreenshotShortcutChange,
+            onRecordingChanged: onScreenshotShortcutRecordingChanged
+        )
         self.twitchNotificationView = TwitchNotificationView(
             settings: settings,
             controller: twitchNotificationController
@@ -30,6 +38,7 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
         window.minSize = NSSize(width: 560, height: 360)
         window.isReleasedWhenClosed = false
         window.contentView = Self.makeContentView(
+            screenshotSaveSettingsView: screenshotSaveSettingsView,
             imageOpeningApplicationPicker: imageOpeningApplicationPicker,
             twitchNotificationView: twitchNotificationView
         )
@@ -52,6 +61,7 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
     func present() {
         imageOpeningApplicationPicker.refresh()
         twitchNotificationView.refresh()
+        screenshotSaveSettingsView.refresh()
         window?.deminiaturize(nil)
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -61,11 +71,16 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
         twitchNotificationView.refresh()
     }
 
+    func refreshScreenshotSaveSettingsView() {
+        screenshotSaveSettingsView.refresh()
+    }
+
     func windowWillClose(_ notification: Notification) {
         onClose()
     }
 
     private static func makeContentView(
+        screenshotSaveSettingsView: ScreenshotSaveSettingsView,
         imageOpeningApplicationPicker: ClipboardImageOpeningApplicationPickerView,
         twitchNotificationView: TwitchNotificationView
     ) -> NSView {
@@ -81,6 +96,7 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
         contentView.addSubview(scrollView)
 
         let stack = makeContentStack(
+            screenshotSaveSettingsView: screenshotSaveSettingsView,
             imageOpeningApplicationPicker: imageOpeningApplicationPicker,
             twitchNotificationView: twitchNotificationView
         )
@@ -108,9 +124,16 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private static func makeContentStack(
+        screenshotSaveSettingsView: ScreenshotSaveSettingsView,
         imageOpeningApplicationPicker: ClipboardImageOpeningApplicationPickerView,
         twitchNotificationView: TwitchNotificationView
     ) -> NSStackView {
+        let screenshotTool = makeToolView(
+            title: "Screenshot Selection",
+            detail: "Draw a region; C copies it. F captures full screen. Save & Copy saves the area.",
+            shortcut: "C / F",
+            shortcutDescription: "Shift-C copies pixel details; the menu offers selection-only copy."
+        )
         let webPTool = makeToolView(
             title: "Clipboard Image to WebP",
             detail: "Convert the current clipboard image to WebP at 75% quality.",
@@ -129,8 +152,16 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
         webPSeparator.boxType = .separator
         let markdownSeparator = NSBox()
         markdownSeparator.boxType = .separator
+        let screenshotToolSeparator = NSBox()
+        screenshotToolSeparator.boxType = .separator
+        let screenshotSettingsSeparator = NSBox()
+        screenshotSettingsSeparator.boxType = .separator
         let stack = NSStackView(
             views: [
+                screenshotTool,
+                screenshotToolSeparator,
+                screenshotSaveSettingsView,
+                screenshotSettingsSeparator,
                 imageOpeningApplicationPicker,
                 imageOpeningSeparator,
                 webPTool,

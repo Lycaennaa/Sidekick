@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import ScreenCaptureKit
 enum ScreenshotAspectRatio: String, CaseIterable {
     case free = "Free"
     case square = "1:1"
@@ -78,9 +79,12 @@ enum ScreenshotAspectRatio: String, CaseIterable {
 
 enum ScreenshotSelectionChoice {
     case selected(CGImage)
+    case copyOnly(CGImage)
+    case saveAndCopy(CGImage)
     case copiedPixelValue(String)
     case copyPixelValues(String)
     case windowSelected(CGWindowID)
+    case saveAndCopyWindow(CGWindowID)
     case cancelled
     case displayUnavailable
     case cropFailed
@@ -163,11 +167,23 @@ enum ScreenshotSelectionOverlay {
         switch choice {
         case let .copyPixelValues(values):
             return await handlePixelValueCopies(values, context: context, copy: copyPixelValues)
+        case let .copyOnly(image):
+            return .copyOnly(image)
+        case let .saveAndCopy(image):
+            return .saveAndCopy(image, windowTitle: nil)
         case let .windowSelected(windowID):
             return await captureSelectedWindow(
                 windowID: windowID,
                 context: context,
-                capture: captureWindow
+                capture: captureWindow,
+                forceSave: false
+            )
+        case let .saveAndCopyWindow(windowID):
+            return await captureSelectedWindow(
+                windowID: windowID,
+                context: context,
+                capture: captureWindow,
+                forceSave: true
             )
         default:
             return simpleResult(for: choice)
@@ -188,7 +204,8 @@ enum ScreenshotSelectionOverlay {
     private static func captureSelectedWindow(
         windowID: CGWindowID,
         context: ChoiceContext,
-        capture: ScreenshotWindowCapture
+        capture: ScreenshotWindowCapture,
+        forceSave: Bool
     ) async -> ScreenshotSelectionResult {
         guard let target = context.screenshot.windowTargets?.first(where: { $0.windowID == windowID }),
               target.isSelectable else {
@@ -198,7 +215,9 @@ enum ScreenshotSelectionOverlay {
         do {
             let image = try await capture(target, context.showsCursor)
             guard !Task.isCancelled else { return .cancelled }
-            return .selected(image)
+            return forceSave
+                ? .saveAndCopy(image, windowTitle: target.window?.title)
+                : .selectedWindow(image, windowTitle: target.window?.title)
         } catch {
             return Task.isCancelled ? .cancelled : .windowCaptureFailed
         }
@@ -218,7 +237,7 @@ enum ScreenshotSelectionOverlay {
             return .cropFailed
         case .windowUnavailable:
             return .windowUnavailable
-        case .copyPixelValues, .windowSelected:
+        case .copyOnly, .saveAndCopy, .saveAndCopyWindow, .copyPixelValues, .windowSelected:
             return nil
         }
     }

@@ -1,10 +1,16 @@
 import AppKit
 import CoreGraphics
-import ImageIO
-import UniformTypeIdentifiers
+
+enum ScreenshotCaptureMode: Sendable, Equatable {
+    case copy
+    case saveAndCopy
+}
 
 enum ScreenshotSelectionResult {
     case selected(CGImage)
+    case copyOnly(CGImage)
+    case saveAndCopy(CGImage, windowTitle: String?)
+    case selectedWindow(CGImage, windowTitle: String?)
     case copiedPixelValue(String)
     case cancelled
     case displayUnavailable
@@ -28,11 +34,49 @@ enum ScreenshotCaptureFailurePresentation {
         }
         return "Couldn’t capture the display."
     }
+    private static let failureMessages: [ScreenshotCaptureController.Failure: String] = [
+        .clipboard: "Couldn’t copy the selected content; your previous clipboard was restored.",
+        .clipboardChanged: "Clipboard changed during capture; newer clipboard contents were kept.",
+        .clipboardSnapshot: "Couldn’t safely preserve the existing clipboard; it was not replaced.",
+        .clipboardRestore: "Copy failed and the previous clipboard could not be restored.",
+        .encoding: "Couldn’t prepare the selected content for the clipboard.",
+        .selectionDisplayUnavailable: "The captured display changed before selection; retry the screenshot.",
+        .selectionCropFailed: "Couldn’t create the selected screenshot; try again.",
+        .selectionWindowUnavailable:
+            "That window is fully hidden or unavailable; choose an exposed portion or drag a region.",
+        .save: "Couldn’t save screenshot. Check that the configured folder is available.",
+        .savedButNotCopied: "Screenshot saved, but it could not be copied to the clipboard.",
+        .savedButClipboardChanged: "Screenshot saved, but clipboard changed; newer clipboard contents were kept.",
+        .savedButClipboardRestoreFailed:
+            "Screenshot saved, but the previous clipboard could not be restored."
+    ]
+
+    static func message(
+        for failure: ScreenshotCaptureController.Failure,
+        screenRecordingAllowed: () -> Bool
+    ) -> String {
+        switch failure {
+        case .capture:
+            return permissionAwareCaptureMessage(screenRecordingAllowed: screenRecordingAllowed())
+        case .windowCapture:
+            return permissionAwareCaptureMessage(
+                screenRecordingAllowed: screenRecordingAllowed(),
+                isWindowCapture: true
+            )
+        default:
+            return failureMessages[failure] ?? "Couldn’t complete the screenshot operation."
+        }
+    }
+}
+
+enum SelectedClipboardItemContent {
+    case screenshot(Data, String?, ScreenshotCaptureMode)
+    case pixelValue
 }
 
 @MainActor
 final class ScreenshotCaptureController {
-    enum Failure: Equatable {
+    enum Failure: Hashable {
         case capture
         case windowCapture
         case clipboard
@@ -43,34 +87,50 @@ final class ScreenshotCaptureController {
         case selectionDisplayUnavailable
         case selectionCropFailed
         case selectionWindowUnavailable
-    }
-    private enum ClipboardReplacement {
-        case installed(changeCount: Int)
-        case cancelled
-        case failed(Failure)
-        case failedButRestored(changeCount: Int)
+        case save
+        case savedButNotCopied
+        case savedButClipboardChanged
+        case savedButClipboardRestoreFailed
     }
 
-    @MainActor
-    private final class RequestState {
+    final class RequestState {
         let id: UUID
+        let delivery: ScreenshotCaptureMode
+        let startedAt: Date
+        let saveDirectory: URL
+        let filenameTemplate: String
         var expectedChangeCount: Int
+        var savedURL: URL?
 
-        init(id: UUID, expectedChangeCount: Int) {
+        init(
+            id: UUID,
+            expectedChangeCount: Int,
+            delivery: ScreenshotCaptureMode,
+            startedAt: Date,
+            saveDirectory: URL,
+            filenameTemplate: String
+        ) {
             self.id = id
             self.expectedChangeCount = expectedChangeCount
+            self.delivery = delivery
+            self.startedAt = startedAt
+            self.saveDirectory = saveDirectory
+            self.filenameTemplate = filenameTemplate
         }
     }
 
-    private enum SnapshotCapture {
-        case captured(PasteboardSnapshot)
-        case cancelled
-        case failed(Failure)
-    }
-
-    private struct SelectedClipboardItem {
+    struct SelectedClipboardItem {
         let item: NSPasteboardItem
-        let isScreenshot: Bool
+        let content: SelectedClipboardItemContent
+
+        var isScreenshot: Bool {
+            switch content {
+            case .screenshot:
+                return true
+            case .pixelValue:
+                return false
+            }
+        }
     }
 
     typealias Capture = @MainActor (Bool) async throws -> CapturedDisplayScreenshot
@@ -81,29 +141,23 @@ final class ScreenshotCaptureController {
         WindowCapture,
         ScreenshotPixelValueCopy
     ) async -> ScreenshotSelectionResult
-
-    private static let snapshotLimits = PasteboardSnapshot.Limits(
-        maximumBytes: PasteboardSnapshotPolicy.maximumBytes,
-        maximumItems: PasteboardSnapshotPolicy.maximumItems,
-        maximumTypesPerItem: PasteboardSnapshotPolicy.maximumTypesPerItem
-    )
+    typealias SavePreparation = @MainActor (Data, URL, String) async throws -> ScreenshotSaveService.Prepared
 
     private let settings: AppSettings
-    private let pasteboard: any PasteboardAccess
     private let capture: Capture
     private let captureWindow: WindowCapture
     private let select: Select
-    private let payloadReader: any PasteboardPayloadReading
-    private let metadataRegistry: ScreenshotClipboardMetadataRegistry
-    private let onCopied: () -> Void
-    private let onPixelValueCopied: () -> Void
-    private let onFailure: (Failure) -> Void
-    private var activeRequestID: UUID?
-    private var mutationRequestID: UUID?
+    let clipboardWriter: ScreenshotClipboardWriter
+    let onCopied: () -> Void
+    let onPixelValueCopied: () -> Void
+    let onFailure: (Failure) -> Void
+    let onSavedAndCopied: (URL) -> Void
+    private let prepareSave: SavePreparation
+    var activeRequestID: UUID?
+    private var pendingSaveRequestID: UUID?
 
-    var hasPendingPasteboardMutation: Bool {
-        mutationRequestID != nil
-    }
+    var hasPendingPasteboardMutation: Bool { clipboardWriter.hasPendingMutation }
+    var hasPendingSavePreparation: Bool { pendingSaveRequestID != nil }
 
     init(
         pasteboard: any PasteboardAccess = NSPasteboard.general,
@@ -119,9 +173,15 @@ final class ScreenshotCaptureController {
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader(),
         onCopied: @escaping () -> Void,
         onPixelValueCopied: @escaping () -> Void = {},
-        onFailure: @escaping (Failure) -> Void
+        onFailure: @escaping (Failure) -> Void,
+        onSavedAndCopied: @escaping (URL) -> Void = { _ in },
+        prepareSave: SavePreparation? = nil
     ) {
-        self.pasteboard = pasteboard
+        self.clipboardWriter = ScreenshotClipboardWriter(
+            pasteboard: pasteboard,
+            metadataRegistry: metadataRegistry,
+            payloadReader: payloadReader
+        )
         self.settings = settings
         self.capture = capture
         self.captureWindow = captureWindow
@@ -133,17 +193,33 @@ final class ScreenshotCaptureController {
                 copyPixelValues: copyPixelValues
             )
         }
-        self.metadataRegistry = metadataRegistry
-        self.payloadReader = payloadReader
         self.onCopied = onCopied
         self.onPixelValueCopied = onPixelValueCopied
         self.onFailure = onFailure
+        self.onSavedAndCopied = onSavedAndCopied
+        self.prepareSave = prepareSave ?? { pngData, directory, baseName in
+            try await ScreenshotSaveService.prepareInBackground(
+                pngData: pngData,
+                directory: directory,
+                baseName: baseName
+            )
+        }
     }
 
-    func copyActiveDisplayToClipboard(cursorOverride: Bool? = nil) async {
+    func copyActiveDisplayToClipboard(
+        cursorOverride: Bool? = nil,
+        mode: ScreenshotCaptureMode = .copy
+    ) async {
         guard activeRequestID == nil else { return }
         let showsCursor = cursorOverride ?? settings.screenshotCursorIncludedByDefault
-        let request = RequestState(id: UUID(), expectedChangeCount: pasteboard.changeCount)
+        let request = RequestState(
+            id: UUID(),
+            expectedChangeCount: clipboardWriter.changeCount,
+            delivery: mode,
+            startedAt: Date(),
+            saveDirectory: settings.screenshotSaveDirectoryURL,
+            filenameTemplate: settings.screenshotFilenameTemplate
+        )
         activeRequestID = request.id
         guard let screenshot = await captureScreenshot(
             showsCursor: showsCursor,
@@ -192,255 +268,105 @@ final class ScreenshotCaptureController {
             activeRequestID = nil
             return
         }
-        guard let selection = makeClipboardItem(from: result) else { return }
+        guard let selection = makeClipboardItem(from: result, delivery: request.delivery) else { return }
+        if case let .screenshot(pngData, windowTitle, .saveAndCopy) = selection.content {
+            guard await saveSelectedScreenshot(
+                pngData,
+                windowTitle: windowTitle,
+                request: request
+            ) else { return }
+            guard activeRequestID == request.id else { return }
+            guard !Task.isCancelled else {
+                activeRequestID = nil
+                return
+            }
+            guard clipboardWriter.changeCount == request.expectedChangeCount else {
+                activeRequestID = nil
+                onFailure(.savedButClipboardChanged)
+                return
+            }
+        }
         await installClipboardItem(selection, request: request)
     }
 
-    private func makeClipboardItem(from result: ScreenshotSelectionResult) -> SelectedClipboardItem? {
-        switch result {
-        case let .selected(image):
-            guard let item = makePNGClipboardItem(from: image) else {
-                failSelection(with: .encoding)
-                return nil
-            }
-            return SelectedClipboardItem(item: item, isScreenshot: true)
-        case let .copiedPixelValue(value):
-            let item = NSPasteboardItem()
-            guard item.setString(value, forType: .string) else {
-                failSelection(with: .encoding)
-                return nil
-            }
-            return SelectedClipboardItem(item: item, isScreenshot: false)
-        case .cancelled:
-            activeRequestID = nil
-            return nil
-        case .displayUnavailable:
-            failSelection(with: .selectionDisplayUnavailable)
-            return nil
-        case .cropFailed:
-            failSelection(with: .selectionCropFailed)
-            return nil
-        case .windowUnavailable:
-            failSelection(with: .selectionWindowUnavailable)
-            return nil
-        case .windowCaptureFailed:
-            failSelection(with: .windowCapture)
-            return nil
-        }
-    }
-
-    private func failSelection(with failure: Failure) {
-        activeRequestID = nil
-        onFailure(failure)
-    }
-
-    private func installClipboardItem(_ selection: SelectedClipboardItem, request: RequestState) async {
-        let replacement = await replaceClipboardContents(
-            with: [selection.item],
-            requestID: request.id,
-            expectedChangeCount: request.expectedChangeCount,
-            isScreenshot: selection.isScreenshot
-        )
-        guard activeRequestID == request.id else { return }
+    private func saveSelectedScreenshot(
+        _ pngData: Data,
+        windowTitle: String?,
+        request: RequestState
+    ) async -> Bool {
+        guard activeRequestID == request.id else { return false }
         guard !Task.isCancelled else {
             activeRequestID = nil
-            return
-        }
-        switch replacement {
-        case let .installed(changeCount):
-            guard pasteboard.changeCount == changeCount else {
-                activeRequestID = nil
-                onFailure(.clipboardChanged)
-                return
-            }
-            activeRequestID = nil
-            if selection.isScreenshot {
-                onCopied()
-            } else {
-                onPixelValueCopied()
-            }
-        case .cancelled:
-            activeRequestID = nil
-        case let .failed(failure):
-            activeRequestID = nil
-            onFailure(failure)
-        case .failedButRestored:
-            activeRequestID = nil
-            onFailure(.clipboard)
-        }
-    }
-
-    private func copyPixelValue(_ value: String, request: RequestState) async -> Bool {
-        guard activeRequestID == request.id, !Task.isCancelled else { return false }
-        guard pasteboard.changeCount == request.expectedChangeCount else {
-            onFailure(.clipboardChanged)
             return false
         }
-        let item = NSPasteboardItem()
-        guard item.setString(value, forType: .string) else {
-            onFailure(.encoding)
+        guard clipboardWriter.changeCount == request.expectedChangeCount else {
+            failSelection(with: .clipboardChanged)
             return false
         }
-        let replacement = await replaceClipboardContents(
-            with: [item],
-            requestID: request.id,
-            expectedChangeCount: request.expectedChangeCount,
-            isScreenshot: false
+        let baseName = ScreenshotFilenameTemplate.baseName(
+            template: request.filenameTemplate,
+            date: request.startedAt,
+            windowTitle: windowTitle
         )
-        guard activeRequestID == request.id, !Task.isCancelled else { return false }
-        return finishPixelValueCopy(replacement, request: request)
+        pendingSaveRequestID = request.id
+        do {
+            let prepared = try await prepareSave(pngData, request.saveDirectory, baseName)
+            return publishPreparedScreenshot(prepared, request: request)
+        } catch {
+            return finishFailedScreenshotPreparation(for: request)
+        }
     }
 
-    private func finishPixelValueCopy(
-        _ replacement: ClipboardReplacement,
+    private func finishFailedScreenshotPreparation(for request: RequestState) -> Bool {
+        guard pendingSaveRequestID == request.id else { return false }
+        pendingSaveRequestID = nil
+        guard activeRequestID == request.id else { return false }
+        guard !Task.isCancelled else {
+            activeRequestID = nil
+            return false
+        }
+        guard clipboardWriter.changeCount == request.expectedChangeCount else {
+            failSelection(with: .clipboardChanged)
+            return false
+        }
+        failSelection(with: .save)
+        return false
+    }
+
+    private func publishPreparedScreenshot(
+        _ prepared: ScreenshotSaveService.Prepared,
         request: RequestState
     ) -> Bool {
-        switch replacement {
-        case let .installed(changeCount):
-            guard pasteboard.changeCount == changeCount else {
-                onFailure(.clipboardChanged)
-                return false
-            }
-            request.expectedChangeCount = changeCount
-            onPixelValueCopied()
-            return true
-        case .cancelled:
-            return false
-        case let .failed(failure):
-            onFailure(failure)
-            return false
-        case let .failedButRestored(changeCount):
-            guard pasteboard.changeCount == changeCount else {
-                onFailure(.clipboardChanged)
-                return false
-            }
-            request.expectedChangeCount = changeCount
-            onFailure(.clipboard)
+        guard pendingSaveRequestID == request.id else {
+            ScreenshotSaveService.discard(prepared)
             return false
         }
-    }
-
-    private func replaceClipboardContents(
-        with items: [NSPasteboardWriting],
-        requestID: UUID,
-        expectedChangeCount: Int,
-        isScreenshot: Bool
-    ) async -> ClipboardReplacement {
-        let snapshotCapture = await captureSnapshot(
-            requestID: requestID,
-            expectedChangeCount: expectedChangeCount
-        )
-        let snapshot: PasteboardSnapshot
-        switch snapshotCapture {
-        case let .captured(value):
-            snapshot = value
-        case .cancelled:
-            return .cancelled
-        case let .failed(failure):
-            return .failed(failure)
-        }
-        guard activeRequestID == requestID,
+        guard activeRequestID == request.id,
               !Task.isCancelled,
-              pasteboard.changeCount == expectedChangeCount else {
-            return .failed(.clipboardChanged)
+              clipboardWriter.changeCount == request.expectedChangeCount else {
+            ScreenshotSaveService.discard(prepared)
+            pendingSaveRequestID = nil
+            guard activeRequestID == request.id else { return false }
+            guard !Task.isCancelled else {
+                activeRequestID = nil
+                return false
+            }
+            failSelection(with: .clipboardChanged)
+            return false
         }
-        let isCurrentRequest: @MainActor () async -> Bool = { [weak self] in
-            self?.activeRequestID == requestID && !Task.isCancelled
+        pendingSaveRequestID = nil
+        do {
+            request.savedURL = try ScreenshotSaveService.commit(prepared)
+            return true
+        } catch {
+            ScreenshotSaveService.discard(prepared)
+            failSelection(with: .save)
+            return false
         }
-        let result = await snapshot.replace(
-            pasteboard: pasteboard,
-            expectedChangeCount: expectedChangeCount,
-            with: items,
-            maximumBytes: Self.snapshotLimits.maximumBytes,
-            maximumTypesPerItem: Self.snapshotLimits.maximumTypesPerItem,
-            payloadReader: payloadReader,
-            isStillOwned: isCurrentRequest,
-            onMutation: { [weak self, metadataRegistry] changeCount in
-                self?.mutationRequestID = requestID
-                if isScreenshot {
-                    metadataRegistry.register(.sdr, forChangeCount: changeCount)
-                }
-            },
-            verify: isCurrentRequest
-        )
-        if mutationRequestID == requestID {
-            mutationRequestID = nil
-        }
-        guard activeRequestID == requestID else { return .cancelled }
-        guard !Task.isCancelled else { return .cancelled }
-        return clipboardReplacement(from: result)
     }
 
     func terminate() {
         activeRequestID = nil
     }
 
-    private func makePNGClipboardItem(from image: CGImage) -> NSPasteboardItem? {
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(
-            data,
-            UTType.png.identifier as CFString,
-            1,
-            nil
-        ) else {
-            return nil
-        }
-        CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else { return nil }
-
-        let item = NSPasteboardItem()
-        guard item.setData(data as Data, forType: .png) else { return nil }
-        return item
-    }
-}
-private extension ScreenshotCaptureController {
-    private func captureSnapshot(
-        requestID: UUID,
-        expectedChangeCount: Int
-    ) async -> SnapshotCapture {
-        guard activeRequestID == requestID, !Task.isCancelled else { return .cancelled }
-        guard pasteboard.changeCount == expectedChangeCount else {
-            return .failed(.clipboardChanged)
-        }
-        let result = await PasteboardSnapshot.capture(
-            from: pasteboard,
-            expectedChangeCount: expectedChangeCount,
-            limits: Self.snapshotLimits,
-            payloadReader: payloadReader
-        )
-        guard activeRequestID == requestID else { return .cancelled }
-        guard !Task.isCancelled else { return .cancelled }
-        guard pasteboard.changeCount == expectedChangeCount else {
-            return .failed(.clipboardChanged)
-        }
-        switch result {
-        case let .captured(snapshot):
-            return .captured(snapshot)
-        case .stale:
-            return .failed(.clipboardChanged)
-        case .failed:
-            return .failed(.clipboardSnapshot)
-        }
-    }
-
-    private func clipboardReplacement(
-        from result: PasteboardSnapshot.ReplacementResult
-    ) -> ClipboardReplacement {
-        switch result {
-        case let .installed(changeCount):
-            guard pasteboard.changeCount == changeCount else {
-                return .failed(.clipboardChanged)
-            }
-            return .installed(changeCount: changeCount)
-        case .stale:
-            return .failed(.clipboardChanged)
-        case let .failed(restoredChangeCount):
-            guard pasteboard.changeCount == restoredChangeCount else {
-                return .failed(.clipboardChanged)
-            }
-            return .failedButRestored(changeCount: restoredChangeCount)
-        case .restoreFailed:
-            return .failed(.clipboardRestore)
-        }
-    }
 }

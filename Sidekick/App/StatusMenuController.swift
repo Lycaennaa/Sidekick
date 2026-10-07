@@ -90,7 +90,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         clearURLsClipboardAvailable: Bool,
         onShowTools: @escaping () -> Void,
         onCleanMarkdown: @escaping () -> Void,
-        onCaptureScreenshot: @escaping (Bool?) -> Void,
+        onCaptureScreenshot: @escaping (ScreenshotCaptureMode, Bool?) -> Void,
         onToggleTwitchNotifications: @escaping () -> Void,
         onPause: @escaping (TimeInterval?) -> Void,
         onResume: @escaping () -> Void,

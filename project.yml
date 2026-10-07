@@ -91,6 +91,8 @@ targets:
     platform: macOS
     sources:
       - path: SidekickTests
+        excludes:
+          - .kilo-tmp
       - path: Sidekick/Clipboard
       - path: Sidekick/Microphone
       - path: Sidekick/Toast
@@ -103,11 +105,18 @@ targets:
           - TwitchNotificationView.swift
           - TwitchNotificationController+Delegate.swift
       - path: Sidekick/System/KeychainStore.swift
+      - path: Sidekick/System/GlobalHotKey.swift
       - path: Sidekick/App/AppSettings.swift
+      - path: Sidekick/App/ScreenshotHotKeyRecorderView.swift
       - path: Sidekick/App/AppTheme.swift
       - path: Sidekick/App/ToastPresentationCoordinator.swift
       - path: Sidekick/Screenshot/ScreenCaptureService.swift
       - path: Sidekick/Screenshot/ScreenshotCaptureController.swift
+      - path: Sidekick/Screenshot/ScreenshotCaptureController+Clipboard.swift
+      - path: Sidekick/Screenshot/ScreenshotClipboardWriter.swift
+      - path: Sidekick/Screenshot/ScreenshotSaveService.swift
+      - path: Sidekick/Screenshot/ScreenshotPNGEncoder.swift
+      - path: Sidekick/Screenshot/ScreenshotCaptureMenu.swift
       - path: Sidekick/Screenshot/ScreenshotClipboardMetadataRegistry.swift
       - path: Sidekick/Screenshot/ScreenshotSelectionOverlay.swift
       - path: Sidekick/Screenshot/ScreenshotSelectionView.swift
