@@ -35,6 +35,7 @@ struct TwitchAPIClient: Sendable {
         case rateLimited
         case server(Int)
         case tooManyFollowedStreams
+        case tooManyFollowedChannels
         case tooManyProfileImages
         case userNotFound
 
@@ -53,6 +54,8 @@ struct TwitchAPIClient: Sendable {
             case let .server(statusCode):
                 "Twitch API returned HTTP \(statusCode)."
             case .tooManyFollowedStreams:
+                "The followed-stream list is larger than the supported limit."
+            case .tooManyFollowedChannels:
                 "The followed-channel list is larger than the supported limit."
             case .tooManyProfileImages:
                 "The profile-image request is larger than the supported limit."
@@ -65,11 +68,13 @@ struct TwitchAPIClient: Sendable {
     private let apiSession: URLSession
     private let profileImageSession: URLSession
     private let profileTestSession: URLSession
+    private let apiBaseURL: URL
 
     init(
         urlSession: URLSession = .shared,
         profileImageSession: URLSession? = nil,
-        profileTestSession: URLSession? = nil
+        profileTestSession: URLSession? = nil,
+        apiBaseURL: URL = URL(string: "https://api.twitch.tv")!
     ) {
         apiSession = urlSession
         self.profileImageSession = profileImageSession ?? Self.makeEphemeralSession(
@@ -78,6 +83,7 @@ struct TwitchAPIClient: Sendable {
         self.profileTestSession = profileTestSession ?? Self.makeEphemeralSession(
             timeout: Self.profileTestRequestTimeout
         )
+        self.apiBaseURL = apiBaseURL
     }
 
 }
@@ -102,12 +108,8 @@ extension TwitchAPIClient {
     }
 
     func followedStreams(for session: Session) async throws -> [TwitchFollowedStream] {
-        var cursor: String?
-        var streams: [TwitchFollowedStream] = []
-
-        for _ in 0..<Self.maximumPages {
-            try Task.checkCancellation()
-            var components = URLComponents(string: "https://api.twitch.tv/helix/streams/followed")
+        try await followedPages(tooManyError: .tooManyFollowedStreams) { cursor in
+            var components = apiURLComponents(path: "/helix/streams/followed")
             components?.queryItems = [
                 URLQueryItem(name: "user_id", value: session.userID),
                 URLQueryItem(name: "first", value: String(Self.pageSize))
@@ -121,21 +123,64 @@ extension TwitchAPIClient {
                 authorizedRequest(url: url, session: session),
                 using: apiSession
             )
+            return (data: page.data, cursor: page.pagination?.cursor)
+        }
+    }
+
+    func followedChannels(for session: Session) async throws -> [TwitchFollowedChannel] {
+        try await followedPages(tooManyError: .tooManyFollowedChannels) { cursor in
+            var components = apiURLComponents(path: "/helix/channels/followed")
+            components?.queryItems = [
+                URLQueryItem(name: "user_id", value: session.userID),
+                URLQueryItem(name: "first", value: String(Self.pageSize))
+            ]
+            if let cursor {
+                components?.queryItems?.append(URLQueryItem(name: "after", value: cursor))
+            }
+            guard let url = components?.url else { throw APIError.invalidResponse }
+
+            let page: TwitchFollowedChannelsPage = try await perform(
+                authorizedRequest(url: url, session: session),
+                using: apiSession
+            )
+            return (data: page.data, cursor: page.pagination?.cursor)
+        }
+    }
+
+    private func followedPages<Element>(
+        tooManyError: APIError,
+        fetchPage: (String?) async throws -> (data: [Element], cursor: String?)
+    ) async throws -> [Element] {
+        var cursor: String?
+        var seenCursors: Set<String> = []
+        var items: [Element] = []
+
+        for _ in 0..<Self.maximumPages {
+            try Task.checkCancellation()
+            let page = try await fetchPage(cursor)
             try Task.checkCancellation()
             guard page.data.count <= Self.pageSize else {
                 throw APIError.invalidResponse
             }
-            guard streams.count <= Self.maximumPages * Self.pageSize - page.data.count else {
-                throw APIError.tooManyFollowedStreams
+            guard items.count <= Self.maximumPages * Self.pageSize - page.data.count else {
+                throw tooManyError
             }
-            streams.append(contentsOf: page.data)
-            guard let nextCursor = page.pagination?.cursor, !nextCursor.isEmpty else {
-                return streams
+            items.append(contentsOf: page.data)
+            guard let nextCursor = page.cursor, !nextCursor.isEmpty else {
+                return items
             }
-            guard nextCursor != cursor else { throw APIError.invalidResponse }
+            guard seenCursors.insert(nextCursor).inserted else {
+                throw APIError.invalidResponse
+            }
             cursor = nextCursor
         }
-        throw APIError.tooManyFollowedStreams
+        throw tooManyError
+    }
+
+    private func apiURLComponents(path: String) -> URLComponents? {
+        var components = URLComponents(url: apiBaseURL, resolvingAgainstBaseURL: false)
+        components?.path = path
+        return components
     }
 
     func profileImageResults(
@@ -228,7 +273,7 @@ extension TwitchAPIClient {
         forUsername username: String,
         session: Session
     ) async throws -> (profile: TwitchUserProfile, imageData: Data?) {
-        var components = URLComponents(string: "https://api.twitch.tv/helix/users")
+        var components = apiURLComponents(path: "/helix/users")
         components?.queryItems = [URLQueryItem(name: "login", value: username)]
         guard let url = components?.url else { throw APIError.invalidResponse }
         var request = authorizedRequest(url: url, session: session)
@@ -265,7 +310,7 @@ extension TwitchAPIClient {
         var profiles: [String: TwitchUserProfile] = [:]
         for start in stride(from: 0, to: userIDs.count, by: Self.pageSize) {
             let end = min(start + Self.pageSize, userIDs.count)
-            var components = URLComponents(string: "https://api.twitch.tv/helix/users")
+            var components = apiURLComponents(path: "/helix/users")
             components?.queryItems = userIDs[start..<end].map {
                 URLQueryItem(name: "id", value: $0)
             }

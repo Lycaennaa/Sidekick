@@ -4,6 +4,7 @@ import AppKit
 final class TwitchNotificationView: NSView, NSTextFieldDelegate {
     private let settings: AppSettings
     private let controller: TwitchNotificationController
+    private let channelSelectionView: TwitchFollowedChannelSelectionView
     private let enabledSwitch = NSSwitch()
     private let tokenField = NSTextField(string: "")
     private let usernameField = NSTextField(string: "")
@@ -29,6 +30,7 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
     init(settings: AppSettings, controller: TwitchNotificationController) {
         self.settings = settings
         self.controller = controller
+        channelSelectionView = TwitchFollowedChannelSelectionView(settings: settings, controller: controller)
         super.init(frame: .zero)
         oauthClientIDField.stringValue = settings.twitchOAuthClientID
         translatesAutoresizingMaskIntoConstraints = false
@@ -51,6 +53,7 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
 
     func refresh() {
         enabledSwitch.state = settings.twitchNotificationsEnabled ? .on : .off
+        channelSelectionView.refresh()
         let tokenState = controller.oauthTokenState
         let hasStoredToken: Bool
         let storedTokenMessage: String
@@ -119,6 +122,7 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
                 titleLabel,
                 detailLabel,
                 enabledRow,
+                channelSelectionView,
                 oauthClientIDHintLabel,
                 clientIDRow,
                 tokenRow,
@@ -137,6 +141,9 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
             scopeLabel: scopeLabel,
             avatarTestLabel: avatarTestLabel
         )
+        NSLayoutConstraint.activate([
+            channelSelectionView.widthAnchor.constraint(equalTo: stack.widthAnchor)
+        ])
     }
 
     @objc private func toggleEnabled() {

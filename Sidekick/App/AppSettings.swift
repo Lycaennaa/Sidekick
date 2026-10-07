@@ -18,6 +18,10 @@ final class AppSettings {
     private enum Key {
         static let clipboardToastEnabled = "clipboardToastEnabled"
         static let twitchNotificationsEnabled = "twitchNotificationsEnabled"
+        static let twitchNotificationChannelMode = "twitchNotificationChannelMode"
+        static let twitchSelectedChannelIDs = "twitchSelectedChannelIDs"
+        static let twitchChannelSelections = "twitchChannelSelections"
+        static let twitchKeepChannelSelectionsBetweenModes = "twitchKeepChannelSelectionsBetweenModes"
         static let twitchOAuthClientID = "twitchOAuthClientID"
         static let excludedToastApplicationBundleIdentifiers = "excludedToastApplicationBundleIdentifiers"
         static let toastDuration = "toastDuration"
@@ -67,6 +71,98 @@ final class AppSettings {
             defaults.set(newValue, forKey: Key.twitchNotificationsEnabled)
             onChange?()
         }
+    }
+
+    var twitchNotificationChannelMode: TwitchNotificationChannelMode {
+        get {
+            defaults.string(forKey: Key.twitchNotificationChannelMode)
+                .flatMap(TwitchNotificationChannelMode.init(rawValue:)) ?? .all
+        }
+        set {
+            guard newValue != twitchNotificationChannelMode else { return }
+            defaults.set(newValue.rawValue, forKey: Key.twitchNotificationChannelMode)
+        }
+    }
+
+    var twitchKeepChannelSelectionsBetweenModes: Bool {
+        defaults.bool(forKey: Key.twitchKeepChannelSelectionsBetweenModes)
+    }
+
+    func twitchSelectedChannelIDs(for mode: TwitchNotificationChannelMode) -> Set<String> {
+        guard mode != .all else { return [] }
+        return channelSelectionsByMode[mode.rawValue] ?? []
+    }
+
+    func setTwitchSelectedChannelIDs(_ channelIDs: Set<String>, for mode: TwitchNotificationChannelMode) {
+        guard mode != .all else { return }
+        let normalized = Set(channelIDs.lazy.filter { !$0.isEmpty })
+        var selections = channelSelectionsByMode
+        let modesToUpdate = twitchKeepChannelSelectionsBetweenModes
+            ? Self.checkableTwitchChannelModes
+            : [mode]
+        guard modesToUpdate.contains(where: { selections[$0.rawValue, default: []] != normalized }) else {
+            return
+        }
+        for selectionMode in modesToUpdate {
+            selections[selectionMode.rawValue] = normalized
+        }
+        saveTwitchChannelSelections(selections)
+    }
+
+    func setTwitchKeepChannelSelectionsBetweenModes(
+        _ enabled: Bool,
+        using mode: TwitchNotificationChannelMode
+    ) {
+        guard mode != .all, enabled != twitchKeepChannelSelectionsBetweenModes else { return }
+        if enabled {
+            let selectedIDs = twitchSelectedChannelIDs(for: mode)
+            var selections = channelSelectionsByMode
+            for selectionMode in Self.checkableTwitchChannelModes {
+                selections[selectionMode.rawValue] = selectedIDs
+            }
+            saveTwitchChannelSelections(selections)
+        }
+        defaults.set(enabled, forKey: Key.twitchKeepChannelSelectionsBetweenModes)
+    }
+
+    func pruneTwitchChannelSelections(keeping channelIDs: Set<String>) {
+        var selections = channelSelectionsByMode
+        var didChange = false
+        for mode in Self.checkableTwitchChannelModes {
+            let key = mode.rawValue
+            let currentIDs = selections[key, default: []]
+            let remainingIDs = currentIDs.intersection(channelIDs)
+            guard remainingIDs != currentIDs else { continue }
+            selections[key] = remainingIDs
+            didChange = true
+        }
+        guard didChange else { return }
+        saveTwitchChannelSelections(selections)
+    }
+
+    private static let checkableTwitchChannelModes: [TwitchNotificationChannelMode] = [
+        .allExceptSelected,
+        .onlySelected
+    ]
+
+    private var channelSelectionsByMode: [String: Set<String>] {
+        if let stored = defaults.dictionary(forKey: Key.twitchChannelSelections) as? [String: [String]] {
+            return Dictionary(uniqueKeysWithValues: Self.checkableTwitchChannelModes.map {
+                ($0.rawValue, Set(stored[$0.rawValue] ?? []))
+            })
+        }
+        let legacyIDs = Set(defaults.stringArray(forKey: Key.twitchSelectedChannelIDs) ?? [])
+        return Dictionary(uniqueKeysWithValues: Self.checkableTwitchChannelModes.map {
+            ($0.rawValue, legacyIDs)
+        })
+    }
+
+    private func saveTwitchChannelSelections(_ selections: [String: Set<String>]) {
+        let stored = Dictionary(uniqueKeysWithValues: Self.checkableTwitchChannelModes.map {
+            ($0.rawValue, selections[$0.rawValue, default: []].sorted())
+        })
+        defaults.set(stored, forKey: Key.twitchChannelSelections)
+        defaults.removeObject(forKey: Key.twitchSelectedChannelIDs)
     }
     var twitchOAuthClientID: String {
         get { defaults.string(forKey: Key.twitchOAuthClientID) ?? "" }

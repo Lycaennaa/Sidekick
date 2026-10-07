@@ -33,6 +33,93 @@ final class TwitchNotificationControllerTests: XCTestCase {
         XCTAssertTrue(controller.onlineStreams.isEmpty)
     }
 
+    func testOnlySelectedFollowedChannelsDeliverLiveNotifications() async {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        let session = twitchTestSession()
+        settings.twitchNotificationChannelMode = .onlySelected
+        settings.setTwitchSelectedChannelIDs(["selected-user"], for: .onlySelected)
+        let existing = twitchTestStream(id: "existing", userID: "selected-user")
+        let selected = twitchTestStream(id: "selected", userID: "selected-user")
+        let excluded = twitchTestStream(id: "excluded", userID: "excluded-user")
+        let responses = ControllerStreamResponses([
+            [existing],
+            [existing, selected, excluded]
+        ])
+        let pollingGate = AsyncGate()
+        let controller = makeController(
+            settings: settings,
+            authenticate: { _ in session },
+            followedStreams: { _ in await responses.next() },
+            followedChannels: { _ in
+                [
+                    TwitchFollowedChannel(id: "selected-user", login: "selected", name: "Selected"),
+                    TwitchFollowedChannel(id: "excluded-user", login: "excluded", name: "Excluded")
+                ]
+            },
+            sleeper: .init(sleep: { _ in
+                await pollingGate.wait()
+                try Task.checkCancellation()
+            })
+        )
+        defer { controller.terminate() }
+
+        var deliveredChannelIDs: [String] = []
+        controller.onStreamLive = { stream, _ in deliveredChannelIDs.append(stream.userID) }
+        settings.twitchNotificationsEnabled = true
+        controller.applySettings()
+        await twitchEventuallyAsync { await pollingGate.hasWaiter }
+
+        await pollingGate.open()
+        await twitchEventually { deliveredChannelIDs == ["selected-user"] }
+
+        XCTAssertEqual(controller.onlineStreams.map(\.userID), [
+            "selected-user",
+            "selected-user",
+            "excluded-user"
+        ])
+    }
+
+    func testUnfollowedChannelsArePrunedFromBothModeSelections() async {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        settings.twitchNotificationChannelMode = .allExceptSelected
+        settings.setTwitchSelectedChannelIDs(["unfollowed-user"], for: .allExceptSelected)
+        settings.setTwitchSelectedChannelIDs(["unfollowed-user"], for: .onlySelected)
+        let session = twitchTestSession()
+        let channel = TwitchFollowedChannel(id: "unfollowed-user", login: "former", name: "Former")
+        let channelResponses = ControllerFollowedChannelResponses([[channel], []])
+        let streamResponses = ControllerStreamResponses([[], []])
+        let pollingGate = AsyncGate()
+        let controller = makeController(
+            settings: settings,
+            authenticate: { _ in session },
+            followedStreams: { _ in await streamResponses.next() },
+            followedChannels: { _ in await channelResponses.next() },
+            sleeper: .init(sleep: { _ in
+                await pollingGate.wait()
+                try Task.checkCancellation()
+            })
+        )
+        defer { controller.terminate() }
+
+        settings.twitchNotificationsEnabled = true
+        controller.applySettings()
+        await twitchEventuallyAsync { await pollingGate.hasWaiter }
+        XCTAssertEqual(controller.followedChannels.map(\.id), ["unfollowed-user"])
+
+        await pollingGate.open()
+        await twitchEventuallyAsync { await channelResponses.count == 2 }
+        await twitchEventually {
+            controller.hasLoadedFollowedChannels && controller.followedChannels.isEmpty
+        }
+
+        XCTAssertTrue(settings.twitchSelectedChannelIDs(for: .allExceptSelected).isEmpty)
+        XCTAssertTrue(settings.twitchSelectedChannelIDs(for: .onlySelected).isEmpty)
+    }
+
     func testTerminalAuthorizationFailureClearsCurrentStreams() async {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
@@ -132,6 +219,9 @@ final class TwitchNotificationControllerTests: XCTestCase {
         settings: AppSettings,
         authenticate: @escaping @Sendable (String) async throws -> TwitchAPIClient.Session,
         followedStreams: @escaping @Sendable (TwitchAPIClient.Session) async throws -> [TwitchFollowedStream],
+        followedChannels: @escaping @Sendable (
+            TwitchAPIClient.Session
+        ) async throws -> [TwitchFollowedChannel] = { _ in [] },
         sleeper: TwitchSleepClient,
         tokenStorage: TokenStorage? = nil,
         oauthAuthorization: TwitchOAuthAuthorization? = nil
@@ -144,6 +234,7 @@ final class TwitchNotificationControllerTests: XCTestCase {
             dependencies: .init(
                 authenticate: authenticate,
                 followedStreams: followedStreams,
+                followedChannels: followedChannels,
                 notifications: notifications,
                 sleeper: sleeper,
                 pollInterval: 1
@@ -221,5 +312,37 @@ private actor AuthenticationPlan {
             throw TwitchAPIClient.APIError.invalidToken
         }
         return TwitchAPIClient.Session(accessToken: "token", clientID: "client", userID: "user")
+    }
+}
+
+private actor ControllerStreamResponses {
+    private let responses: [[TwitchFollowedStream]]
+    private var index = 0
+
+    init(_ responses: [[TwitchFollowedStream]]) {
+        self.responses = responses
+    }
+
+    func next() -> [TwitchFollowedStream] {
+        let response = responses[min(index, responses.count - 1)]
+        index += 1
+        return response
+    }
+}
+
+private actor ControllerFollowedChannelResponses {
+    private let responses: [[TwitchFollowedChannel]]
+    private var index = 0
+
+    init(_ responses: [[TwitchFollowedChannel]]) {
+        self.responses = responses
+    }
+
+    var count: Int { index }
+
+    func next() -> [TwitchFollowedChannel] {
+        let response = responses[min(index, responses.count - 1)]
+        index += 1
+        return response
     }
 }

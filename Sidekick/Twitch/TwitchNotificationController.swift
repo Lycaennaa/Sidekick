@@ -51,6 +51,10 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
     var onStreamsLiveSummary: ((Int) -> Void)?
     var onOnlineStreamsChange: (([TwitchFollowedStream]) -> Void)?
     private(set) var onlineStreams: [TwitchFollowedStream] = []
+    private var followedChannelDirectory = TwitchFollowedChannelDirectory()
+    var followedChannels: [TwitchFollowedChannel] { followedChannelDirectory.channels }
+    var hasLoadedFollowedChannels: Bool { followedChannelDirectory.hasLoaded }
+    var followedChannelsLoadFailed: Bool { followedChannelDirectory.hasFailed }
     var onTokenSave: ((Bool, String) -> Void)?
 
     convenience init(
@@ -79,6 +83,7 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
             dependencies: .init(
                 authenticate: { try await apiClient.authenticate(accessToken: $0) },
                 followedStreams: { try await apiClient.followedStreams(for: $0) },
+                followedChannels: { try await apiClient.followedChannels(for: $0) },
                 notifications: notifications,
                 sleeper: .live,
                 pollInterval: TwitchAPIClient.pollInterval
@@ -277,6 +282,9 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
             },
             onCurrentStreams: { [weak self] streams, generation in
                 self?.handleCurrentStreams(streams, generation: generation)
+            },
+            onFollowedChannels: { [weak self] channels, generation in
+                self?.handleFollowedChannels(channels, generation: generation)
             }
         )
         deliveryOwner.activate(generation: generation)
@@ -286,6 +294,7 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
         pollingOwner.stop()
         deliveryOwner.cancel()
         setOnlineStreams([])
+        clearFollowedChannels()
     }
 
     private func handleOAuthAuthorizationResult(
@@ -334,6 +343,11 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
         onOnlineStreamsChange?(streams)
     }
 
+    private func clearFollowedChannels() {
+        guard followedChannelDirectory.reset() else { return }
+        onStateChange?()
+    }
+
 }
 private extension TwitchNotificationController {
     private func handlePollingStatus(
@@ -359,14 +373,33 @@ private extension TwitchNotificationController {
         setOnlineStreams(streams)
     }
 
+    private func handleFollowedChannels(
+        _ channels: [TwitchFollowedChannel]?,
+        generation: UInt64
+    ) {
+        guard !terminating,
+              settings.twitchNotificationsEnabled,
+              pollingOwner.isCurrent(generation),
+              followedChannelDirectory.update(channels) else { return }
+        if let channels {
+            settings.pruneTwitchChannelSelections(keeping: Set(channels.map(\.id)))
+        }
+        onStateChange?()
+    }
+
     private func handlePollingStreams(
         streams: [TwitchFollowedStream],
         session: TwitchAPIClient.Session,
         generation: UInt64
     ) async -> Set<String> {
         guard !terminating, settings.twitchNotificationsEnabled else { return [] }
+        let mode = settings.twitchNotificationChannelMode
+        let selectedChannelIDs = settings.twitchSelectedChannelIDs(for: mode)
+        let filteredStreams = streams.filter {
+            mode.includes(channelID: $0.userID, selectedChannelIDs: selectedChannelIDs)
+        }
         return await deliveryOwner.deliver(
-            streams: streams,
+            streams: filteredStreams,
             session: session,
             generation: generation
         ) { [weak self] event in
