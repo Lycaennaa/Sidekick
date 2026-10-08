@@ -5,6 +5,46 @@ import XCTest
 
 @MainActor
 final class TwitchNotificationControllerTests: TwitchNotificationControllerTestSupport {
+    func testAMOLEDBlackThemeMakesChannelPickerBlack() throws {
+        _ = NSApplication.shared
+        let previousAppearance = AppTheme.appearance
+        defer { AppTheme.apply(previousAppearance) }
+        AppTheme.apply(.amoledBlack)
+
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        let session = twitchTestSession()
+        let controller = makeController(
+            settings: settings,
+            authenticate: { _ in session },
+            followedStreams: { _ in [] },
+            sleeper: sleepForever
+        )
+        defer { controller.terminate() }
+        let view = TwitchNotificationView(settings: settings, controller: controller)
+
+        func findChannelPicker(in view: NSView) -> NSScrollView? {
+            if let scrollView = view as? NSScrollView, scrollView.documentView is NSTableView {
+                return scrollView
+            }
+            for subview in view.subviews {
+                if let scrollView = findChannelPicker(in: subview) { return scrollView }
+            }
+            return nil
+        }
+
+        let channelPicker = try XCTUnwrap(findChannelPicker(in: view))
+        let channelTable = try XCTUnwrap(channelPicker.documentView as? NSTableView)
+        XCTAssertEqual(channelPicker.backgroundColor, .black)
+        XCTAssertEqual(channelTable.backgroundColor, .black)
+
+        AppTheme.apply(.dark)
+        view.refresh()
+        XCTAssertEqual(channelPicker.backgroundColor, .controlBackgroundColor)
+        XCTAssertEqual(channelTable.backgroundColor, .controlBackgroundColor)
+    }
+
     func testCurrentStreamsReachObserverAndClearWhenNotificationsDisable() async {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }

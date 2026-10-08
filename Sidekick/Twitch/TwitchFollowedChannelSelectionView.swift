@@ -39,6 +39,12 @@ final class TwitchFollowedChannelSelectionView: NSView, NSTableViewDataSource, N
         let mode = settings.twitchNotificationChannelMode
         let modes = TwitchNotificationChannelMode.allCases
         channelModePopup.selectItem(at: modes.firstIndex(of: mode) ?? 0)
+        let pickerBackgroundColor = AppTheme.resolvedAppearance == .amoledBlack
+            ? NSColor.black
+            : NSColor.controlBackgroundColor
+        channelTableView.backgroundColor = pickerBackgroundColor
+        channelScrollView.drawsBackground = true
+        channelScrollView.backgroundColor = pickerBackgroundColor
         keepSelectionsBetweenModesCheckbox.state = settings.twitchKeepChannelSelectionsBetweenModes ? .on : .off
         channelSelectionControls.isHidden = mode == .all
         visibleChannels = TwitchFollowedChannelSearch.filter(

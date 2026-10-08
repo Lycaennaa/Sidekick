@@ -86,6 +86,7 @@ final class ToolsContentViewController: NSViewController {
 
     func refreshAppearance() {
         appearanceView.refresh()
+        twitchView.refresh()
     }
 
     func refreshTwitchView() {
