@@ -12,6 +12,7 @@ final class ToolsContentViewControllerTests: XCTestCase {
         sidebar.loadViewIfNeeded()
         let tableView = try XCTUnwrap(findView(NSTableView.self, in: sidebar.view))
         XCTAssertEqual(ToolsSettingsPage.twitch.title, "Twitch")
+        XCTAssertEqual(ToolsSettingsPage.permissions.title, "Permissions")
 
         for page in ToolsSettingsPage.allCases {
             tableView.selectRowIndexes(IndexSet(integer: page.rawValue), byExtendingSelection: false)

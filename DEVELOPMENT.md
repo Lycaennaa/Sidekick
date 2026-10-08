@@ -19,6 +19,8 @@ just lint
 just check
 ```
 
+`just test-permissions` runs a separate hosted integration check in an inert test host, using macOS's live Screen Recording and notification authorization status APIs. It only reads current status and does not request either permission.
+
 `just ci` runs the local required checks plus a Release build. `just package` creates an ad-hoc-signed ZIP and DMG. Neither artifact is Developer ID signed or notarized.
 
 ## Generated project and rule data

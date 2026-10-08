@@ -93,6 +93,8 @@ targets:
       - path: SidekickTests
         excludes:
           - .kilo-tmp
+          - App/PermissionsSettingsLiveIntegrationTests.swift
+          - main.swift
       - path: Sidekick/Clipboard
       - path: Sidekick/Microphone
       - path: Sidekick/Toast
@@ -112,6 +114,7 @@ targets:
       - path: Sidekick/App/ToolsSidebarViewController.swift
       - path: Sidekick/App/AudioSettingsView.swift
       - path: Sidekick/App/ToolsContentViewController.swift
+      - path: Sidekick/App/PermissionsSettingsView.swift
       - path: Sidekick/App/ToolsSettingsPageHost.swift
       - path: Sidekick/App/ClipboardSettingsView.swift
       - path: Sidekick/App/ScreenshotSettingsView.swift
@@ -155,6 +158,49 @@ targets:
         CODE_SIGN_STYLE: Manual
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_NAME: "$(TARGET_NAME)"
+  permissionsTestHost:
+    type: application
+    platform: macOS
+    productName: "$(TARGET_NAME)"
+    info:
+      path: build/generated/PermissionsTestHostInfo.plist
+      properties:
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+    sources:
+      - path: SidekickTests/main.swift
+    configFiles:
+      Debug: Configuration/PublicIdentity.xcconfig
+      Release: Configuration/PublicIdentity.xcconfig
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_STYLE: Manual
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_EXPAND_BUILD_SETTINGS: YES
+        PRODUCT_NAME: "$(TARGET_NAME)"
+  sidekickPermissionIntegrationTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: SidekickTests/App/PermissionsSettingsLiveIntegrationTests.swift
+      - path: Sidekick/App/PermissionsSettingsView.swift
+      - path: Sidekick/App/SettingsPageStackLayout.swift
+      - path: Sidekick/Twitch/TwitchNotificationClients.swift
+      - path: Sidekick/Twitch/TwitchNotificationAuthorization.swift
+    configFiles:
+      Debug: Configuration/PublicTestIdentity.xcconfig
+      Release: Configuration/PublicTestIdentity.xcconfig
+    dependencies:
+      - target: permissionsTestHost
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGN_STYLE: Manual
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/permissionsTestHost.app/Contents/MacOS/permissionsTestHost"
 schemes:
   sidekick:
     build:
@@ -170,3 +216,13 @@ schemes:
           parallelizable: true
     archive:
       config: Release
+  permissionSettingsIntegration:
+    build:
+      targets:
+        permissionsTestHost: all
+        sidekickPermissionIntegrationTests: [test]
+    test:
+      config: Debug
+      targets:
+        - name: sidekickPermissionIntegrationTests
+          parallelizable: false

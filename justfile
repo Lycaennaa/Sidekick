@@ -42,6 +42,9 @@ release_products := derived_data + "/Build/Products/Release"
 @test: test-justfile generate-project
     if command -v distill >/dev/null 2>&1; then distill xcode test -- -project Sidekick.xcodeproj -scheme sidekick -configuration Debug -derivedDataPath "{{derived_data}}" -clonedSourcePackagesDirPath "{{source_packages}}" -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_IDENTITY=-; else xcodebuild -project Sidekick.xcodeproj -scheme sidekick -configuration Debug -derivedDataPath "{{derived_data}}" -clonedSourcePackagesDirPath "{{source_packages}}" -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_IDENTITY=- test; fi
 
+@test-permissions: test-justfile generate-project
+    if command -v distill >/dev/null 2>&1; then distill xcode test -- -project Sidekick.xcodeproj -scheme permissionSettingsIntegration -configuration Debug -derivedDataPath "{{derived_data}}" -clonedSourcePackagesDirPath "{{source_packages}}" -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_IDENTITY=-; else xcodebuild -project Sidekick.xcodeproj -scheme permissionSettingsIntegration -configuration Debug -derivedDataPath "{{derived_data}}" -clonedSourcePackagesDirPath "{{source_packages}}" -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_IDENTITY=- test; fi
+
 @test-justfile:
     sh justfile_recipe_syntax_test.sh
 

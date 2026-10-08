@@ -9,6 +9,7 @@ final class ToolsContentViewController: NSViewController {
     private let audioView: AudioSettingsView
     private let outputVolumeView: OutputVolumeSettingsView
     private let appearanceView: AppearanceSettingsView
+    private let permissionsView = PermissionsSettingsView()
     private var pageHost: ToolsSettingsPageHost?
     private(set) var selectedPage = ToolsSettingsPage.clipboard
 
@@ -55,8 +56,13 @@ final class ToolsContentViewController: NSViewController {
     func select(_ page: ToolsSettingsPage) {
         selectedPage = page
         pageHost?.select(page)
-        if page == .twitch {
+        switch page {
+        case .twitch:
             twitchView.refresh()
+        case .permissions:
+            permissionsView.refresh()
+        case .clipboard, .screenshots, .audio, .outputVolume, .appearance:
+            break
         }
     }
 
@@ -73,6 +79,9 @@ final class ToolsContentViewController: NSViewController {
         screenshotSaveSettingsView.refresh()
         twitchView.refresh()
         audioView.refresh()
+        if selectedPage == .permissions {
+            permissionsView.refresh()
+        }
     }
 
     func refreshAppearance() {
@@ -92,6 +101,7 @@ final class ToolsContentViewController: NSViewController {
         case .audio: audioView
         case .outputVolume: outputVolumeView
         case .appearance: appearanceView
+        case .permissions: permissionsView
         }
     }
 

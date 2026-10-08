@@ -7,6 +7,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
     case audio
     case outputVolume
     case appearance
+    case permissions
 
     var title: String {
         switch self {
@@ -16,6 +17,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         case .audio: "Audio"
         case .outputVolume: "Output Volume"
         case .appearance: "Appearance"
+        case .permissions: "Permissions"
         }
     }
 
@@ -27,6 +29,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         case .audio: "waveform"
         case .outputVolume: "speaker.wave.2"
         case .appearance: "paintpalette"
+        case .permissions: "lock.shield"
         }
     }
 }
