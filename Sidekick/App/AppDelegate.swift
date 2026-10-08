@@ -20,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var isTerminating = false
     var screenshotCaptureTask: Task<Void, Never>?
     var screenshotCaptureRequestID: UUID?
-    var screenshotTerminationPending = false
+    var applicationTerminationPending = false
     var screenshotClipboardMetadataRegistry = ScreenshotClipboardMetadataRegistry()
     var clipboardMarkdownController: ClipboardMarkdownController?
     var clipboardClearURLsController: ClipboardClearURLsController?
@@ -59,30 +59,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let captureTask = screenshotCaptureTask else { return .terminateNow }
-        if screenshotTerminationPending {
-            isTerminating = true
-            stopGlobalHotKeys()
-            return .terminateLater
-        }
+        guard !applicationTerminationPending else { return .terminateLater }
+        let captureTask = screenshotCaptureTask
+        let waitForScreenshot = captureTask != nil && (
+            screenshotCaptureController?.hasPendingPasteboardMutation == true
+                || screenshotCaptureController?.hasPendingSavePreparation == true
+        )
+        let discordTask = toolsWindowController?.cancelDiscordOperationForTermination()
 
-        screenshotCaptureRequestID = nil
-        screenshotCaptureController?.terminate()
-        captureTask.cancel()
-        guard screenshotCaptureController?.hasPendingPasteboardMutation == true
-                || screenshotCaptureController?.hasPendingSavePreparation == true else {
-            screenshotCaptureTask = nil
-            return .terminateNow
+        if let captureTask {
+            screenshotCaptureRequestID = nil
+            screenshotCaptureController?.terminate()
+            captureTask.cancel()
+            if !waitForScreenshot {
+                screenshotCaptureTask = nil
+            }
         }
+        guard waitForScreenshot || discordTask != nil else { return .terminateNow }
 
-        screenshotTerminationPending = true
+        applicationTerminationPending = true
         isTerminating = true
         stopGlobalHotKeys()
-        Task { @MainActor [weak self, sender] in
-            await captureTask.value
-            guard let self else { return }
+        Task { @MainActor [weak self, sender, captureTask, discordTask] in
+            if waitForScreenshot, let captureTask {
+                await captureTask.value
+            }
+            await discordTask?.value
+            guard let self else {
+                sender.reply(toApplicationShouldTerminate: true)
+                return
+            }
             self.screenshotCaptureTask = nil
-            self.screenshotTerminationPending = false
+            self.applicationTerminationPending = false
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater

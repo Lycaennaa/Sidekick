@@ -1,7 +1,7 @@
 # Third-Party Notices
 
-This file lists third-party code and data included in Sidekick.
-Required local license and notice text is included beside the component or under
+This file lists third-party code and data included in Sidekick, plus optional runtime downloads.
+Required local license and notice text for included components is provided beside the component or under
 `LICENSES/`.
 
 ## TiktokenSwiftPort
@@ -68,3 +68,18 @@ Sidekick's Twitch-related implementation was informed by review of Streamlink Tw
 - License text: `LICENSES/streamlink-twitch-gui-LICENSE`
 - License URL: https://github.com/streamlink/streamlink-twitch-gui/blob/ae4acc3afbfd7f9f400423bab26c53ddb12c760f/LICENSE
 - Relationship: Source-informed implementation/reference only.
+
+## Equilotl source reference
+
+- Reviewed revision: `1a3d96276611c81b99e76428427e730c25aee119`
+- Project: [Equilotl](https://github.com/Equicord/Equilotl)
+- License: GPL-3.0
+- License URL: https://github.com/Equicord/Equilotl/blob/1a3d96276611c81b99e76428427e730c25aee119/LICENSE
+- Relationship: High-level install/restore behavior reference only. No Equilotl code or assets are included or copied. Equilotl injects Equicord into discord.
+
+## Equicord optional runtime release and source build
+
+- Project: [Equicord](https://github.com/Equicord/Equicord)
+- License: GPL-3.0-or-later
+- License URL: https://github.com/Equicord/Equicord/blob/main/LICENSE
+- Distribution: Not included in Sidekick builds. After explicit user confirmation, Sidekick downloads the prebuilt release or shallow-clones source and builds `dist/desktop.asar`. The source checkout and dependencies remain in the user's Application Support folder.

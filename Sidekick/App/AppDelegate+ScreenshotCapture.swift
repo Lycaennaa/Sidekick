@@ -120,6 +120,7 @@ extension AppDelegate {
             symbolName: "camera.badge.exclamationmark"
         )
     }
+
     private func makeScreenshotSaveAndCopyHotKey(_ shortcut: GlobalHotKey.Shortcut) -> GlobalHotKey {
         GlobalHotKey(shortcut: shortcut) { [weak self] in
             self?.captureScreenshotToClipboard(mode: .saveAndCopy)
@@ -131,6 +132,7 @@ extension AppDelegate {
         mode: ScreenshotCaptureMode = .copy
     ) {
         guard !isTerminating,
+              !applicationTerminationPending,
               let controller = screenshotCaptureController,
               screenshotCaptureTask == nil else { return }
         let requestID = UUID()

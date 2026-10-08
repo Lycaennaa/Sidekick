@@ -6,6 +6,7 @@ final class ToolsContentViewController: NSViewController {
     private let screenshotView: ScreenshotSettingsView
     private let screenshotSaveSettingsView: ScreenshotSaveSettingsView
     private let twitchView: TwitchSettingsView
+    private let discordInstallerView: DiscordInstallerView
     private let audioView: AudioSettingsView
     private let outputVolumeView: OutputVolumeSettingsView
     private let appearanceView: AppearanceSettingsView
@@ -19,6 +20,7 @@ final class ToolsContentViewController: NSViewController {
         imageOpeningApplicationPicker: ClipboardImageOpeningApplicationPickerView,
         clearURLsClipboardAvailable: Bool,
         twitchNotificationView: TwitchNotificationView,
+        discordInstallerView: DiscordInstallerView,
         microphoneToastOptionsMenu: NSMenu,
         outputVolumeMenu: NSMenu,
         onCaptureScreenshot: @escaping () -> Void
@@ -31,6 +33,7 @@ final class ToolsContentViewController: NSViewController {
         self.screenshotSaveSettingsView = screenshotSaveSettingsView
         screenshotView = ScreenshotSettingsView(settings: settings, onCapture: onCaptureScreenshot)
         twitchView = TwitchSettingsView(twitchNotificationView: twitchNotificationView)
+        self.discordInstallerView = discordInstallerView
         audioView = AudioSettingsView(
             settings: settings,
             microphoneToastOptionsMenu: microphoneToastOptionsMenu
@@ -59,6 +62,8 @@ final class ToolsContentViewController: NSViewController {
         switch page {
         case .twitch:
             twitchView.refresh()
+        case .discord:
+            discordInstallerView.refresh()
         case .permissions:
             permissionsView.refresh()
         case .clipboard, .screenshots, .audio, .outputVolume, .appearance:
@@ -70,6 +75,8 @@ final class ToolsContentViewController: NSViewController {
         refreshSettings()
         if selectedPage == .twitch {
             twitchView.refresh()
+        } else if selectedPage == .discord {
+            discordInstallerView.refresh()
         }
     }
 
@@ -99,6 +106,7 @@ final class ToolsContentViewController: NSViewController {
         case .clipboard: clipboardView
         case .screenshots: screenshotPage
         case .twitch: twitchView
+        case .discord: discordInstallerView
         case .audio: audioView
         case .outputVolume: outputVolumeView
         case .appearance: appearanceView

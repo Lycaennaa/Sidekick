@@ -4,6 +4,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
     case clipboard
     case screenshots
     case twitch
+    case discord
     case audio
     case outputVolume
     case appearance
@@ -14,6 +15,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         case .clipboard: "Clipboard"
         case .screenshots: "Screenshots"
         case .twitch: "Twitch"
+        case .discord: "Discord Mod"
         case .audio: "Audio"
         case .outputVolume: "Output Volume"
         case .appearance: "Appearance"
@@ -26,6 +28,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         case .clipboard: "doc.on.clipboard"
         case .screenshots: "viewfinder"
         case .twitch: "bell.badge"
+        case .discord: "puzzlepiece.extension"
         case .audio: "waveform"
         case .outputVolume: "speaker.wave.2"
         case .appearance: "paintpalette"

@@ -40,3 +40,5 @@ The Twitch Notifications panel can save a client ID in UserDefaults. A saved ID 
 Edit `project.yml`, then regenerate with `just generate-project`. Do not hand-edit the generated project file. Keep SwiftLint configuration in `.swiftlint.yml` and run `just lint` after Swift changes.
 
 SwiftLint is blocking in local and GitHub checks. `just lint-fix` applies its available automatic corrections; review the resulting diff and fix remaining findings manually, then rerun `just lint`.
+
+Routine `just test` skips the live GitHub downloader check. Run `just test-equicord-release-network` to exercise the default URLSession path against the latest release.

@@ -34,6 +34,10 @@ The token requires the `user:read:follows` scope. Remove the token in Sidekick a
 
 Twitch-related hosts observed in the implementation are `api.twitch.tv`, `id.twitch.tv`, and `static-cdn.jtvnw.net`. Twitch controls the exact profile-image host returned by its API.
 
+## Discord client modification
+
+Prebuilt installation contacts `api.github.com` and downloads `desktop.asar` from GitHub releases for [Equicord](https://github.com/Equicord/Equicord) only after confirmation. Source builds are separately opt-in: Sidekick shallow-clones Equicord `main` and runs pnpm install/build, which downloads source dependencies from package registries. The checkout, `node_modules`, and built archive are retained at `~/Library/Application Support/Sidekick/EquicordSource` after installation and restore so the user can edit and rebuild. Build scripts are not sandboxed and may make their own network requests as the signed-in user. Equicord is GPL-3.0-or-later and is not bundled in Sidekick's distribution. The original Discord archive is stored as `_app.asar`, the path Equicord's runtime expects.
+
 ## Settings and permissions
 
 Preferences are stored in `UserDefaults`; the Twitch OAuth token is stored in the Keychain. Sidekick does not store clipboard text in a database.

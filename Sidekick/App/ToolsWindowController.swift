@@ -8,6 +8,7 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
     private let sidebarController: ToolsSidebarViewController
     private let contentController: ToolsContentViewController
 
+    private let discordInstallerView = DiscordInstallerView()
     init(
         settings: AppSettings,
         twitchNotificationController: TwitchNotificationController,
@@ -36,6 +37,7 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
             imageOpeningApplicationPicker: imageOpeningApplicationPicker,
             clearURLsClipboardAvailable: clearURLsClipboardAvailable,
             twitchNotificationView: twitchNotificationView,
+            discordInstallerView: discordInstallerView,
             microphoneToastOptionsMenu: microphoneToastOptionsMenu,
             outputVolumeMenu: outputVolumeMenu,
             onCaptureScreenshot: onCaptureScreenshot
@@ -103,14 +105,18 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
         applyAppearance()
     }
 
-    func refreshAppearance() {
-        contentController.refreshAppearance()
-        applyAppearance()
+    func cancelDiscordOperationForTermination() -> Task<Void, Never>? {
+        discordInstallerView.cancelForApplicationTermination()
     }
 
     func refreshTwitchView() {
         guard window?.isVisible == true else { return }
         contentController.refreshTwitchView()
+    }
+
+    func refreshAppearance() {
+        contentController.refreshAppearance()
+        applyAppearance()
     }
 
     private func applyAppearance() {

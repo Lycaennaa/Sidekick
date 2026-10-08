@@ -106,6 +106,7 @@ targets:
         excludes:
           - TwitchNotificationView.swift
           - TwitchNotificationController+Delegate.swift
+      - path: Sidekick/Discord
       - path: Sidekick/System/KeychainStore.swift
       - path: Sidekick/System/GlobalHotKey.swift
       - path: Sidekick/App/AppSettings.swift
@@ -226,3 +227,16 @@ schemes:
       targets:
         - name: sidekickPermissionIntegrationTests
           parallelizable: false
+
+  sidekick-network:
+    build:
+      targets:
+        sidekick: all
+        sidekickTests: [test]
+    test:
+      config: Debug
+      targets:
+        - name: sidekickTests
+          parallelizable: false
+      environmentVariables:
+        SIDEKICK_RUN_NETWORK_TESTS: "1"

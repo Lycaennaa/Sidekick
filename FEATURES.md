@@ -27,4 +27,8 @@ Sidekick runs in the macOS menu bar and requires macOS 15 or later.
 - Enter a Twitch OAuth token with the `user:read:follows` scope, or set a public client ID in Tools for built-in sign-in.
 - Manage notifications and send a test notification from the Tools window.
 
+## Discord Client Mod Injection
+
+- The Tools dropdown lists installed Discord, PTB, Canary, and Development apps. “Choose Other” accepts any macOS app bundle containing `Contents/Resources/app.asar`. The default install uses the prebuilt [Equicord](https://github.com/Equicord/Equicord) release. A separate **Install Dev Version from Source** action shallow-clones Equicord, runs `pnpm build --dev`, and retains source/dependencies for edits and rebuilds. Dev builds default-enable UserpluginInstaller for new profiles; it installs unmoderated third-party plugins. Both modes can restore the selected app's original archive; client mods may violate Discord's terms, invalidate the app signature, or affect an account.
+
 [ClearURLs rules](https://gitlab.com/ClearURLs/rules) are fetched at build time and bundled with the app. The installed app does not fetch rule updates. See [PRIVACY.md](PRIVACY.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
