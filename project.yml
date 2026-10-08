@@ -72,7 +72,7 @@ targets:
         INFOPLIST_EXPAND_BUILD_SETTINGS: YES
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
         MARKETING_VERSION: 0.1.0
-        OTHER_CODE_SIGN_FLAGS: '-r "$(SRCROOT)/Configuration/SidekickCodeRequirement.txt"'
+        OTHER_CODE_SIGN_FLAGS: '-r "=designated => identifier \"$(PRODUCT_BUNDLE_IDENTIFIER)\""'
         REGISTER_APP_GROUPS: YES
         STRING_CATALOG_GENERATE_SYMBOLS: YES
         SWIFT_APPROACHABLE_CONCURRENCY: YES

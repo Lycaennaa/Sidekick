@@ -16,7 +16,7 @@ CODE_SIGNING_ALLOWED=NO
 CODE_SIGNING_REQUIRED=NO
 # Ad hoc signing avoids Apple ID access while giving this build a code identity.
 CODE_SIGN_IDENTITY=-
-CODE_SIGN_REQUIREMENT="$ROOT/Configuration/SidekickCodeRequirement.txt"
+CODE_SIGN_REQUIREMENT="=designated => identifier \"$BUNDLE_IDENTIFIER\""
 if [ "$BUNDLE_IDENTIFIER" != "$CANONICAL_BUNDLE_IDENTIFIER" ]; then
     printf 'BUNDLE_IDENTIFIER must remain %s\n' "$CANONICAL_BUNDLE_IDENTIFIER" >&2
     exit 2
