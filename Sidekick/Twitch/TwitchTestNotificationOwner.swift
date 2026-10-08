@@ -131,6 +131,8 @@ final class TwitchTestNotificationOwner {
     ) async throws -> TwitchProfileTestPayload {
         let token: String
         switch dependencies.storedTokenState() {
+        case .loading:
+            throw OwnerError.keychain
         case .absent:
             throw OwnerError.missingOAuthToken
         case let .present(storedToken):

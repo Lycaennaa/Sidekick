@@ -19,6 +19,7 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
     private let browserFallbackButton = NSButton(title: "Use Browser Fallback", target: nil, action: nil)
     private let saveTokenButton = NSButton(title: "Save Token", target: nil, action: nil)
     private let removeTokenButton = NSButton(title: "Remove", target: nil, action: nil)
+    private let promptKeychainButton = NSButton(title: "Prompt Keychain", target: nil, action: nil)
     private let testNotificationButton = NSButton(title: "Send Test Notification", target: nil, action: nil)
     private let tokenStatusLabel = NSTextField(labelWithString: "")
     private let statusLabel = NSTextField(wrappingLabelWithString: "")
@@ -58,6 +59,9 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
         let hasStoredToken: Bool
         let storedTokenMessage: String
         switch tokenState {
+        case .loading:
+            hasStoredToken = false
+            storedTokenMessage = "checking macos keychain"
         case .absent:
             hasStoredToken = false
             storedTokenMessage = "no oauth token saved"
@@ -68,11 +72,20 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
             hasStoredToken = false
             storedTokenMessage = "could not read oauth token from macos keychain"
         }
+        promptKeychainButton.isHidden = tokenState != .readFailure
+        promptKeychainButton.isEnabled = controller.canPromptForKeychainAccess
         tokenStatusLabel.stringValue = controller.isSavingOAuthToken
             ? "validating oauth token before replacing the saved token…"
             : storedTokenMessage
         let statusMessage = controller.displayedStatusMessage
         statusLabel.stringValue = "status: \(statusMessage)"
+        updateControlStates(tokenState: tokenState, hasStoredToken: hasStoredToken)
+    }
+
+    private func updateControlStates(
+        tokenState: TwitchTokenOwner.StoredTokenState,
+        hasStoredToken: Bool
+    ) {
         let isNativeOAuthActive = controller.isAcquiringOAuthToken
         let isBrowserFallbackActive = controller.isAcquiringOAuthBrowserFallback
         let isOAuthActive = isNativeOAuthActive || isBrowserFallbackActive
@@ -86,24 +99,35 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
             || (isOAuthConfigured
                 && !isBrowserFallbackActive
                 && !controller.isSendingTestNotification
-                && !controller.isSavingOAuthToken)
+                && !controller.isSavingOAuthToken
+                && !controller.isRequestingKeychainAccess)
         browserFallbackButton.title = isBrowserFallbackActive ? "Cancel Browser Fallback" : "Use Browser Fallback"
         browserFallbackButton.isEnabled = isBrowserFallbackActive
             || (isOAuthConfigured
                 && !isNativeOAuthActive
                 && !controller.isSendingTestNotification
-                && !controller.isSavingOAuthToken)
-        tokenField.isEnabled = !isOAuthActive && !controller.isSavingOAuthToken
+                && !controller.isSavingOAuthToken
+                && !controller.isRequestingKeychainAccess)
+        tokenField.isEnabled = !isOAuthActive
+            && !controller.isSavingOAuthToken
+            && !controller.isRequestingKeychainAccess
         saveTokenButton.isEnabled = !isOAuthActive
             && !controller.isSavingOAuthToken
+            && !controller.isRequestingKeychainAccess
             && !tokenField.stringValue.isEmpty
-        removeTokenButton.isEnabled = !isOAuthActive && hasStoredToken
+        removeTokenButton.isEnabled = !isOAuthActive
+            && !controller.isSavingOAuthToken
+            && !controller.isRequestingKeychainAccess
+            && hasStoredToken
         testNotificationButton.isEnabled = !isOAuthActive
             && !controller.isSendingTestNotification
             && !controller.isSavingOAuthToken
+            && !controller.isRequestingKeychainAccess
+            && tokenState != .loading
         usernameField.isEnabled = !isOAuthActive
             && !controller.isSendingTestNotification
             && !controller.isSavingOAuthToken
+            && !controller.isRequestingKeychainAccess
     }
 
     private func buildView() {
@@ -128,7 +152,7 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
                 tokenRow,
                 oauthConfigurationLabel,
                 oauthRow,
-                tokenStatusLabel,
+                makeTokenStatusRow(),
                 scopeLabel,
                 avatarTestLabel,
                 avatarTestRow,
@@ -158,6 +182,7 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
         }
         saveTokenButton.isEnabled = !controller.isAcquiringOAuth
             && !controller.isSavingOAuthToken
+            && !controller.isRequestingKeychainAccess
             && !tokenField.stringValue.isEmpty
     }
 
@@ -174,7 +199,9 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
     }
 
     private func updateOAuthClientIDControls() {
-        let canEdit = !controller.isAcquiringOAuth && !controller.isSavingOAuthToken
+        let canEdit = !controller.isAcquiringOAuth
+            && !controller.isSavingOAuthToken
+            && !controller.isRequestingKeychainAccess
         let enteredClientID = oauthClientIDField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         oauthClientIDField.isEnabled = canEdit
         saveOAuthClientIDButton.isEnabled = canEdit && enteredClientID != settings.twitchOAuthClientID
@@ -204,6 +231,15 @@ final class TwitchNotificationView: NSView, NSTextFieldDelegate {
     @objc private func removeToken() {
         controller.removeOAuthToken()
         refresh()
+    }
+
+    @objc private func promptForKeychainAccess() {
+        promptKeychainButton.isEnabled = false
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await controller.promptForKeychainAccess()
+            refresh()
+        }
     }
 
     @objc private func sendTestNotification() {
@@ -268,6 +304,17 @@ extension TwitchNotificationView {
         removeTokenButton.target = self
         removeTokenButton.action = #selector(removeToken)
         let row = NSStackView(views: [tokenField, saveTokenButton, removeTokenButton])
+        row.orientation = .horizontal
+        row.spacing = 8
+        return row
+    }
+
+    private func makeTokenStatusRow() -> NSStackView {
+        promptKeychainButton.target = self
+        promptKeychainButton.action = #selector(promptForKeychainAccess)
+        promptKeychainButton.toolTip = "Ask macOS to allow Sidekick to read the saved Twitch token."
+        tokenStatusLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let row = NSStackView(views: [tokenStatusLabel, promptKeychainButton])
         row.orientation = .horizontal
         row.spacing = 8
         return row

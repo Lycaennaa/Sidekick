@@ -29,19 +29,22 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
         let pollingOwner: TwitchPollingOwner
         let deliveryOwner: TwitchDeliveryOwner
         let testNotificationOwner: TwitchTestNotificationOwner
+        let keychainAccessPromptOwner: TwitchKeychainAccessPromptOwner
     }
 
     static let keychainAccount = "twitch.oauth.access-token"
 
-    private let settings: AppSettings
+    let settings: AppSettings
     private let notificationCenter: UNUserNotificationCenter?
     let tokenOwner: TwitchTokenOwner
     private let pollingOwner: TwitchPollingOwner
     private let deliveryOwner: TwitchDeliveryOwner
-    private let testNotificationOwner: TwitchTestNotificationOwner
+    let testNotificationOwner: TwitchTestNotificationOwner
     private let oauthAuthorization: TwitchOAuthAuthorization
     private let oauthBrowserFallback: TwitchOAuthBrowserFallback
-    private var terminating = false
+    let keychainAccessPromptOwner: TwitchKeychainAccessPromptOwner
+    var pendingOAuthTokenSave: String?
+    var terminating = false
     private var appliedTwitchNotificationsEnabled = false
 
     var status: Status = .disabled
@@ -64,15 +67,10 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
         notificationCenter: UNUserNotificationCenter = .current()
     ) {
         let notifications = TwitchNotificationCenterClient.live(notificationCenter)
-        let tokenOwner = TwitchTokenOwner(
-            dependencies: .init(
-                read: { try keychain.read(account: Self.keychainAccount) },
-                write: { try keychain.write($0, replacing: $1, account: Self.keychainAccount) },
-                delete: { try keychain.delete(account: Self.keychainAccount) },
-                authenticate: { token in
-                    _ = try await apiClient.authenticate(accessToken: token)
-                }
-            )
+        let tokenOwner = Self.makeLiveTokenOwner(
+            keychain: keychain,
+            apiClient: apiClient,
+            account: Self.keychainAccount
         )
         let notificationScheduler = TwitchNotificationScheduler(
             notifications: notifications,
@@ -107,6 +105,9 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
             ),
             scheduler: notificationScheduler
         )
+        let keychainAccessPromptOwner = TwitchKeychainAccessPromptOwner(
+            request: { try await keychain.promptForAccess(account: Self.keychainAccount) }
+        )
         self.init(
             settings: settings,
             dependencies: .init(
@@ -114,7 +115,8 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
                 tokenOwner: tokenOwner,
                 pollingOwner: pollingOwner,
                 deliveryOwner: deliveryOwner,
-                testNotificationOwner: testNotificationOwner
+                testNotificationOwner: testNotificationOwner,
+                keychainAccessPromptOwner: keychainAccessPromptOwner
             )
         )
     }
@@ -131,26 +133,30 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
         pollingOwner = dependencies.pollingOwner
         deliveryOwner = dependencies.deliveryOwner
         testNotificationOwner = dependencies.testNotificationOwner
+        keychainAccessPromptOwner = dependencies.keychainAccessPromptOwner
         self.oauthAuthorization = oauthAuthorization
         self.oauthBrowserFallback = oauthBrowserFallback
         super.init()
         self.notificationCenter?.delegate = self
     }
 
-    var oauthTokenState: TwitchTokenOwner.StoredTokenState {
-        tokenOwner.storedTokenState()
-    }
-
-    var tokenSaveErrorMessage: String? {
-        tokenOwner.errorMessage
-    }
-
-    var testNotificationErrorMessage: String? {
-        testNotificationOwner.errorMessage
-    }
-
     func applySettings() {
-        guard !terminating else { return }
+        guard shouldApplyTwitchSettings() else { return }
+        let tokenState = tokenOwner.storedTokenState()
+        if case .loading = tokenState {
+            refreshStoredKeychainTokenState()
+        } else {
+            applyStoredTokenState(tokenState)
+        }
+    }
+
+    func applySettings(storedTokenState: TwitchTokenOwner.StoredTokenState) {
+        guard shouldApplyTwitchSettings() else { return }
+        applyStoredTokenState(storedTokenState)
+    }
+
+    private func shouldApplyTwitchSettings() -> Bool {
+        guard !terminating else { return false }
         guard settings.twitchNotificationsEnabled else {
             testNotificationOwner.cancel()
             if appliedTwitchNotificationsEnabled {
@@ -160,40 +166,44 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
             stopPolling()
             testNotificationOwner.clearError()
             setStatus(.disabled)
-            return
+            return false
         }
-
         appliedTwitchNotificationsEnabled = true
-        guard !tokenOwner.isSaving else { return }
-        let token: String
-        switch tokenOwner.storedTokenState() {
+        return !tokenOwner.isSaving && !keychainAccessPromptOwner.isRequesting
+    }
+
+    private func applyStoredTokenState(_ state: TwitchTokenOwner.StoredTokenState) {
+        switch state {
+        case .loading:
+            return
         case .absent:
             stopPolling()
             setStatus(.needsOAuthToken)
-            return
-        case let .present(storedToken):
-            token = storedToken
+        case let .present(token):
+            if pollingOwner.token == token {
+                guard !pollingOwner.isRunning else { return }
+                guard !isTerminalPollingStatus else { return }
+            }
+            startPolling(token: token)
         case .readFailure:
             stopPolling()
             setStatus(.error("could not read oauth token from keychain"))
-            return
         }
+    }
 
-        if pollingOwner.token == token, pollingOwner.isRunning {
-            return
-        }
-        if pollingOwner.token == token,
-           !pollingOwner.isRunning,
-           case let .polling(ownerStatus) = status,
-           ownerStatus.isTerminal {
-            return
-        }
-        startPolling(token: token)
+    private var isTerminalPollingStatus: Bool {
+        guard case let .polling(ownerStatus) = status else { return false }
+        return ownerStatus.isTerminal
     }
 
     @discardableResult
     func saveOAuthToken(_ rawToken: String) -> Bool {
         guard !oauthAuthorization.isActive, !oauthBrowserFallback.isActive else { return false }
+        if keychainAccessPromptOwner.isRequesting {
+            guard pendingOAuthTokenSave == nil else { return false }
+            pendingOAuthTokenSave = rawToken
+            return true
+        }
         let result = tokenOwner.save(
             rawToken,
             notificationsEnabled: settings.twitchNotificationsEnabled
@@ -205,30 +215,34 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
             setStatus(.error(message))
             onTokenSave?(false, token)
             return false
-        case let .saved(token, changed):
-            if changed { testNotificationOwner.cancel() }
-            if settings.twitchNotificationsEnabled, !pollingOwner.isRunning {
-                startPolling(token: token)
-            } else if !settings.twitchNotificationsEnabled {
-                setStatus(.disabled)
-            }
-            onTokenSave?(true, token)
-            return true
-        case let .validating(_, changed):
-            if changed { testNotificationOwner.cancel() }
+        case .validating:
             return true
         }
     }
 
     func removeOAuthToken() {
-        guard !oauthAuthorization.isActive, !oauthBrowserFallback.isActive else { return }
-        guard case .success = tokenOwner.remove() else {
-            setStatus(.error("could not remove oauth token from keychain"))
-            return
+        guard !oauthAuthorization.isActive,
+              !oauthBrowserFallback.isActive,
+              !keychainAccessPromptOwner.isRequesting else { return }
+        tokenOwner.remove { [weak self] result in
+            guard let self, !self.terminating else { return }
+            switch result {
+            case .success:
+                testNotificationOwner.cancel()
+                stopPolling()
+                setStatus(settings.twitchNotificationsEnabled ? .needsOAuthToken : .disabled)
+            case .failure:
+                setStatus(.error("could not remove oauth token from keychain"))
+                tokenOwner.refreshStoredTokenState { [weak self] state in
+                    guard let self, !self.terminating else { return }
+                    if self.settings.twitchNotificationsEnabled {
+                        self.applySettings(storedTokenState: state)
+                    }
+                    self.onStateChange?()
+                }
+            }
+            onStateChange?()
         }
-        testNotificationOwner.cancel()
-        stopPolling()
-        setStatus(settings.twitchNotificationsEnabled ? .needsOAuthToken : .disabled)
     }
 
     func sendTestNotification(username: String? = nil) {
@@ -258,6 +272,8 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
     func terminate() {
         guard !terminating else { return }
         terminating = true
+        pendingOAuthTokenSave = nil
+        keychainAccessPromptOwner.terminate()
         oauthAuthorization.cancel()
         oauthBrowserFallback.cancel()
         tokenOwner.cancel()
@@ -318,21 +334,18 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
 
     private func handleTokenEvent(_ event: TwitchTokenOwner.Event) {
         switch event {
-        case let .saved(token):
+        case let .saved(token, changed):
             onTokenSave?(true, token)
-            stopPolling()
-            applySettings()
+            if changed {
+                testNotificationOwner.cancel()
+                stopPolling()
+            }
+            applySettings(storedTokenState: .present(token))
         case let .failed(token, message):
             setStatus(.error(message), preservingTokenSaveError: true)
             onTokenSave?(false, token)
-            guard settings.twitchNotificationsEnabled else { return }
-            switch tokenOwner.storedTokenState() {
-            case .present:
+            if settings.twitchNotificationsEnabled {
                 applySettings()
-            case .absent:
-                return
-            case .readFailure:
-                setStatus(.error("could not read oauth token from keychain"))
             }
         }
     }

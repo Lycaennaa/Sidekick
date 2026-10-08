@@ -380,7 +380,11 @@ extension AppDelegate {
         syncClearURLsClipboardCleaner()
         installWorkspaceObservers()
         clipboardToastController?.start()
-        twitchNotificationController?.applySettings()
+        if let controller = twitchNotificationController {
+            Task { @MainActor [weak controller] in
+                await controller?.requestKeychainAccessAtStartup()
+            }
+        }
         guard let toastPresentationCoordinator else {
             preconditionFailure("Toast presentation coordinator must be installed first")
         }

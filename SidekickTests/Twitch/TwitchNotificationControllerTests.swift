@@ -4,7 +4,7 @@ import WebKit
 import XCTest
 
 @MainActor
-final class TwitchNotificationControllerTests: XCTestCase {
+final class TwitchNotificationControllerTests: TwitchNotificationControllerTestSupport {
     func testCurrentStreamsReachObserverAndClearWhenNotificationsDisable() async {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
@@ -261,97 +261,6 @@ final class TwitchNotificationControllerTests: XCTestCase {
         XCTAssertEqual(storage.value, "controller-token")
     }
 
-    private let sleepForever = TwitchSleepClient(sleep: { _ in
-        try await Task.sleep(nanoseconds: UInt64.max)
-    })
-    private let defaultsSuiteName = "TwitchNotificationControllerTests.\(UUID().uuidString)"
-
-    private func makeController(
-        settings: AppSettings,
-        authenticate: @escaping @Sendable (String) async throws -> TwitchAPIClient.Session,
-        followedStreams: @escaping @Sendable (TwitchAPIClient.Session) async throws -> [TwitchFollowedStream],
-        followedChannels: @escaping @Sendable (
-            TwitchAPIClient.Session
-        ) async throws -> [TwitchFollowedChannel] = { _ in [] },
-        sleeper: TwitchSleepClient,
-        tokenStorage: TokenStorage? = nil,
-        oauthAuthorization: TwitchOAuthAuthorization? = nil
-    ) -> TwitchNotificationController {
-        let tokenOwner = makeTokenOwner(storage: tokenStorage ?? TokenStorage(value: "token"))
-        let notificationRecorder = NotificationRecorder()
-        let notifications = notificationRecorder.client
-        let scheduler = TwitchNotificationScheduler(notifications: notifications)
-        let pollingOwner = TwitchPollingOwner(
-            dependencies: .init(
-                authenticate: authenticate,
-                followedStreams: followedStreams,
-                followedChannels: followedChannels,
-                notifications: notifications,
-                sleeper: sleeper,
-                pollInterval: 1
-            )
-        )
-        let deliveryOwner = TwitchDeliveryOwner(
-            dependencies: .init(
-                profileImages: { _, _ in
-                    AsyncThrowingStream { continuation in continuation.finish() }
-                },
-                notifications: notifications,
-                sleeper: sleeper,
-                cleanupInterval: 2
-            ),
-            scheduler: scheduler
-        )
-        let testNotificationOwner = TwitchTestNotificationOwner(
-            dependencies: .init(
-                storedTokenState: { tokenOwner.storedTokenState() },
-                authenticate: authenticate,
-                profileImage: { username, _ in
-                    (
-                        profile: TwitchUserProfile(
-                            id: "profile-id",
-                            login: username,
-                            displayName: username,
-                            profileImageURL: nil
-                        ),
-                        imageData: nil
-                    )
-                },
-                notifications: notifications
-            ),
-            scheduler: scheduler
-        )
-        return TwitchNotificationController(
-            settings: settings,
-            dependencies: .init(
-                notificationCenter: nil,
-                tokenOwner: tokenOwner,
-                pollingOwner: pollingOwner,
-                deliveryOwner: deliveryOwner,
-                testNotificationOwner: testNotificationOwner
-            ),
-            oauthAuthorization: oauthAuthorization ?? TwitchOAuthAuthorization()
-        )
-    }
-
-    private func makeTokenOwner(storage: TokenStorage) -> TwitchTokenOwner {
-        return TwitchTokenOwner(
-            dependencies: .init(
-                read: { storage.value },
-                write: { token, _ in storage.value = token },
-                delete: { storage.value = nil },
-                authenticate: { _ in }
-            )
-        )
-    }
-
-    private func makeDefaults() -> UserDefaults {
-        guard let defaults = UserDefaults(suiteName: defaultsSuiteName) else {
-            preconditionFailure("Unable to create test defaults suite")
-        }
-        defaults.removePersistentDomain(forName: defaultsSuiteName)
-        return defaults
-    }
 }
 
 private actor AuthenticationPlan {
