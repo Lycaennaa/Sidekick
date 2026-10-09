@@ -44,9 +44,9 @@ final class DiscordInstallerView: NSView {
     }
 
     private func buildView() {
-        let title = NSTextField(labelWithString: "Discord Client Mod")
+        let title = NSTextField(labelWithString: "Discord")
         title.font = .systemFont(ofSize: 20, weight: .semibold)
-        title.alignment = .center
+        title.alignment = .left
 
         let explanation = NSTextField(wrappingLabelWithString: """
             Install the prebuilt release by default, or build Equicord's dev mode from a shallow source checkout.
@@ -54,10 +54,10 @@ final class DiscordInstallerView: NSView {
             Source builds require Git, Node.js 22 or newer, and pnpm 12.8.1.
             """)
         explanation.textColor = .secondaryLabelColor
-        explanation.alignment = .center
+        explanation.alignment = .left
 
-        targetLabel.alignment = .center
-        statusLabel.alignment = .center
+        targetLabel.alignment = .left
+        statusLabel.alignment = .left
         statusLabel.textColor = .secondaryLabelColor
 
         openSourceButton.target = self
@@ -86,7 +86,7 @@ final class DiscordInstallerView: NSView {
             title, explanation, targetLabel, sourceRow, installRow, restoreRow, statusLabel
         ])
         stack.orientation = .vertical
-        stack.alignment = .width
+        configureSettingsPageStack(stack)
         stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)

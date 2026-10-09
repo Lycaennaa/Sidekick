@@ -15,7 +15,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         case .clipboard: "Clipboard"
         case .screenshots: "Screenshots"
         case .twitch: "Twitch"
-        case .discord: "Discord Mod"
+        case .discord: "Discord"
         case .audio: "Audio"
         case .outputVolume: "Output Volume"
         case .appearance: "Appearance"
