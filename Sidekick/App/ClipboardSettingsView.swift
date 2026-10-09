@@ -177,7 +177,6 @@ final class ClipboardSettingsView: NSView {
         duration == duration.rounded() ? "\(Int(duration)) seconds" : "\(duration) seconds"
     }
 
-
     private func makeToolRows() -> [NSView] {
         [
             makeToolRow(
