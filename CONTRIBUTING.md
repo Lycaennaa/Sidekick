@@ -8,7 +8,9 @@
 4. Update user and developer documentation when behavior or commands change.
 5. Open a pull request with the reason for the change, observable behavior, and validation results.
 
-`project.yml` is the Xcode project source of truth. `Sidekick.xcodeproj/project.pbxproj` is generated and ignored; run `just generate-project` before opening or building locally. Do not hand-edit the generated file.
+`project.yml` is the Xcode project source of truth. Generated `Sidekick.xcodeproj` data is ignored except for the checked-in SwiftPM `Package.resolved` lockfile; run `just generate-project` before opening or building locally. Do not hand-edit generated project data.
+
+Run `just install-hooks` to enable a local pre-commit check for staged Xcode project metadata.
 
 ## AI-use disclosure
 

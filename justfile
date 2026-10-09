@@ -14,11 +14,17 @@ release_products := derived_data + "/Build/Products/Release"
     sh scripts/fetch-clearurls-rules.sh --if-missing
 
 @generate-project: fetch-clearurls
-    xcodegen generate --spec project.yml
+    xcodegen generate --spec "{{worktree_root}}/project.yml"
+
+@install-hooks:
+    sh scripts/install-hooks.sh
 
 @refresh-clearurls:
     sh scripts/fetch-clearurls-rules.sh --force
-    xcodegen generate --spec project.yml
+    xcodegen generate --spec "{{worktree_root}}/project.yml"
+
+@check-project: generate-project
+    test -f "{{worktree_root}}/Sidekick.xcodeproj/project.pbxproj"
 
 @build: generate-project
     if command -v distill >/dev/null 2>&1; then distill xcode build -- -project Sidekick.xcodeproj -scheme sidekick -configuration Debug -derivedDataPath "{{derived_data}}" -clonedSourcePackagesDirPath "{{source_packages}}" CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_IDENTITY=-; else xcodebuild -project Sidekick.xcodeproj -scheme sidekick -configuration Debug -derivedDataPath "{{derived_data}}" -clonedSourcePackagesDirPath "{{source_packages}}" CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_IDENTITY=- build; fi
@@ -63,13 +69,17 @@ release_products := derived_data + "/Build/Products/Release"
 @check-package-locks:
     python3 -B scripts/check-package-locks.py
 
-@check-pbx: generate-project
-    python3 -B scripts/check-pbx-identifiers.py
+@check-project-metadata:
+    python3 -B scripts/check-project-metadata.py
+
+@check-tooling: check-package-locks
+    sh -n scripts/install-hooks.sh
+    sh -n .githooks/pre-commit
 
 @check-client-id: generate-project
     python3 -B scripts/check-client-id.py
 
-@check: check-package-locks check-pbx check-client-id lint test test-release-app-replacement
+@check: check-project check-tooling check-project-metadata check-client-id lint test test-release-app-replacement
 
 @ci: check build-release
 

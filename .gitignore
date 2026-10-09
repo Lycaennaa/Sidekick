@@ -3,8 +3,15 @@
 /.kilo-tmp/
 
 # Xcode and macOS local state
-# Generated XcodeGen project
-/Sidekick.xcodeproj/project.pbxproj
+# Generated XcodeGen project except the tracked SwiftPM lockfile
+/Sidekick.xcodeproj/*
+!/Sidekick.xcodeproj/project.xcworkspace/
+/Sidekick.xcodeproj/project.xcworkspace/*
+!/Sidekick.xcodeproj/project.xcworkspace/xcshareddata/
+/Sidekick.xcodeproj/project.xcworkspace/xcshareddata/*
+!/Sidekick.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+/Sidekick.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
+!/Sidekick.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 **/xcuserdata/
 **/DerivedData/
 .DS_Store

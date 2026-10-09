@@ -143,13 +143,14 @@ jobs:
           set -euo pipefail
           sh scripts/fetch-clearurls-rules.sh --force
           xcodegen generate --spec project.yml
+          test -f Sidekick.xcodeproj/project.pbxproj
 
       - name: Validate repository metadata
         shell: bash
         run: |
           set -euo pipefail
           python3 -B scripts/check-package-locks.py
-          python3 -B scripts/check-pbx-identifiers.py
+          python3 -B scripts/check-project-metadata.py
           python3 -B scripts/check-client-id.py
 
       - name: Run SwiftLint
