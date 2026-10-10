@@ -290,6 +290,20 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(changeCount, 1)
     }
 
+    func testScreenshotCopyAsWebPDefaultsOffAndPersistsChanges() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        var changeCount = 0
+        settings.onChange = { changeCount += 1 }
+
+        XCTAssertFalse(settings.screenshotCopyAsWebP)
+        settings.screenshotCopyAsWebP = true
+
+        XCTAssertTrue(AppSettings(defaults: defaults).screenshotCopyAsWebP)
+        XCTAssertEqual(changeCount, 1)
+    }
+
     func testScreenshotSaveSettingsDefaultAndPersistChanges() throws {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }

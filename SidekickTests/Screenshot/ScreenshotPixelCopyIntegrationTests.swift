@@ -89,7 +89,7 @@ final class ScreenshotPixelCopyIntegrationTests: XCTestCase {
         let pasteboard = ScreenshotCaptureTestSupport.ScreenshotRacePasteboard(value: "initial")
         var copySucceeded = true
         var copied = false
-        var failure: ScreenshotCaptureController.Failure?
+        var failures: [ScreenshotCaptureController.Failure] = []
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in screenshot },
@@ -100,14 +100,38 @@ final class ScreenshotPixelCopyIntegrationTests: XCTestCase {
             },
             onCopied: { XCTFail("Pixel-value copy must not report an image copy") },
             onPixelValueCopied: { copied = true },
-            onFailure: { failure = $0 }
+            onFailure: { failures.append($0) }
         )
 
         await controller.copyActiveDisplayToClipboard()
 
         XCTAssertFalse(copySucceeded)
         XCTAssertFalse(copied)
-        XCTAssertEqual(failure, .clipboardChanged)
+        XCTAssertEqual(failures, [.clipboardChanged])
+        XCTAssertEqual(pasteboard.value, "newer clipboard value")
+        XCTAssertEqual(pasteboard.writeCount, 0)
+    }
+
+    func testCancelledSelectionDoesNotReportClipboardChangeWithoutPixelCopy() async throws {
+        let screenshot = ScreenshotCaptureTestSupport.capturedScreenshot(
+            from: try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
+        )
+        let pasteboard = ScreenshotCaptureTestSupport.ScreenshotRacePasteboard(value: "initial")
+        var failures: [ScreenshotCaptureController.Failure] = []
+        let controller = ScreenshotCaptureController(
+            pasteboard: pasteboard,
+            capture: { _ in screenshot },
+            select: { _, _, _, _ in
+                pasteboard.replaceContents("newer clipboard value")
+                return .cancelled
+            },
+            onCopied: { XCTFail("Cancelled screenshot selection reported a copy") },
+            onFailure: { failures.append($0) }
+        )
+
+        await controller.copyActiveDisplayToClipboard()
+
+        XCTAssertTrue(failures.isEmpty)
         XCTAssertEqual(pasteboard.value, "newer clipboard value")
         XCTAssertEqual(pasteboard.writeCount, 0)
     }

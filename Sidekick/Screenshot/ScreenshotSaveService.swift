@@ -62,6 +62,7 @@ nonisolated enum ScreenshotSaveService {
         fileprivate let stagingURL: URL
         fileprivate let directoryURL: URL
         fileprivate let baseName: String
+        let webPData: Data
     }
 
     static func prepareInBackground(
@@ -105,7 +106,8 @@ nonisolated enum ScreenshotSaveService {
             return Prepared(
                 stagingURL: stagingURL,
                 directoryURL: normalizedDirectory,
-                baseName: ScreenshotFilenameTemplate.sanitizedBaseName(baseName)
+                baseName: ScreenshotFilenameTemplate.sanitizedBaseName(baseName),
+                webPData: webPData
             )
         } catch {
             try? FileManager.default.removeItem(at: stagingURL)

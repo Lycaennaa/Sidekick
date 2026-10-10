@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 extension ScreenshotCaptureController {
     func installClipboardItem(_ selection: SelectedClipboardItem, request: RequestState) async {
@@ -37,6 +38,30 @@ extension ScreenshotCaptureController {
             onFailure(request.savedURL == nil ? .clipboard : .savedButNotCopied)
         }
     }
+
+    func prepareClipboardItemForCopy(
+        _ selection: SelectedClipboardItem,
+        copyAsWebP: Bool,
+        preparedWebPData: Data?
+    ) async throws -> SelectedClipboardItem {
+        guard copyAsWebP,
+              case let .screenshot(pngData, _, _) = selection.content else {
+            return selection
+        }
+
+        let webPData: Data
+        if let preparedWebPData {
+            webPData = preparedWebPData
+        } else {
+            webPData = try await prepareClipboardWebP(pngData)
+        }
+        let item = NSPasteboardItem()
+        guard item.setData(webPData, forType: NSPasteboard.PasteboardType(UTType.webP.identifier)) else {
+            throw ClipboardWebPConversionError.cannotEncode
+        }
+        return SelectedClipboardItem(item: item, content: selection.content)
+    }
+
     private func reportClipboardItemInstalled(_ selection: SelectedClipboardItem, savedURL: URL?) {
         switch selection.content {
         case .screenshot:
@@ -64,7 +89,7 @@ extension ScreenshotCaptureController {
     func copyPixelValue(_ value: String, request: RequestState) async -> Bool {
         guard activeRequestID == request.id, !Task.isCancelled else { return false }
         guard clipboardWriter.changeCount == request.expectedChangeCount else {
-            onFailure(.clipboardChanged)
+            failSelection(with: .clipboardChanged)
             return false
         }
         let item = NSPasteboardItem()
@@ -89,7 +114,7 @@ extension ScreenshotCaptureController {
         switch result {
         case let .installed(changeCount):
             guard clipboardWriter.changeCount == changeCount else {
-                onFailure(.clipboardChanged)
+                failSelection(with: .clipboardChanged)
                 return false
             }
             request.expectedChangeCount = changeCount
@@ -98,11 +123,15 @@ extension ScreenshotCaptureController {
         case .cancelled:
             return false
         case let .failed(failure):
-            onFailure(captureFailure(for: failure))
+            if case .changed = failure {
+                failSelection(with: .clipboardChanged)
+            } else {
+                onFailure(captureFailure(for: failure))
+            }
             return false
         case let .failedButRestored(changeCount):
             guard clipboardWriter.changeCount == changeCount else {
-                onFailure(.clipboardChanged)
+                failSelection(with: .clipboardChanged)
                 return false
             }
             request.expectedChangeCount = changeCount

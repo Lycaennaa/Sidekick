@@ -99,6 +99,7 @@ final class ScreenshotCaptureController {
         let startedAt: Date
         let saveDirectory: URL
         let filenameTemplate: String
+        let screenshotCopyAsWebP: Bool
         var expectedChangeCount: Int
         var savedURL: URL?
 
@@ -108,7 +109,8 @@ final class ScreenshotCaptureController {
             delivery: ScreenshotCaptureMode,
             startedAt: Date,
             saveDirectory: URL,
-            filenameTemplate: String
+            filenameTemplate: String,
+            screenshotCopyAsWebP: Bool
         ) {
             self.id = id
             self.expectedChangeCount = expectedChangeCount
@@ -116,6 +118,7 @@ final class ScreenshotCaptureController {
             self.startedAt = startedAt
             self.saveDirectory = saveDirectory
             self.filenameTemplate = filenameTemplate
+            self.screenshotCopyAsWebP = screenshotCopyAsWebP
         }
     }
 
@@ -142,6 +145,7 @@ final class ScreenshotCaptureController {
         ScreenshotPixelValueCopy
     ) async -> ScreenshotSelectionResult
     typealias SavePreparation = @MainActor (Data, URL, String) async throws -> ScreenshotSaveService.Prepared
+    typealias WebPPreparation = @MainActor (Data) async throws -> Data
 
     private let settings: AppSettings
     private let capture: Capture
@@ -153,6 +157,7 @@ final class ScreenshotCaptureController {
     let onFailure: (Failure) -> Void
     let onSavedAndCopied: (URL) -> Void
     private let prepareSave: SavePreparation
+    let prepareClipboardWebP: WebPPreparation
     var activeRequestID: UUID?
     private var pendingSaveRequestID: UUID?
 
@@ -175,6 +180,7 @@ final class ScreenshotCaptureController {
         onPixelValueCopied: @escaping () -> Void = {},
         onFailure: @escaping (Failure) -> Void,
         onSavedAndCopied: @escaping (URL) -> Void = { _ in },
+        prepareClipboardWebP: WebPPreparation? = nil,
         prepareSave: SavePreparation? = nil
     ) {
         self.clipboardWriter = ScreenshotClipboardWriter(
@@ -197,6 +203,9 @@ final class ScreenshotCaptureController {
         self.onPixelValueCopied = onPixelValueCopied
         self.onFailure = onFailure
         self.onSavedAndCopied = onSavedAndCopied
+        self.prepareClipboardWebP = prepareClipboardWebP ?? { data in
+            try await ClipboardWebPEncoder.encodeInBackground(data)
+        }
         self.prepareSave = prepareSave ?? { pngData, directory, baseName in
             try await ScreenshotSaveService.prepareInBackground(
                 pngData: pngData,
@@ -218,7 +227,8 @@ final class ScreenshotCaptureController {
             delivery: mode,
             startedAt: Date(),
             saveDirectory: settings.screenshotSaveDirectoryURL,
-            filenameTemplate: settings.screenshotFilenameTemplate
+            filenameTemplate: settings.screenshotFilenameTemplate,
+            screenshotCopyAsWebP: settings.screenshotCopyAsWebP
         )
         activeRequestID = request.id
         guard let screenshot = await captureScreenshot(
@@ -263,45 +273,79 @@ final class ScreenshotCaptureController {
             guard let self else { return false }
             return await self.copyPixelValue(value, request: request)
         }
-        guard activeRequestID == request.id else { return }
-        guard !Task.isCancelled else {
+        if case .cancelled = result {
+            guard activeRequestID == request.id else { return }
             activeRequestID = nil
             return
         }
+        guard validateClipboardRequest(request) else { return }
         guard let selection = makeClipboardItem(from: result, delivery: request.delivery) else { return }
+        guard let clipboardSelection = await prepareSelectedClipboardItem(selection, request: request) else {
+            return
+        }
+        guard validateClipboardRequest(request) else { return }
+        await installClipboardItem(clipboardSelection, request: request)
+    }
+
+    private func prepareSelectedClipboardItem(
+        _ selection: SelectedClipboardItem,
+        request: RequestState
+    ) async -> SelectedClipboardItem? {
+        var preparedWebPData: Data?
         if case let .screenshot(pngData, windowTitle, .saveAndCopy) = selection.content {
-            guard await saveSelectedScreenshot(
+            guard let savedWebPData = await saveSelectedScreenshot(
                 pngData,
                 windowTitle: windowTitle,
                 request: request
-            ) else { return }
-            guard activeRequestID == request.id else { return }
-            guard !Task.isCancelled else {
-                activeRequestID = nil
-                return
-            }
-            guard clipboardWriter.changeCount == request.expectedChangeCount else {
-                activeRequestID = nil
-                onFailure(.savedButClipboardChanged)
-                return
+            ) else { return nil }
+            guard validateClipboardRequest(request) else { return nil }
+            if request.screenshotCopyAsWebP {
+                preparedWebPData = savedWebPData
             }
         }
-        await installClipboardItem(selection, request: request)
+
+        do {
+            let clipboardSelection = try await prepareClipboardItemForCopy(
+                selection,
+                copyAsWebP: request.screenshotCopyAsWebP,
+                preparedWebPData: preparedWebPData
+            )
+            guard validateClipboardRequest(request) else { return nil }
+            return clipboardSelection
+        } catch {
+            guard validateClipboardRequest(request) else { return nil }
+            failSelection(with: request.savedURL == nil ? .encoding : .savedButNotCopied)
+            return nil
+        }
     }
 
-    private func saveSelectedScreenshot(
-        _ pngData: Data,
-        windowTitle: String?,
-        request: RequestState
-    ) async -> Bool {
+    private func validateClipboardRequest(_ request: RequestState) -> Bool {
         guard activeRequestID == request.id else { return false }
         guard !Task.isCancelled else {
             activeRequestID = nil
             return false
         }
         guard clipboardWriter.changeCount == request.expectedChangeCount else {
-            failSelection(with: .clipboardChanged)
+            activeRequestID = nil
+            onFailure(request.savedURL == nil ? .clipboardChanged : .savedButClipboardChanged)
             return false
+        }
+        return true
+    }
+
+    private func saveSelectedScreenshot(
+        _ pngData: Data,
+        windowTitle: String?,
+        request: RequestState
+    ) async -> Data? {
+        guard activeRequestID == request.id else { return nil }
+        guard !Task.isCancelled else {
+            activeRequestID = nil
+            return nil
+        }
+        guard clipboardWriter.changeCount == request.expectedChangeCount else {
+            failSelection(with: .clipboardChanged)
+            return nil
         }
         let baseName = ScreenshotFilenameTemplate.baseName(
             template: request.filenameTemplate,
@@ -317,51 +361,51 @@ final class ScreenshotCaptureController {
         }
     }
 
-    private func finishFailedScreenshotPreparation(for request: RequestState) -> Bool {
-        guard pendingSaveRequestID == request.id else { return false }
+    private func finishFailedScreenshotPreparation(for request: RequestState) -> Data? {
+        guard pendingSaveRequestID == request.id else { return nil }
         pendingSaveRequestID = nil
-        guard activeRequestID == request.id else { return false }
+        guard activeRequestID == request.id else { return nil }
         guard !Task.isCancelled else {
             activeRequestID = nil
-            return false
+            return nil
         }
         guard clipboardWriter.changeCount == request.expectedChangeCount else {
             failSelection(with: .clipboardChanged)
-            return false
+            return nil
         }
         failSelection(with: .save)
-        return false
+        return nil
     }
 
     private func publishPreparedScreenshot(
         _ prepared: ScreenshotSaveService.Prepared,
         request: RequestState
-    ) -> Bool {
+    ) -> Data? {
         guard pendingSaveRequestID == request.id else {
             ScreenshotSaveService.discard(prepared)
-            return false
+            return nil
         }
         guard activeRequestID == request.id,
               !Task.isCancelled,
               clipboardWriter.changeCount == request.expectedChangeCount else {
             ScreenshotSaveService.discard(prepared)
             pendingSaveRequestID = nil
-            guard activeRequestID == request.id else { return false }
+            guard activeRequestID == request.id else { return nil }
             guard !Task.isCancelled else {
                 activeRequestID = nil
-                return false
+                return nil
             }
             failSelection(with: .clipboardChanged)
-            return false
+            return nil
         }
         pendingSaveRequestID = nil
         do {
             request.savedURL = try ScreenshotSaveService.commit(prepared)
-            return true
+            return prepared.webPData
         } catch {
             ScreenshotSaveService.discard(prepared)
             failSelection(with: .save)
-            return false
+            return nil
         }
     }
 

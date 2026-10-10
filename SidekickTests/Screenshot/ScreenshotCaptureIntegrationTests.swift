@@ -125,6 +125,7 @@ final class ScreenshotCaptureIntegrationTests: XCTestCase {
         let toast = ClipboardPayloadPresentation.toastModel(from: analysis.classification)
         XCTAssertEqual(toast.summary, "Copied image • SDR (HDR not preserved)")
     }
+
     func testLateScreenshotDoesNotOverwriteClipboardChangedDuringCapture() async throws {
         let pasteboard = ScreenshotCaptureTestSupport.ScreenshotRacePasteboard(value: "initial")
         let gate = ScreenshotCaptureGate()

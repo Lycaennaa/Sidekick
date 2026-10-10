@@ -41,6 +41,7 @@ final class AppSettings {
         static let screenshotSaveDirectoryPath = "screenshotSaveDirectoryPath"
         static let screenshotFilenameTemplate = "screenshotFilenameTemplate"
         static let screenshotCursorIncludedByDefault = "screenshotCursorIncludedByDefault"
+        static let screenshotCopyAsWebP = "screenshotCopyAsWebP"
         static let screenshotSaveAndCopyShortcut = "screenshotSaveAndCopyShortcut"
         static let appearance = "appearance"
     }
@@ -59,6 +60,7 @@ final class AppSettings {
             Key.microphoneToastEnabled: true,
             Key.twitchNotificationsEnabled: false,
             Key.screenshotCursorIncludedByDefault: false,
+            Key.screenshotCopyAsWebP: false,
             Key.screenshotSaveDirectoryPath: Self.defaultScreenshotSaveDirectoryURL.path,
             Key.screenshotFilenameTemplate: Self.defaultScreenshotFilenameTemplate,
             Key.appearance: AppAppearance.system.rawValue
@@ -248,6 +250,15 @@ final class AppSettings {
         set {
             guard newValue != screenshotCursorIncludedByDefault else { return }
             defaults.set(newValue, forKey: Key.screenshotCursorIncludedByDefault)
+            onChange?()
+        }
+    }
+
+    var screenshotCopyAsWebP: Bool {
+        get { defaults.bool(forKey: Key.screenshotCopyAsWebP) }
+        set {
+            guard newValue != screenshotCopyAsWebP else { return }
+            defaults.set(newValue, forKey: Key.screenshotCopyAsWebP)
             onChange?()
         }
     }

@@ -5,6 +5,7 @@ final class ScreenshotSettingsView: NSView {
     private let settings: AppSettings
     private let onCapture: () -> Void
     private let cursorSwitch = NSSwitch()
+    private let webPCopySwitch = NSSwitch()
 
     init(settings: AppSettings, onCapture: @escaping () -> Void) {
         self.settings = settings
@@ -22,10 +23,15 @@ final class ScreenshotSettingsView: NSView {
 
     func refresh() {
         cursorSwitch.state = settings.screenshotCursorIncludedByDefault ? .on : .off
+        webPCopySwitch.state = settings.screenshotCopyAsWebP ? .on : .off
     }
 
     @objc private func toggleCursor() {
         settings.screenshotCursorIncludedByDefault = cursorSwitch.state == .on
+    }
+
+    @objc private func toggleWebPCopy() {
+        settings.screenshotCopyAsWebP = webPCopySwitch.state == .on
     }
 
     @objc private func captureDisplay() {
@@ -91,6 +97,30 @@ final class ScreenshotSettingsView: NSView {
         return row
     }
 
+    private func makeWebPCopyRow() -> NSView {
+        let title = NSTextField(labelWithString: "Copy screenshots as WebP")
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
+        let detail = NSTextField(
+            wrappingLabelWithString: "Encode the selected screenshot with the WebP converter before copying."
+        )
+        detail.textColor = .secondaryLabelColor
+        let labels = NSStackView(views: [title, detail])
+        labels.orientation = .vertical
+        labels.alignment = .leading
+        labels.spacing = 4
+        labels.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        webPCopySwitch.target = self
+        webPCopySwitch.action = #selector(toggleWebPCopy)
+        webPCopySwitch.setAccessibilityLabel("Copy screenshots as WebP")
+
+        let row = NSStackView(views: [labels, webPCopySwitch])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 18
+        return row
+    }
+
     private func buildView() {
         let title = NSTextField(labelWithString: "Screenshots")
         title.font = .systemFont(ofSize: 26, weight: .bold)
@@ -108,7 +138,9 @@ final class ScreenshotSettingsView: NSView {
             makeSeparator(),
             makeCaptureRow(),
             makeSeparator(),
-            makeCursorRow()
+            makeCursorRow(),
+            makeSeparator(),
+            makeWebPCopyRow()
         ])
         stack.orientation = .vertical
         configureSettingsPageStack(stack)

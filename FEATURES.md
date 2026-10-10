@@ -13,7 +13,7 @@ Sidekick runs in the macOS menu bar and requires macOS 15 or later.
 
 ## Screenshots
 
-- Capture a display and copy it to the pasteboard, with cursor display options.
+- Capture a display and copy it as PNG or WebP, with cursor display options.
 - Select a region or window, use aspect-ratio guides, and inspect pixel color values and selection dimensions.
 
 ## Audio and volume

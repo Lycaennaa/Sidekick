@@ -59,6 +59,16 @@ nonisolated enum ClipboardWebPEncoder {
     private static func checkCancellation(_ isCancelled: CancellationCheck) throws {
         guard !isCancelled(), !Task.isCancelled else { throw CancellationError() }
     }
+    static func encodeInBackground(_ data: Data) async throws -> Data {
+        let worker = Task.detached(priority: .userInitiated) {
+            try encode(data, isCancelled: { Task.isCancelled })
+        }
+        return try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: {
+            worker.cancel()
+        }
+    }
 }
 nonisolated private extension ClipboardWebPEncoder {
     private struct RenderedPixels {
