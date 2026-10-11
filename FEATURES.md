@@ -7,6 +7,7 @@ Sidekick runs in the macOS menu bar and requires macOS 15 or later.
 - Show copied text, source app, and character, word, and token counts in clipboard toasts.
 - Preview copied images and files; open copied images with the selected application.
 - Convert a clipboard image to WebP at 75% quality.
+- Automatically convert new clipboard images to WebP when enabled.
 - Remove Markdown formatting or known tracking parameters from the clipboard.
 - Keep YouTube playlist parameters while cleaning URLs.
 - Pause clipboard toasts, change their display duration, and exclude apps from toast presentation.

@@ -12,6 +12,7 @@ nonisolated enum ClipboardWebPConfiguration {
 
 enum ClipboardWebPCapture {
     case source(ClipboardWebPSource, changeCount: Int)
+    case alreadyWebP
     case noImage
     case unavailable
     case failed

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 enum ClipboardWebPPasteboardCapture {
     static func captureImage(
         from pasteboard: any PasteboardAccess,
+        skipAlreadyWebPFiles: Bool = false,
         fileURLReader: any PasteboardFileURLReading = SystemPasteboardFileURLReader(),
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader()
     ) async -> ClipboardWebPCapture {
@@ -40,9 +41,27 @@ enum ClipboardWebPPasteboardCapture {
             }.first ?? typedItems.first(where: { _, type in
                 PasteboardTypePolicy.isImage(type)
             })
+            let convertibleFileURLs = skipAlreadyWebPFiles
+                ? imageFileURLs.filter {
+                    PasteboardTypePolicy.imageType(for: $0)?.conforms(to: .webP) != true
+                }
+                : imageFileURLs
+            let matchIsWebP: Bool
+            if let match {
+                matchIsWebP = UTType(match.1.rawValue)?.conforms(to: .webP) == true
+            } else {
+                matchIsWebP = true
+            }
+            if skipAlreadyWebPFiles,
+               !imageFileURLs.isEmpty,
+               convertibleFileURLs.isEmpty,
+               ambiguousFileURLs.isEmpty,
+               matchIsWebP {
+                return .alreadyWebP
+            }
             return await capturePayload(
                 match: match,
-                fileURLs: imageFileURLs + ambiguousFileURLs,
+                fileURLs: convertibleFileURLs + ambiguousFileURLs,
                 pasteboard: pasteboard,
                 sourceChangeCount: sourceChangeCount,
                 payloadReader: payloadReader

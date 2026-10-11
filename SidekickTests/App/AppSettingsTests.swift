@@ -72,6 +72,19 @@ final class AppSettingsTests: XCTestCase {
 
         XCTAssertFalse(AppSettings(defaults: defaults).webPClipboardConverterEnabled)
     }
+    func testClipboardImageAutoWebPDefaultsOffAndPersistsIndependently() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertFalse(settings.clipboardImageAutoConvertToWebPEnabled)
+        XCTAssertTrue(settings.webPClipboardConverterEnabled)
+        settings.clipboardImageAutoConvertToWebPEnabled = true
+
+        let restored = AppSettings(defaults: defaults)
+        XCTAssertTrue(restored.clipboardImageAutoConvertToWebPEnabled)
+        XCTAssertTrue(restored.webPClipboardConverterEnabled)
+    }
 
     func testMarkdownClipboardCleanerDefaultsEnabledAndPersists() {
         let defaults = makeDefaults()

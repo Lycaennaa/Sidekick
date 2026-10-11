@@ -34,6 +34,7 @@ final class AppSettings {
         static let excludedToastApplicationBundleIdentifiers = "excludedToastApplicationBundleIdentifiers"
         static let toastDuration = "toastDuration"
         static let webPClipboardConverterEnabled = "webPClipboardConverterEnabled"
+        static let clipboardImageAutoConvertToWebPEnabled = "clipboardImageAutoConvertToWebPEnabled"
         static let markdownClipboardCleanerEnabled = "markdownClipboardCleanerEnabled"
         static let clearURLsClipboardEnabled = "clearURLsClipboardEnabled"
         static let microphoneToastEnabled = "microphoneToastEnabled"
@@ -55,6 +56,7 @@ final class AppSettings {
             Key.excludedToastApplicationBundleIdentifiers: [String](),
             Key.toastDuration: Self.defaultToastDuration,
             Key.webPClipboardConverterEnabled: true,
+            Key.clipboardImageAutoConvertToWebPEnabled: false,
             Key.markdownClipboardCleanerEnabled: true,
             Key.clearURLsClipboardEnabled: true,
             Key.microphoneToastEnabled: true,
@@ -383,6 +385,17 @@ final class AppSettings {
             } else {
                 defaults.removeObject(forKey: Key.clipboardImageOpeningApplicationPath)
             }
+            onChange?()
+        }
+    }
+}
+
+extension AppSettings {
+    var clipboardImageAutoConvertToWebPEnabled: Bool {
+        get { defaults.bool(forKey: Key.clipboardImageAutoConvertToWebPEnabled) }
+        set {
+            guard newValue != clipboardImageAutoConvertToWebPEnabled else { return }
+            defaults.set(newValue, forKey: Key.clipboardImageAutoConvertToWebPEnabled)
             onChange?()
         }
     }

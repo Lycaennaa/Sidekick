@@ -43,7 +43,10 @@ extension AppDelegate {
         }
         guard settings.webPClipboardConverterEnabled else {
             clipboardWebPHotKey?.stop()
-            cancelPendingUtilityToast()
+            clipboardWebPConversionOwnership.cancelPendingUtilityOperationIfNotAutomatic(
+                utilityGeneration: utilityToastGeneration,
+                cancel: { cancelPendingUtilityToast() }
+            )
             return
         }
         guard !isScreenshotSaveAndCopyHotKeyRecording else {
@@ -61,11 +64,28 @@ extension AppDelegate {
 
     func startWebPConversion() {
         guard !isTerminating, settings.webPClipboardConverterEnabled else { return }
-        _ = beginUtilityOperation()
+        performWebPConversion(automatically: false)
+    }
+
+    func startAutomaticWebPConversion() {
+        guard !isTerminating, settings.clipboardImageAutoConvertToWebPEnabled else { return }
+        performWebPConversion(automatically: true)
+    }
+
+    private func performWebPConversion(automatically: Bool) {
+        guard let clipboardWebPController else { return }
+        let operationGeneration = beginUtilityOperation()
+        if automatically {
+            clipboardWebPConversionOwnership.beginAutomaticConversion(generation: operationGeneration)
+        }
         let mutationGeneration = beginClipboardMutation()
-        clipboardWebPController?.convertClipboardImage { [weak self] _ in
+        clipboardWebPController.convertClipboardImage(skipAlreadyWebPFiles: automatically) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.endClipboardMutation(mutationGeneration)
+                guard let self else { return }
+                self.endClipboardMutation(mutationGeneration)
+                self.clipboardWebPConversionOwnership.completeAutomaticConversion(
+                    generation: operationGeneration
+                )
             }
         }
     }
@@ -263,6 +283,7 @@ extension AppDelegate {
 
     func beginUtilityOperation() -> UInt64 {
         utilityToastGeneration &+= 1
+        clipboardWebPConversionOwnership.invalidate()
         clipboardUtilityImageWorker.cancelAll()
         clipboardToastController?.cancelPendingAcknowledgment()
         clipboardToastController?.cancelPendingPayloadOperation()

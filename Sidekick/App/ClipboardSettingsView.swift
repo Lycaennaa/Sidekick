@@ -6,6 +6,7 @@ final class ClipboardSettingsView: NSView {
     private let clearURLsAvailable: Bool
     private let imageOpeningApplicationPicker: ClipboardImageOpeningApplicationPickerView
     private let webPSwitch = NSSwitch()
+    private let automaticWebPSwitch = NSSwitch()
     private let markdownSwitch = NSSwitch()
     private let clearURLsSwitch = NSSwitch()
     private let clipboardToastSwitch = NSSwitch()
@@ -32,6 +33,7 @@ final class ClipboardSettingsView: NSView {
 
     func refresh() {
         webPSwitch.state = settings.webPClipboardConverterEnabled ? .on : .off
+        automaticWebPSwitch.state = settings.clipboardImageAutoConvertToWebPEnabled ? .on : .off
         markdownSwitch.state = settings.markdownClipboardCleanerEnabled ? .on : .off
         clearURLsSwitch.state = clearURLsAvailable && settings.clearURLsClipboardEnabled ? .on : .off
         clearURLsSwitch.isEnabled = clearURLsAvailable
@@ -43,6 +45,10 @@ final class ClipboardSettingsView: NSView {
 
     @objc private func toggleWebP() {
         settings.webPClipboardConverterEnabled = webPSwitch.state == .on
+    }
+
+    @objc private func toggleAutomaticWebP() {
+        settings.clipboardImageAutoConvertToWebPEnabled = automaticWebPSwitch.state == .on
     }
 
     @objc private func toggleMarkdown() {
@@ -98,6 +104,9 @@ final class ClipboardSettingsView: NSView {
         webPSwitch.target = self
         webPSwitch.action = #selector(toggleWebP)
         webPSwitch.setAccessibilityLabel("Convert clipboard images to WebP")
+        automaticWebPSwitch.target = self
+        automaticWebPSwitch.action = #selector(toggleAutomaticWebP)
+        automaticWebPSwitch.setAccessibilityLabel("Automatically convert clipboard images to WebP")
         markdownSwitch.target = self
         markdownSwitch.action = #selector(toggleMarkdown)
         markdownSwitch.setAccessibilityLabel("Clean clipboard Markdown")
@@ -185,6 +194,14 @@ final class ClipboardSettingsView: NSView {
                 shortcut: "⌘⌥⇧C",
                 shortcutDescription: "Command–Option–Shift–C",
                 toggle: webPSwitch
+            ),
+            makeSeparator(),
+            makeToolRow(
+                title: "Automatically convert clipboard images to WebP",
+                detail: "Convert new clipboard images to WebP files and replace the clipboard.",
+                shortcut: "Auto",
+                shortcutDescription: "Runs when new image content appears on the clipboard.",
+                toggle: automaticWebPSwitch
             ),
             makeSeparator(),
             makeToolRow(

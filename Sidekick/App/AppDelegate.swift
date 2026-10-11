@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var clipboardUtilityImageWorker = ClipboardImageEnrichmentWorker()
     var clipboardImagePreviewOpener: ClipboardImagePreviewOpener?
     var clipboardWebPController: ClipboardWebPController?
+    var clipboardAutoWebPController: ClipboardAutoWebPController?
     var clipboardWebPHotKey: GlobalHotKey?
     var screenshotCaptureController: ScreenshotCaptureController?
     var screenshotSaveAndClipboardHotKey: GlobalHotKey?
@@ -37,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var toolsWindowController: ToolsWindowController?
     private var systemAppearanceObservation: NSKeyValueObservation?
     var utilityToastGeneration: UInt64 = UInt64.max / 2
+    var clipboardWebPConversionOwnership = ClipboardWebPConversionOwnership()
     var utilityToastPresentationToken: UInt64 = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -120,6 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         screenshotCaptureTask = nil
         screenshotCaptureController?.terminate()
         clipboardMarkdownController?.terminate()
+        clipboardAutoWebPController?.terminate()
         clipboardWebPController?.terminate()
         clipboardImagePreviewOpener?.terminate()
         clipboardToastController?.terminate()
@@ -196,6 +199,7 @@ extension AppDelegate {
 
     private func installClipboardUtilities() {
         installWebPController()
+        installAutomaticClipboardWebPController()
         installMarkdownController()
         installClearURLsController()
     }
@@ -204,6 +208,7 @@ extension AppDelegate {
         clipboardWebPController = ClipboardWebPController(
             onConverted: { [weak self] url, changeCount in
                 guard let self else { return }
+                self.clipboardAutoWebPController?.acknowledgeConvertedChange(changeCount: changeCount)
                 let generation = self.utilityToastGeneration
                 Task { @MainActor [weak self] in
                     guard let self, self.utilityToastGeneration == generation else { return }
@@ -219,7 +224,14 @@ extension AppDelegate {
                 }
             },
             onMessage: { [weak self] message in
-                self?.presentUtilityToast(
+                guard let self else { return }
+                if message == "No image to convert",
+                   !self.clipboardWebPConversionOwnership.shouldPresentNoImageMessage(
+                       utilityGeneration: self.utilityToastGeneration
+                   ) {
+                    return
+                }
+                self.presentUtilityToast(
                     message,
                     style: .image,
                     symbolName: "photo.badge.exclamationmark"
@@ -230,6 +242,12 @@ extension AppDelegate {
             guard let self, self.settings.webPClipboardConverterEnabled else { return }
             self.startWebPConversion()
         }
+    }
+    private func installAutomaticClipboardWebPController() {
+        clipboardAutoWebPController = ClipboardAutoWebPController(
+            settings: settings,
+            onImageDetected: { [weak self] in self?.startAutomaticWebPConversion() }
+        )
     }
 
     private func installMarkdownController() {
@@ -348,6 +366,7 @@ extension AppDelegate {
         settings.onChange = { [weak self] in
             guard let self else { return }
             self.clipboardToastController?.applySettings()
+            self.clipboardAutoWebPController?.applySettings()
             self.syncWebPClipboardConverter()
             self.syncMarkdownHotKey()
             self.syncClearURLsClipboardCleaner()
@@ -388,6 +407,7 @@ extension AppDelegate {
         syncClearURLsClipboardCleaner()
         installWorkspaceObservers()
         clipboardToastController?.start()
+        clipboardAutoWebPController?.start()
         if let controller = twitchNotificationController {
             Task { @MainActor [weak controller] in
                 await controller?.requestKeychainAccessAtStartup()

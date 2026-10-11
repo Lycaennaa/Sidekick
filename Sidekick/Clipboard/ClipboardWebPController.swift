@@ -4,6 +4,7 @@ import AppKit
 final class ClipboardWebPController {
     enum Result: Equatable {
         case converted(URL)
+        case alreadyWebP
         case noImage
         case unavailable
         case failed
@@ -60,7 +61,10 @@ final class ClipboardWebPController {
         }
     }
 
-    func convertClipboardImage(completion: @escaping (Result) -> Void = { _ in }) {
+    func convertClipboardImage(
+        skipAlreadyWebPFiles: Bool = false,
+        completion: @escaping (Result) -> Void = { _ in }
+    ) {
         guard !terminated else {
             completion(.cancelled)
             return
@@ -76,6 +80,7 @@ final class ClipboardWebPController {
             await self.captureAndEnqueue(
                 pasteboard: pasteboard,
                 requestToken: requestToken,
+                skipAlreadyWebPFiles: skipAlreadyWebPFiles,
                 completion: completion
             )
         }
@@ -243,10 +248,12 @@ extension ClipboardWebPController {
     private func captureAndEnqueue(
         pasteboard: any PasteboardAccess,
         requestToken: UInt64,
+        skipAlreadyWebPFiles: Bool,
         completion: @escaping (Result) -> Void
     ) async {
         let capture = await ClipboardWebPPasteboardCapture.captureImage(
             from: pasteboard,
+            skipAlreadyWebPFiles: skipAlreadyWebPFiles,
             fileURLReader: fileURLReader,
             payloadReader: payloadReader
         )
@@ -290,6 +297,8 @@ extension ClipboardWebPController {
         completion: @escaping (Result) -> Void
     ) -> (source: ClipboardWebPSource, changeCount: Int)? {
         switch capture {
+        case .alreadyWebP:
+            completion(.alreadyWebP)
         case let .source(source, changeCount):
             return (source, changeCount)
         case .noImage:
