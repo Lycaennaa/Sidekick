@@ -12,13 +12,17 @@ enum PasteboardTypePolicy {
     }
 
     static func isImage(_ type: NSPasteboard.PasteboardType) -> Bool {
-        UTType(type.rawValue)?.conforms(to: .image) == true
+        return ClipboardImageFormat.allCases.contains { $0.typeIdentifier == type.rawValue }
+            || UTType(type.rawValue)?.conforms(to: .image) == true
     }
     static func isImage(_ type: UTType) -> Bool {
         type.conforms(to: .image)
     }
 
     static func imageType(for url: URL) -> UTType? {
+        if let format = ClipboardImageFormat(fileExtension: url.pathExtension) {
+            return format.uniformType
+        }
         guard let type = UTType(filenameExtension: url.pathExtension),
               isImage(type) else {
             return nil

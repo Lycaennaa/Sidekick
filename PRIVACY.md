@@ -20,7 +20,7 @@ Clipboard data may include copied text, image data, file URLs and bounded file c
 
 When requested by the user, Sidekick captures a display or window and copies the selected image or pixel values to the macOS pasteboard. It does not save a separate screenshot file.
 
-Excluding an application suppresses clipboard-toast presentation; it does not necessarily disable manual utilities such as WebP conversion or Markdown cleaning.
+Excluding an application suppresses clipboard-toast presentation; it does not necessarily disable manual utilities such as image conversion to WebP or AVIF or Markdown cleaning.
 
 ## Microphone data
 

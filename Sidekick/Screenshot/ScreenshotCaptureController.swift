@@ -99,7 +99,8 @@ final class ScreenshotCaptureController {
         let startedAt: Date
         let saveDirectory: URL
         let filenameTemplate: String
-        let screenshotCopyAsWebP: Bool
+        let screenshotCopyAsOutputFormat: Bool
+        let imageFormat: ClipboardImageFormat
         var expectedChangeCount: Int
         var savedURL: URL?
 
@@ -110,7 +111,8 @@ final class ScreenshotCaptureController {
             startedAt: Date,
             saveDirectory: URL,
             filenameTemplate: String,
-            screenshotCopyAsWebP: Bool
+            screenshotCopyAsOutputFormat: Bool,
+            imageFormat: ClipboardImageFormat
         ) {
             self.id = id
             self.expectedChangeCount = expectedChangeCount
@@ -118,7 +120,8 @@ final class ScreenshotCaptureController {
             self.startedAt = startedAt
             self.saveDirectory = saveDirectory
             self.filenameTemplate = filenameTemplate
-            self.screenshotCopyAsWebP = screenshotCopyAsWebP
+            self.screenshotCopyAsOutputFormat = screenshotCopyAsOutputFormat
+            self.imageFormat = imageFormat
         }
     }
 
@@ -144,8 +147,13 @@ final class ScreenshotCaptureController {
         WindowCapture,
         ScreenshotPixelValueCopy
     ) async -> ScreenshotSelectionResult
-    typealias SavePreparation = @MainActor (Data, URL, String) async throws -> ScreenshotSaveService.Prepared
-    typealias WebPPreparation = @MainActor (Data) async throws -> Data
+    typealias SavePreparation = @MainActor (
+        Data,
+        URL,
+        String,
+        ClipboardImageFormat
+    ) async throws -> ScreenshotSaveService.Prepared
+    typealias ImagePreparation = @MainActor (Data, ClipboardImageFormat) async throws -> Data
 
     private let settings: AppSettings
     private let capture: Capture
@@ -157,7 +165,7 @@ final class ScreenshotCaptureController {
     let onFailure: (Failure) -> Void
     let onSavedAndCopied: (URL) -> Void
     private let prepareSave: SavePreparation
-    let prepareClipboardWebP: WebPPreparation
+    let prepareClipboardImage: ImagePreparation
     var activeRequestID: UUID?
     private var pendingSaveRequestID: UUID?
 
@@ -180,7 +188,7 @@ final class ScreenshotCaptureController {
         onPixelValueCopied: @escaping () -> Void = {},
         onFailure: @escaping (Failure) -> Void,
         onSavedAndCopied: @escaping (URL) -> Void = { _ in },
-        prepareClipboardWebP: WebPPreparation? = nil,
+        prepareClipboardImage: ImagePreparation? = nil,
         prepareSave: SavePreparation? = nil
     ) {
         self.clipboardWriter = ScreenshotClipboardWriter(
@@ -203,14 +211,15 @@ final class ScreenshotCaptureController {
         self.onPixelValueCopied = onPixelValueCopied
         self.onFailure = onFailure
         self.onSavedAndCopied = onSavedAndCopied
-        self.prepareClipboardWebP = prepareClipboardWebP ?? { data in
-            try await ClipboardWebPEncoder.encodeInBackground(data)
+        self.prepareClipboardImage = prepareClipboardImage ?? { data, format in
+            try await ClipboardImageEncoder.encodeInBackground(data, format: format)
         }
-        self.prepareSave = prepareSave ?? { pngData, directory, baseName in
+        self.prepareSave = prepareSave ?? { pngData, directory, baseName, format in
             try await ScreenshotSaveService.prepareInBackground(
                 pngData: pngData,
                 directory: directory,
-                baseName: baseName
+                baseName: baseName,
+                format: format
             )
         }
     }
@@ -228,7 +237,8 @@ final class ScreenshotCaptureController {
             startedAt: Date(),
             saveDirectory: settings.screenshotSaveDirectoryURL,
             filenameTemplate: settings.screenshotFilenameTemplate,
-            screenshotCopyAsWebP: settings.screenshotCopyAsWebP
+            screenshotCopyAsOutputFormat: settings.screenshotCopyAsOutputFormat,
+            imageFormat: settings.imageOutputFormat
         )
         activeRequestID = request.id
         guard let screenshot = await captureScreenshot(
@@ -291,24 +301,25 @@ final class ScreenshotCaptureController {
         _ selection: SelectedClipboardItem,
         request: RequestState
     ) async -> SelectedClipboardItem? {
-        var preparedWebPData: Data?
+        var preparedOutputFormatData: Data?
         if case let .screenshot(pngData, windowTitle, .saveAndCopy) = selection.content {
-            guard let savedWebPData = await saveSelectedScreenshot(
+            guard let savedData = await saveSelectedScreenshot(
                 pngData,
                 windowTitle: windowTitle,
                 request: request
             ) else { return nil }
             guard validateClipboardRequest(request) else { return nil }
-            if request.screenshotCopyAsWebP {
-                preparedWebPData = savedWebPData
+            if request.screenshotCopyAsOutputFormat {
+                preparedOutputFormatData = savedData
             }
         }
 
         do {
             let clipboardSelection = try await prepareClipboardItemForCopy(
                 selection,
-                copyAsWebP: request.screenshotCopyAsWebP,
-                preparedWebPData: preparedWebPData
+                copyAsOutputFormat: request.screenshotCopyAsOutputFormat,
+                imageFormat: request.imageFormat,
+                preparedOutputFormatData: preparedOutputFormatData
             )
             guard validateClipboardRequest(request) else { return nil }
             return clipboardSelection
@@ -354,7 +365,12 @@ final class ScreenshotCaptureController {
         )
         pendingSaveRequestID = request.id
         do {
-            let prepared = try await prepareSave(pngData, request.saveDirectory, baseName)
+            let prepared = try await prepareSave(
+                pngData,
+                request.saveDirectory,
+                baseName,
+                request.imageFormat
+            )
             return publishPreparedScreenshot(prepared, request: request)
         } catch {
             return finishFailedScreenshotPreparation(for: request)
@@ -401,7 +417,7 @@ final class ScreenshotCaptureController {
         pendingSaveRequestID = nil
         do {
             request.savedURL = try ScreenshotSaveService.commit(prepared)
-            return prepared.webPData
+            return prepared.imageData
         } catch {
             ScreenshotSaveService.discard(prepared)
             failSelection(with: .save)

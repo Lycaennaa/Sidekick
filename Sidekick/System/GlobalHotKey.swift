@@ -25,7 +25,7 @@ import Carbon.HIToolbox
             UInt32(kVK_ANSI_V)
         ]
 
-        static let webPClipboard = Self(
+        static let clipboardImageConversion = Self(
             keyCode: UInt32(kVK_ANSI_C),
             modifiers: UInt32(cmdKey | optionKey | shiftKey),
             keyName: "C"

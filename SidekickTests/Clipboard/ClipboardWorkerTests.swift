@@ -150,7 +150,7 @@ final class ClipboardWorkerTests: XCTestCase {
     func testWebPWorkerStartsReplacementWhileCancelledNativeOperationFinishes() async {
         let gate = BlockingGate()
         let probe = BackgroundWorkProbe()
-        let worker = ClipboardWebPWorker { source, outputDirectory in
+        let worker = ClipboardImageConversionWorker { source, outputDirectory in
             let id = clipboardWorkerID(source)
             probe.begin(id)
             if id == 1 {
@@ -198,7 +198,7 @@ final class ClipboardWorkerTests: XCTestCase {
     func testWebPWorkerReplacesPendingWorkAndKeepsOneActiveOperation() async {
         let gate = BlockingGate()
         let probe = BackgroundWorkProbe()
-        let worker = ClipboardWebPWorker { source, outputDirectory in
+        let worker = ClipboardImageConversionWorker { source, outputDirectory in
             let id = clipboardWorkerID(source)
             probe.begin(id)
             if id == 1 {
@@ -249,7 +249,7 @@ final class ClipboardWorkerTests: XCTestCase {
     func testWebPWorkerCancelsPendingAndCleansLateActiveResult() async {
         let gate = BlockingGate()
         let probe = BackgroundWorkProbe()
-        let worker = ClipboardWebPWorker { source, outputDirectory in
+        let worker = ClipboardImageConversionWorker { source, outputDirectory in
             let id = clipboardWorkerID(source)
             probe.begin(id)
             gate.wait()
@@ -297,7 +297,7 @@ final class ClipboardWorkerTests: XCTestCase {
 
     func testWebPWorkerStopsActiveConversionAtCancellationCheckpoint() async {
         let started = expectation(description: "Active WebP conversion started")
-        let worker = ClipboardWebPWorker(convert: { source, outputDirectory, isCancelled in
+        let worker = ClipboardImageConversionWorker(convert: { source, outputDirectory, _, isCancelled in
             let id = clipboardWorkerID(source)
             if id == 1 {
                 started.fulfill()
@@ -382,11 +382,11 @@ final class ClipboardWorkerTests: XCTestCase {
     }
 }
 
-private func clipboardWorkerSource(_ id: Int) -> ClipboardWebPSource {
+private func clipboardWorkerSource(_ id: Int) -> ClipboardImageSource {
     .data(Data([UInt8(id)]))
 }
 
-private func clipboardWorkerID(_ source: ClipboardWebPSource) -> Int {
+private func clipboardWorkerID(_ source: ClipboardImageSource) -> Int {
     guard case let .data(data) = source, let id = data.first else { return -1 }
     return Int(id)
 }

@@ -1,56 +1,45 @@
 import AppKit
 
 @MainActor
-final class ClipboardWebPController {
-    enum Result: Equatable {
-        case converted(URL)
-        case alreadyWebP
-        case noImage
-        case unavailable
+final class ClipboardImagePasteboardInstaller {
+    enum Result {
+        case installed(URL)
         case failed
         case stale
-        case cancelled
     }
 
-    private static let snapshotLimits = PasteboardSnapshot.Limits(
-        maximumBytes: PasteboardSnapshotPolicy.maximumBytes,
-        maximumItems: PasteboardSnapshotPolicy.maximumItems,
-        maximumTypesPerItem: PasteboardSnapshotPolicy.maximumTypesPerItem
-    )
-
     private let pasteboard: any PasteboardAccess
-    private let artifactOwner: ClipboardWebPArtifactOwner
+    private let artifactOwner: ClipboardImageConversionArtifactOwner
     private let onConverted: (URL, Int) -> Void
     private let onMessage: (String) -> Void
-    private let worker: ClipboardWebPWorker
     private let fileURLReader: any PasteboardFileURLReading
     private let payloadReader: any PasteboardPayloadReading
-
     private var token: UInt64 = 0
-    private var captureTask: Task<Void, Never>?
     private var installTask: Task<Void, Never>?
     private var terminationCleanupTask: Task<Void, Never>?
     private var terminated = false
 
+    var isTerminated: Bool { terminated }
+    var outputDirectory: URL { artifactOwner.outputDirectory }
+
     init(
-        pasteboard: any PasteboardAccess = NSPasteboard.general,
-        expirationInterval: TimeInterval = 60,
-        outputDirectory: URL = ClipboardWebPConfiguration.defaultOutputDirectory,
-        worker: ClipboardWebPWorker = ClipboardWebPWorker(),
-        fileURLReader: any PasteboardFileURLReading = SystemPasteboardFileURLReader(),
-        payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader(),
-        onConverted: @escaping (URL, Int) -> Void = { _, _ in },
+        pasteboard: any PasteboardAccess,
+        expirationInterval: TimeInterval,
+        outputDirectory: URL,
+        fileURLReader: any PasteboardFileURLReading,
+        payloadReader: any PasteboardPayloadReading,
+        onConverted: @escaping (URL, Int) -> Void,
         onMessage: @escaping (String) -> Void
     ) {
         self.pasteboard = pasteboard
-        self.onConverted = onConverted
-        self.onMessage = onMessage
-        self.worker = worker
         self.fileURLReader = fileURLReader
         self.payloadReader = payloadReader
-        artifactOwner = ClipboardWebPArtifactOwner(
+        self.onConverted = onConverted
+        self.onMessage = onMessage
+        artifactOwner = ClipboardImageConversionArtifactOwner(
             expirationInterval: expirationInterval,
             outputDirectory: outputDirectory,
+            legacyOutputDirectories: ClipboardImageConversionPolicy.legacyOutputDirectories,
             pasteboard: pasteboard,
             fileURLReader: fileURLReader,
             onMessage: onMessage,
@@ -61,51 +50,33 @@ final class ClipboardWebPController {
         }
     }
 
-    func convertClipboardImage(
-        skipAlreadyWebPFiles: Bool = false,
-        completion: @escaping (Result) -> Void = { _ in }
-    ) {
-        guard !terminated else {
-            completion(.cancelled)
-            return
-        }
+    func beginRequest() -> UInt64 {
         token &+= 1
-        captureTask?.cancel()
         installTask?.cancel()
-        worker.cancelAll()
-        let requestToken = token
-        let pasteboard = self.pasteboard
-        captureTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            await self.captureAndEnqueue(
-                pasteboard: pasteboard,
-                requestToken: requestToken,
-                skipAlreadyWebPFiles: skipAlreadyWebPFiles,
-                completion: completion
-            )
-        }
+        return token
+    }
+
+    func cancelPendingConversion() {
+        token &+= 1
+        installTask?.cancel()
     }
 
     func terminate() {
         guard !terminated else { return }
         terminated = true
         token &+= 1
-        captureTask?.cancel()
         installTask?.cancel()
-        captureTask = nil
         installTask = nil
-        worker.cancelAll()
         let lease = artifactOwner.currentLease
         guard let lease else {
             artifactOwner.terminate()
             return
         }
         artifactOwner.terminate(preservingCurrentLease: true)
-        // AppKit termination is synchronous; retain this controller for bounded cleanup while the process remains alive.
         terminationCleanupTask = Task { @MainActor [self, lease] in
-            _ = await self.removeOwnedPasteboardContent(for: lease)
-            self.artifactOwner.discard(lease)
-            self.terminationCleanupTask = nil
+            _ = await removeOwnedPasteboardContent(for: lease)
+            artifactOwner.discard(lease)
+            terminationCleanupTask = nil
         }
     }
 
@@ -113,15 +84,55 @@ final class ClipboardWebPController {
         await terminationCleanupTask?.value
     }
 
-    func cancelPendingConversion() {
-        token &+= 1
-        captureTask?.cancel()
-        installTask?.cancel()
-        worker.cancelAll()
+    func isRequestCurrent(token: UInt64) -> Bool {
+        !terminated && self.token == token
     }
 
-    private func install(
+    func removeGeneratedFile(at url: URL) {
+        artifactOwner.removeGeneratedFile(at: url)
+    }
+
+    func enqueueInstallation(
         url: URL,
+        snapshot: PasteboardSnapshot,
+        token: UInt64,
+        sourceChangeCount: Int,
+        completion: @escaping (Result) -> Void
+    ) {
+        let artifactOwner = self.artifactOwner
+        installTask = Task { @MainActor [weak self, artifactOwner] in
+            guard let self else {
+                artifactOwner.removeGeneratedFile(at: url)
+                return
+            }
+            await self.install(
+                url: url,
+                snapshot: snapshot,
+                token: token,
+                sourceChangeCount: sourceChangeCount,
+                completion: completion
+            )
+        }
+    }
+    func isCurrent(token: UInt64, sourceChangeCount: Int) -> Bool {
+        !Task.isCancelled
+            && self.token == token
+            && pasteboard.changeCount == sourceChangeCount
+    }
+
+    func discardLeaseIfGenerationChanged() {
+        guard let lease = artifactOwner.currentLease,
+              pasteboard.changeCount != lease.changeCount else {
+            return
+        }
+        artifactOwner.discard(lease)
+    }
+}
+
+private extension ClipboardImagePasteboardInstaller {
+    func install(
+        url: URL,
+        snapshot: PasteboardSnapshot,
         token: UInt64,
         sourceChangeCount: Int,
         completion: @escaping (Result) -> Void
@@ -131,18 +142,6 @@ final class ClipboardWebPController {
             return
         }
         guard let item = makePasteboardItem(url: url, completion: completion) else { return }
-        guard let snapshot = await captureSnapshot(
-            url: url,
-            token: token,
-            sourceChangeCount: sourceChangeCount,
-            completion: completion
-        ) else {
-            return
-        }
-        guard isCurrent(token: token, sourceChangeCount: sourceChangeCount) else {
-            completeStale(url: url, completion: completion)
-            return
-        }
 
         let replacement = await replaceSnapshot(
             snapshot: snapshot,
@@ -166,22 +165,8 @@ final class ClipboardWebPController {
         )
     }
 
-    private func isCurrent(token: UInt64, sourceChangeCount: Int) -> Bool {
-        !Task.isCancelled
-            && self.token == token
-            && pasteboard.changeCount == sourceChangeCount
-    }
-
-    private func discardLeaseIfGenerationChanged() {
-        guard let lease = artifactOwner.currentLease,
-              pasteboard.changeCount != lease.changeCount else {
-            return
-        }
-        artifactOwner.discard(lease)
-    }
-
-    private func isOwnedPasteboardContent(
-        for lease: ClipboardWebPArtifactOwner.Lease,
+    func isOwnedPasteboardContent(
+        for lease: ClipboardImageConversionArtifactOwner.Lease,
         expectedChangeCount: Int? = nil,
         requireCurrentLease: Bool = true
     ) async -> Bool {
@@ -204,7 +189,7 @@ final class ClipboardWebPController {
     }
 
     private func removeOwnedPasteboardContent(
-        for lease: ClipboardWebPArtifactOwner.Lease,
+        for lease: ClipboardImageConversionArtifactOwner.Lease,
         requireCurrentLease: Bool = true
     ) async -> Bool {
         guard let transaction = pasteboard as? any PasteboardOwnershipTransaction,
@@ -235,7 +220,7 @@ final class ClipboardWebPController {
         return pasteboard.changeCount == changeCount
     }
 
-    private func expire(_ lease: ClipboardWebPArtifactOwner.Lease) async {
+    private func expire(_ lease: ClipboardImageConversionArtifactOwner.Lease) async {
         guard artifactOwner.currentLease == lease else { return }
         guard await removeOwnedPasteboardContent(for: lease) else {
             artifactOwner.discard(lease)
@@ -243,168 +228,21 @@ final class ClipboardWebPController {
         }
         artifactOwner.discard(lease)
     }
-}
-extension ClipboardWebPController {
-    private func captureAndEnqueue(
-        pasteboard: any PasteboardAccess,
-        requestToken: UInt64,
-        skipAlreadyWebPFiles: Bool,
-        completion: @escaping (Result) -> Void
-    ) async {
-        let capture = await ClipboardWebPPasteboardCapture.captureImage(
-            from: pasteboard,
-            skipAlreadyWebPFiles: skipAlreadyWebPFiles,
-            fileURLReader: fileURLReader,
-            payloadReader: payloadReader
-        )
-        guard !Task.isCancelled, requestToken == token else {
-            completion(.stale)
-            return
-        }
-        guard let captured = source(from: capture, completion: completion) else { return }
-        guard isCurrent(token: requestToken, sourceChangeCount: captured.changeCount) else {
-            completion(.stale)
-            return
-        }
-
-        let artifactOwner = self.artifactOwner
-        worker.enqueue(
-            source: captured.source,
-            outputDirectory: artifactOwner.outputDirectory,
-            cleanup: { url in
-                artifactOwner.removeGeneratedFile(at: url)
-            },
-            completion: { [weak self, artifactOwner] result in
-                guard let self else {
-                    if case let .success(url) = result {
-                        artifactOwner.removeGeneratedFile(at: url)
-                    }
-                    return
-                }
-                self.handleWorkerResult(
-                    result,
-                    artifactOwner: artifactOwner,
-                    requestToken: requestToken,
-                    sourceChangeCount: captured.changeCount,
-                    completion: completion
-                )
-            }
-        )
-    }
-
-    private func source(
-        from capture: ClipboardWebPCapture,
-        completion: @escaping (Result) -> Void
-    ) -> (source: ClipboardWebPSource, changeCount: Int)? {
-        switch capture {
-        case .alreadyWebP:
-            completion(.alreadyWebP)
-        case let .source(source, changeCount):
-            return (source, changeCount)
-        case .noImage:
-            onMessage("No image to convert")
-            completion(.noImage)
-        case .unavailable:
-            onMessage("Clipboard image unavailable")
-            completion(.unavailable)
-        case .failed:
-            onMessage("Couldn’t convert image to WebP")
-            completion(.failed)
-        case .stale:
-            discardLeaseIfGenerationChanged()
-            completion(.stale)
-        }
-        return nil
-    }
-
-    private func handleWorkerResult(
-        _ result: ClipboardWebPWorker.Result,
-        artifactOwner: ClipboardWebPArtifactOwner,
-        requestToken: UInt64,
-        sourceChangeCount: Int,
-        completion: @escaping (Result) -> Void
-    ) {
-        guard requestToken == token,
-              pasteboard.changeCount == sourceChangeCount else {
-            if case let .success(url) = result {
-                artifactOwner.removeGeneratedFile(at: url)
-            }
-            discardLeaseIfGenerationChanged()
-            completion(.stale)
-            return
-        }
-
-        switch result {
-        case let .success(url):
-            installTask = Task { @MainActor [weak self, artifactOwner] in
-                guard let self else {
-                    artifactOwner.removeGeneratedFile(at: url)
-                    return
-                }
-                await self.install(
-                    url: url,
-                    token: requestToken,
-                    sourceChangeCount: sourceChangeCount,
-                    completion: completion
-                )
-            }
-        case let .failure(failure):
-            if failure == .conversion(.invalidImage) {
-                onMessage("No image to convert")
-                completion(.noImage)
-            } else {
-                onMessage("Couldn’t convert image to WebP")
-                completion(.failed)
-            }
-        case .cancelled:
-            completion(.cancelled)
-        }
-    }
-    private func makePasteboardItem(
+    func makePasteboardItem(
         url: URL,
         completion: @escaping (Result) -> Void
     ) -> NSPasteboardItem? {
         let item = NSPasteboardItem()
         guard item.setString(url.absoluteString, forType: .fileURL) else {
             artifactOwner.removeGeneratedFile(at: url)
-            onMessage("Couldn’t convert image to WebP")
+            onMessage("Couldn’t convert clipboard image")
             completion(.failed)
             return nil
         }
         return item
     }
 
-    private func captureSnapshot(
-        url: URL,
-        token: UInt64,
-        sourceChangeCount: Int,
-        completion: @escaping (Result) -> Void
-    ) async -> PasteboardSnapshot? {
-        let captureResult = await PasteboardSnapshot.capture(
-            from: pasteboard,
-            expectedChangeCount: sourceChangeCount,
-            limits: Self.snapshotLimits,
-            fileURLReader: fileURLReader,
-            payloadReader: payloadReader
-        )
-        guard isCurrent(token: token, sourceChangeCount: sourceChangeCount) else {
-            completeStale(url: url, completion: completion)
-            return nil
-        }
-        switch captureResult {
-        case let .captured(snapshot):
-            return snapshot
-        case .stale:
-            completeStale(url: url, completion: completion)
-        case .failed:
-            artifactOwner.removeGeneratedFile(at: url)
-            onMessage("Couldn’t copy converted WebP")
-            completion(.failed)
-        }
-        return nil
-    }
-
-    private func replaceSnapshot(
+    func replaceSnapshot(
         snapshot: PasteboardSnapshot,
         item: NSPasteboardItem,
         token: UInt64,
@@ -412,7 +250,7 @@ extension ClipboardWebPController {
         url: URL
     ) async -> (
         result: PasteboardSnapshot.ReplacementResult,
-        previousLease: ClipboardWebPArtifactOwner.Lease?
+        previousLease: ClipboardImageConversionArtifactOwner.Lease?
     ) {
         if let lease = artifactOwner.currentLease,
            lease.changeCount != sourceChangeCount {
@@ -423,8 +261,8 @@ extension ClipboardWebPController {
             pasteboard: pasteboard,
             expectedChangeCount: sourceChangeCount,
             with: [item],
-            maximumBytes: Self.snapshotLimits.maximumBytes,
-            maximumTypesPerItem: Self.snapshotLimits.maximumTypesPerItem,
+            maximumBytes: PasteboardSnapshotPolicy.maximumBytes,
+            maximumTypesPerItem: PasteboardSnapshotPolicy.maximumTypesPerItem,
             fileURLReader: fileURLReader,
             payloadReader: payloadReader,
             verify: { [weak self] in
@@ -450,7 +288,7 @@ extension ClipboardWebPController {
         return (result, previousLease)
     }
 
-    private func completeStale(
+    func completeStale(
         url: URL,
         completion: @escaping (Result) -> Void
     ) {
@@ -474,9 +312,9 @@ extension ClipboardWebPController {
         }
     }
 
-    private func finishReplacement(
+    func finishReplacement(
         _ result: PasteboardSnapshot.ReplacementResult,
-        previousLease: ClipboardWebPArtifactOwner.Lease?,
+        previousLease: ClipboardImageConversionArtifactOwner.Lease?,
         url: URL,
         token: UInt64,
         completion: @escaping (Result) -> Void
@@ -496,7 +334,7 @@ extension ClipboardWebPController {
         case let .installed(changeCount):
             artifactOwner.claim(url: url, changeCount: changeCount, token: token)
             onConverted(url, changeCount)
-            completion(.converted(url))
+            completion(.installed(url))
         case let .failed(restoredChangeCount):
             await finishFailedReplacement(
                 url: url,
@@ -521,7 +359,7 @@ extension ClipboardWebPController {
         url: URL,
         token: UInt64,
         restoredChangeCount: Int,
-        previousLease: ClipboardWebPArtifactOwner.Lease?,
+        previousLease: ClipboardImageConversionArtifactOwner.Lease?,
         completion: @escaping (Result) -> Void
     ) async {
         artifactOwner.removeGeneratedFile(at: url)
@@ -538,7 +376,7 @@ extension ClipboardWebPController {
             completion(.stale)
             return
         }
-        onMessage("Couldn’t copy converted WebP")
+        onMessage("Couldn’t copy converted clipboard image")
         completion(.failed)
     }
 }

@@ -1,48 +1,17 @@
+import CoreGraphics
 import Foundation
-import ImageIO
 import libwebp
 
 nonisolated enum ClipboardWebPEncoder {
-    typealias CancellationCheck = @Sendable () -> Bool
+    typealias CancellationCheck = ClipboardImageConversionPolicy.CancellationCheck
 
-    static let quality = ClipboardWebPConfiguration.quality
-    static let maximumPixelCount = ClipboardWebPConfiguration.maximumPixelCount
     private static let pixelCancellationInterval = 16 * 1_024
 
     static func encode(
-        _ data: Data,
+        _ image: CGImage,
         isCancelled: CancellationCheck
     ) throws -> Data {
         try checkCancellation(isCancelled)
-        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil) else {
-            throw ClipboardWebPConversionError.invalidImage
-        }
-        try checkCancellation(isCancelled)
-        guard CGImageSourceGetCount(imageSource) > 0,
-              validDimensions(of: imageSource) else {
-            throw ClipboardWebPConversionError.invalidImage
-        }
-        return try encode(imageSource, isCancelled: isCancelled)
-    }
-
-    private static func validDimensions(of source: CGImageSource) -> Bool {
-        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
-            as? [CFString: Any],
-              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
-              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
-              width > 0,
-              height > 0,
-              width <= maximumPixelCount / height else {
-            return false
-        }
-        return width * height <= maximumPixelCount
-    }
-
-    private static func encode(
-        _ source: CGImageSource,
-        isCancelled: CancellationCheck
-    ) throws -> Data {
-        let image = try makeThumbnail(from: source, isCancelled: isCancelled)
         let rendered = try renderPixels(from: image)
         try checkCancellation(isCancelled)
         var pixels = rendered.data
@@ -59,16 +28,6 @@ nonisolated enum ClipboardWebPEncoder {
     private static func checkCancellation(_ isCancelled: CancellationCheck) throws {
         guard !isCancelled(), !Task.isCancelled else { throw CancellationError() }
     }
-    static func encodeInBackground(_ data: Data) async throws -> Data {
-        let worker = Task.detached(priority: .userInitiated) {
-            try encode(data, isCancelled: { Task.isCancelled })
-        }
-        return try await withTaskCancellationHandler {
-            try await worker.value
-        } onCancel: {
-            worker.cancel()
-        }
-    }
 }
 nonisolated private extension ClipboardWebPEncoder {
     private struct RenderedPixels {
@@ -76,34 +35,6 @@ nonisolated private extension ClipboardWebPEncoder {
         let width: Int
         let height: Int
         let bytesPerRow: Int
-    }
-
-    static func makeThumbnail(
-        from source: CGImageSource,
-        isCancelled: CancellationCheck
-    ) throws -> CGImage {
-        try checkCancellation(isCancelled)
-        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
-            as? [CFString: Any],
-              let sourceWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
-              let sourceHeight = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue else {
-            throw ClipboardWebPConversionError.invalidImage
-        }
-        try checkCancellation(isCancelled)
-        guard let image = CGImageSourceCreateThumbnailAtIndex(
-            source,
-            0,
-            [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: max(sourceWidth, sourceHeight),
-                kCGImageSourceShouldCacheImmediately: true
-            ] as CFDictionary
-        ) else {
-            throw ClipboardWebPConversionError.invalidImage
-        }
-        try checkCancellation(isCancelled)
-        return image
     }
 
     private static func renderPixels(from image: CGImage) throws -> RenderedPixels {
@@ -129,7 +60,7 @@ nonisolated private extension ClipboardWebPEncoder {
             context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
             return true
         }
-        guard rendered else { throw ClipboardWebPConversionError.invalidImage }
+        guard rendered else { throw ClipboardImageConversionError.invalidImage }
         return RenderedPixels(
             data: pixels,
             width: width,
@@ -183,12 +114,12 @@ nonisolated private extension ClipboardWebPEncoder {
                 Int32(width),
                 Int32(height),
                 Int32(bytesPerRow),
-                Float(quality * 100),
+                Float(ClipboardImageConversionPolicy.quality * 100),
                 &encodedBytes
             )
         }
         guard byteCount > 0, let encodedBytes else {
-            throw ClipboardWebPConversionError.cannotEncode
+            throw ClipboardImageConversionError.cannotEncode
         }
         defer { WebPFree(encodedBytes) }
         try checkCancellation(isCancelled)

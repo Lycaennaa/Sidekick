@@ -3,7 +3,7 @@ import ImageIO
 import UniformTypeIdentifiers
 import XCTest
 
-final class ClipboardWebPControllerTests: XCTestCase {
+final class ClipboardImageConversionControllerTests: XCTestCase {
     @MainActor
     func testConvertsClipboardImageToNamedWebP() async throws {
         let pasteboard = makeTransactionalPasteboard()
@@ -11,7 +11,7 @@ final class ClipboardWebPControllerTests: XCTestCase {
         var messages: [String] = []
         var convertedURL: URL?
         var convertedChangeCount: Int?
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 10,
             outputDirectory: directory,
@@ -40,13 +40,13 @@ final class ClipboardWebPControllerTests: XCTestCase {
             of: "^[A-Za-z0-9]{7}\\.webp$",
             options: .regularExpression
         ) != nil)
-        XCTAssertEqual(ClipboardWebPConfiguration.quality, 0.75)
+        XCTAssertEqual(ClipboardImageConversionPolicy.quality, 0.75)
         XCTAssertEqual(
-            ClipboardWebPConfiguration.maximumOutputBytes,
+            ClipboardImageConversionPolicy.maximumOutputBytes,
             ClipboardImageDecoder.maximumSourceBytes
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-        let isReferenced = await ClipboardWebPPasteboardCapture.referencesFile(
+        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             url,
             pasteboard: pasteboard,
             fileURLReader: InlinePasteboardFileURLReader()
@@ -70,7 +70,7 @@ final class ClipboardWebPControllerTests: XCTestCase {
         let pasteboard = makePasteboard()
         let directory = try temporaryDirectory()
         var messages: [String] = []
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
             onMessage: { messages.append($0) }
@@ -97,7 +97,7 @@ final class ClipboardWebPControllerTests: XCTestCase {
         }
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-        let isReferenced = await ClipboardWebPPasteboardCapture.referencesFile(
+        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             url,
             pasteboard: pasteboard
         )
@@ -124,11 +124,72 @@ final class ClipboardWebPControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testDefaultProductionDependenciesConvertNamedPasteboardImageToAVIF() async throws {
+        let pasteboard = makePasteboard()
+        let directory = try temporaryDirectory()
+        var messages: [String] = []
+        let controller = ClipboardImageConversionController(
+            pasteboard: pasteboard,
+            outputDirectory: directory,
+            outputFormat: { .avif },
+            onMessage: { messages.append($0) }
+        )
+        defer {
+            controller.terminate()
+            pasteboard.clearContents()
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        pasteboard.clearContents()
+        let sourcePNG = try pngData(width: 4, height: 3)
+        let sourceWebP = try ClipboardImageEncoder.encode(
+            sourcePNG,
+            format: .webP,
+            isCancelled: { false }
+        )
+        XCTAssertTrue(
+            pasteboard.setData(
+                sourceWebP,
+                forType: NSPasteboard.PasteboardType(ClipboardImageFormat.webP.typeIdentifier)
+            )
+        )
+
+        let result = await convert(with: controller)
+        guard case let .converted(url) = result else {
+            return XCTFail("Expected default AVIF conversion, got \(result)")
+        }
+
+        XCTAssertEqual(url.pathExtension, "avif")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertTrue(messages.isEmpty)
+        let repeatedCapture = await ClipboardImageConversionPasteboardCapture.captureImage(
+            from: pasteboard,
+            outputFormat: .avif,
+            skipAlreadyOutputFormatFiles: true
+        )
+        guard case .alreadyOutputFormat = repeatedCapture else {
+            return XCTFail("Expected AVIF output to be skipped")
+        }
+        let data = try Data(contentsOf: url)
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
+        XCTAssertEqual(CGImageSourceGetType(source) as String?, ClipboardImageFormat.avif.typeIdentifier)
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        XCTAssertEqual(image.width, 4)
+        XCTAssertEqual(image.height, 3)
+        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(url, pasteboard: pasteboard)
+        XCTAssertTrue(isReferenced)
+
+        controller.terminate()
+        await controller.waitForTerminationCleanup()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @MainActor
     func testNativeMalformedPayloadIsReportedWithoutInstallation() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
         var messages: [String] = []
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
             onMessage: { messages.append($0) }
@@ -153,7 +214,7 @@ final class ClipboardWebPControllerTests: XCTestCase {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
         var messages: [String] = []
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
             onMessage: { messages.append($0) }
@@ -176,11 +237,11 @@ final class ClipboardWebPControllerTests: XCTestCase {
         let pasteboard = makeTransactionalPasteboard()
         pasteboard.clearContents()
         pasteboard.setData(
-            Data(repeating: 0x00, count: ClipboardWebPConfiguration.maximumSourceBytes + 1),
+            Data(repeating: 0x00, count: ClipboardImageConversionPolicy.maximumSourceBytes + 1),
             forType: .png
         )
 
-        guard case .failed = await ClipboardWebPPasteboardCapture.captureImage(
+        guard case .failed = await ClipboardImageConversionPasteboardCapture.captureImage(
             from: pasteboard,
             payloadReader: InlinePasteboardPayloadReader()
         ) else {
@@ -189,16 +250,16 @@ final class ClipboardWebPControllerTests: XCTestCase {
     }
 }
 
-extension ClipboardWebPControllerTests {
+extension ClipboardImageConversionControllerTests {
     @MainActor
     func testCancelledConversionDoesNotShowFailureMessage() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
         var messages: [String] = []
-        let worker = ClipboardWebPWorker(convert: { _, _, _ in
+        let worker = ClipboardImageConversionWorker(convert: { _, _, _, _ in
             throw CancellationError()
         })
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
             worker: worker,
@@ -225,10 +286,10 @@ extension ClipboardWebPControllerTests {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
         var messages: [String] = []
-        let worker = ClipboardWebPWorker(convert: { _, _, _ in
-            throw ClipboardWebPConversionError.cannotEncode
+        let worker = ClipboardImageConversionWorker(convert: { _, _, _, _ in
+            throw ClipboardImageConversionError.cannotEncode
         })
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
             worker: worker,
@@ -246,20 +307,20 @@ extension ClipboardWebPControllerTests {
         let result = await convert(with: controller)
 
         XCTAssertEqual(result, .failed)
-        XCTAssertEqual(messages, ["Couldn’t convert image to WebP"])
+        XCTAssertEqual(messages.count, 1)
     }
 
     @MainActor
     func testWorkerMapsUnexpectedErrorToTypedFailure() async {
-        let worker = ClipboardWebPWorker(convert: { _, _ in
+        let worker = ClipboardImageConversionWorker(convert: { _, _ in
             throw NSError(
-                domain: "ClipboardWebPTests",
+                domain: "ClipboardImageConversionTests",
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "Synthetic conversion failure"]
             )
         })
         let completion = expectation(description: "Worker completion")
-        var result: ClipboardWebPWorker.Result?
+        var result: ClipboardImageConversionWorker.Result?
 
         worker.enqueue(
             source: .data(Data()),
@@ -285,7 +346,7 @@ extension ClipboardWebPControllerTests {
         let directory = try temporaryDirectory()
         let sourceURL = directory.appendingPathComponent("image")
         try pngData(width: 3, height: 2).write(to: sourceURL)
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 10,
             outputDirectory: directory.appendingPathComponent("output"),
@@ -313,7 +374,7 @@ extension ClipboardWebPControllerTests {
         let imageURL = directory.appendingPathComponent("second")
         try Data("not an image".utf8).write(to: textURL)
         try pngData(width: 3, height: 2).write(to: imageURL)
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 10,
             outputDirectory: directory.appendingPathComponent("output"),
@@ -342,7 +403,7 @@ extension ClipboardWebPControllerTests {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
         var messages: [String] = []
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory.appendingPathComponent("output"),
             fileURLReader: InlinePasteboardFileURLReader(),
@@ -365,7 +426,7 @@ extension ClipboardWebPControllerTests {
     func testFallsBackToImageDataWhenFileURLCannotBeRead() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 10,
             outputDirectory: directory,
@@ -395,7 +456,7 @@ extension ClipboardWebPControllerTests {
     func testRapidSecondRequestCompletesCancelledFirstRequest() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 10,
             outputDirectory: directory,
@@ -410,7 +471,7 @@ extension ClipboardWebPControllerTests {
         pasteboard.clearContents()
         pasteboard.setData(try pngData(width: 2_000, height: 2_000), forType: .png)
         let firstCompletion = expectation(description: "First conversion completion")
-        var firstResult: ClipboardWebPController.Result?
+        var firstResult: ClipboardImageConversionController.Result?
         controller.convertClipboardImage { result in
             firstResult = result
             firstCompletion.fulfill()

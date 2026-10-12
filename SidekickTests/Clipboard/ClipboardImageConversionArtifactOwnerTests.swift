@@ -2,7 +2,7 @@ import AppKit
 import XCTest
 
 @MainActor
-final class ClipboardWebPArtifactOwnerTests: XCTestCase {
+final class ClipboardImageConversionArtifactOwnerTests: XCTestCase {
     func testArtifactOwnerReplacesAndExpiresCurrentArtifact() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
@@ -12,7 +12,7 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
         let secondURL = directory.appendingPathComponent("second1.webp")
         let firstCleanup = expectation(description: "First artifact cleanup completed")
         let secondCleanup = expectation(description: "Second artifact cleanup completed")
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 0.05,
             outputDirectory: directory,
             pasteboard: pasteboard,
@@ -55,7 +55,7 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
         let firstCleanup = expectation(description: "First URL cleanup completed")
         let secondCleanup = expectation(description: "Second URL cleanup completed")
         var cleanupCount = 0
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
             pasteboard: pasteboard,
@@ -104,13 +104,13 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
         let pasteboard = makeTransactionalPasteboard()
         var removeAttempts = 0
         let cleanupCompleted = expectation(description: "Failed cleanup completed")
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
             pasteboard: pasteboard,
             removeItem: { _ in
                 removeAttempts += 1
-                throw NSError(domain: "ClipboardWebPArtifactOwnerTests", code: 1)
+                throw NSError(domain: "ClipboardImageConversionArtifactOwnerTests", code: 1)
             },
             onCleanupComplete: { _ in cleanupCompleted.fulfill() },
             currentGeneration: { pasteboard.changeCount }
@@ -167,7 +167,7 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.writeObjects([item]))
 
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
             pasteboard: pasteboard,
@@ -191,25 +191,25 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        XCTAssertTrue(ClipboardWebPFileService.isOwnedOutputURL(
+        XCTAssertTrue(ClipboardImageConversionFileService.isOwnedOutputURL(
             directory.appendingPathComponent("Valid01.webp"),
             in: directory
         ))
-        XCTAssertTrue(ClipboardWebPFileService.isOwnedOutputURL(
+        XCTAssertTrue(ClipboardImageConversionFileService.isOwnedOutputURL(
             directory.appendingPathComponent(
                 "Valid01.webp.partial-worker"
             ),
             in: directory
         ))
-        XCTAssertFalse(ClipboardWebPFileService.isOwnedOutputURL(
+        XCTAssertFalse(ClipboardImageConversionFileService.isOwnedOutputURL(
             directory.appendingPathComponent("stale.webp"),
             in: directory
         ))
-        XCTAssertFalse(ClipboardWebPFileService.isOwnedOutputURL(
+        XCTAssertFalse(ClipboardImageConversionFileService.isOwnedOutputURL(
             directory.appendingPathComponent("äbc1234.webp"),
             in: directory
         ))
-        XCTAssertFalse(ClipboardWebPFileService.isOwnedOutputURL(
+        XCTAssertFalse(ClipboardImageConversionFileService.isOwnedOutputURL(
             directory.appendingPathComponent("Valid01.webp.partial-"),
             in: directory
         ))
@@ -222,7 +222,7 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
             "AppKit1.webp"
         )
         try Data([1]).write(to: url)
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
             pasteboard: pasteboard,
@@ -258,7 +258,7 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.writeObjects(items))
         let cleanupCompleted = expectation(description: "Uncertain cleanup completed")
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
             pasteboard: pasteboard,
@@ -290,7 +290,7 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
             pasteboard.clearContents()
             pasteboard.setString("new clipboard value", forType: .string)
         }
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
             pasteboard: pasteboard,
@@ -320,7 +320,7 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
             _ = pasteboard.writeObjects([item])
         }
         let cleanupCompleted = expectation(description: "Racing cleanup completed")
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
             pasteboard: pasteboard,
@@ -347,7 +347,7 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
         )
         try Data([1]).write(to: url)
         let cleanupCompleted = expectation(description: "Stale lease cleanup completed")
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
             pasteboard: pasteboard,
@@ -376,16 +376,70 @@ final class ClipboardWebPArtifactOwnerTests: XCTestCase {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let url = try ClipboardWebPFileService.uniqueOutputURL(
+        let url = try ClipboardImageConversionFileService.uniqueOutputURL(
             in: directory,
             isCancelled: { false }
         )
 
-        XCTAssertTrue(ClipboardWebPFileService.isOwnedOutputURL(url, in: directory))
+        XCTAssertTrue(ClipboardImageConversionFileService.isOwnedOutputURL(url, in: directory))
         XCTAssertEqual(
             url.lastPathComponent.count,
             7 + ".webp".count
         )
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+}
+
+@MainActor
+private final class RestoreOwnershipGate {
+    let started = XCTestExpectation(description: "Lease ownership check suspended")
+    private var continuation: CheckedContinuation<Bool, Never>?
+
+    func check() async -> Bool {
+        started.fulfill()
+        return await withCheckedContinuation { continuation = $0 }
+    }
+
+    func resume(owned: Bool) {
+        continuation?.resume(returning: owned)
+        continuation = nil
+    }
+}
+@MainActor
+final class ClipboardImageConversionArtifactOwnerRestoreRaceTests: XCTestCase {
+    func testRestoreKeepsNewerLeaseClaimedDuringOwnershipValidation() async throws {
+        let pasteboard = makeTransactionalPasteboard()
+        let directory = try temporaryDirectory()
+        let previousURL = directory.appendingPathComponent("Previous1.webp")
+        let newerURL = directory.appendingPathComponent("Newer001.webp")
+        let owner = ClipboardImageConversionArtifactOwner(
+            expirationInterval: 60,
+            outputDirectory: directory,
+            pasteboard: pasteboard,
+            currentGeneration: { pasteboard.changeCount }
+        )
+        defer {
+            owner.terminate()
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        try Data([1]).write(to: previousURL)
+        let previousLease = owner.claim(url: previousURL, changeCount: 1, token: 1)
+        let ownershipGate = RestoreOwnershipGate()
+        let restoreTask = Task { @MainActor in
+            await owner.restore(previousLease, changeCount: 2) {
+                await ownershipGate.check()
+            }
+        }
+
+        await fulfillment(of: [ownershipGate.started], timeout: 1)
+        try Data([2]).write(to: newerURL)
+        pasteboard.changeCount = 2
+        let newerLease = owner.claim(url: newerURL, changeCount: 2, token: 2)
+        ownershipGate.resume(owned: true)
+        await restoreTask.value
+
+        XCTAssertEqual(owner.currentLease, newerLease)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: newerURL.path))
     }
 }

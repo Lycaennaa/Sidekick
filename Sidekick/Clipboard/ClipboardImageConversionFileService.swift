@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated enum ClipboardWebPFileService {
+nonisolated enum ClipboardImageConversionFileService {
     typealias CancellationCheck = @Sendable () -> Bool
     private static let ioChunkSize = 1 * 1_024 * 1_024
 
@@ -25,12 +25,12 @@ nonisolated enum ClipboardWebPFileService {
         try checkCancellation(isCancelled)
         let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
         guard values.isRegularFile == true else {
-            throw ClipboardWebPConversionError.invalidImage
+            throw ClipboardImageConversionError.invalidImage
         }
         guard let fileSize = values.fileSize,
-              fileSize <= ClipboardWebPConfiguration.maximumSourceBytes,
+              fileSize <= ClipboardImageConversionPolicy.maximumSourceBytes,
               fileSize <= maximumBytes else {
-            throw ClipboardWebPConversionError.tooLarge
+            throw ClipboardImageConversionError.tooLarge
         }
 
         let handle = try FileHandle(forReadingFrom: url)
@@ -46,9 +46,9 @@ nonisolated enum ClipboardWebPFileService {
             data.append(chunk)
         }
         try checkCancellation(isCancelled)
-        guard data.count <= ClipboardWebPConfiguration.maximumSourceBytes,
+        guard data.count <= ClipboardImageConversionPolicy.maximumSourceBytes,
               data.count <= maximumBytes else {
-            throw ClipboardWebPConversionError.tooLarge
+            throw ClipboardImageConversionError.tooLarge
         }
         return data
     }
@@ -63,14 +63,14 @@ nonisolated enum ClipboardWebPFileService {
             "partial-\(UUID().uuidString)"
         )
         guard FileManager.default.createFile(atPath: temporaryURL.path, contents: nil) else {
-            throw ClipboardWebPConversionError.cannotWrite
+            throw ClipboardImageConversionError.cannotWrite
         }
 
         var handle: FileHandle?
         do {
             handle = try FileHandle(forWritingTo: temporaryURL)
             guard let writableHandle = handle else {
-                throw ClipboardWebPConversionError.cannotWrite
+                throw ClipboardImageConversionError.cannotWrite
             }
             var offset = 0
             while offset < data.count {
@@ -102,17 +102,18 @@ nonisolated enum ClipboardWebPFileService {
         guard candidateDirectory.path == outputDirectory.path else { return false }
 
         let filename = url.lastPathComponent
-        let suffix = filename
-        let hasValidIdentifier = suffix.prefix(7).allSatisfy { character in
+        let outputSuffix = filename.dropFirst(7)
+        let hasValidIdentifier = filename.prefix(7).allSatisfy { character in
             character.isASCII && (character.isLetter || character.isNumber)
         }
-        guard suffix.count >= 12,
-              hasValidIdentifier,
-              suffix.dropFirst(7).hasPrefix(".webp") else {
+        guard filename.count >= 12, hasValidIdentifier,
+              let format = ClipboardImageFormat.allCases.first(where: {
+                  outputSuffix.lowercased().hasPrefix(".\($0.fileExtension)")
+              }) else {
             return false
         }
 
-        let remainder = suffix.dropFirst(12)
+        let remainder = outputSuffix.dropFirst(format.fileExtension.count + 1)
         guard !remainder.isEmpty else { return true }
         guard remainder.hasPrefix(".partial-") else { return false }
         return !remainder.dropFirst(".partial-".count).isEmpty
@@ -120,23 +121,27 @@ nonisolated enum ClipboardWebPFileService {
 
     static func uniqueOutputURL(
         in directory: URL,
+        format: ClipboardImageFormat = .webP,
         isCancelled: CancellationCheck
     ) throws -> URL {
         var generator = SystemRandomNumberGenerator()
         for _ in 0..<32 {
             try checkCancellation(isCancelled)
-            let url = directory.appendingPathComponent(randomFilename(using: &generator))
+            let url = directory.appendingPathComponent(randomFilename(using: &generator, format: format))
             if !FileManager.default.fileExists(atPath: url.path) {
                 return url
             }
         }
-        throw ClipboardWebPConversionError.cannotCreateFilename
+        throw ClipboardImageConversionError.cannotCreateFilename
     }
 
-    private static func randomFilename<R: RandomNumberGenerator>(using generator: inout R) -> String {
+    private static func randomFilename<R: RandomNumberGenerator>(
+        using generator: inout R,
+        format: ClipboardImageFormat
+    ) -> String {
         let alphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
         return String((0..<7).map { _ in alphabet.randomElement(using: &generator) ?? "a" })
-            + ".webp"
+            + ".\(format.fileExtension)"
     }
 
     private static func checkCancellation(_ isCancelled: CancellationCheck) throws {

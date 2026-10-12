@@ -2,7 +2,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 @MainActor
-final class ClipboardAutoWebPController: NSObject {
+final class ClipboardAutoImageConversionController: NSObject {
     static let pollInterval: TimeInterval = 0.25
 
     private let settings: AppSettings
@@ -28,7 +28,7 @@ final class ClipboardAutoWebPController: NSObject {
     func start() {
         guard !started else { return }
         started = true
-        enabled = settings.clipboardImageAutoConvertToWebPEnabled
+        enabled = settings.automaticImageConversionEnabled
         changeObservation.seed(changeCount: pasteboard.changeCount)
         if enabled {
             startPollTimer()
@@ -54,7 +54,7 @@ final class ClipboardAutoWebPController: NSObject {
 
         let changeCount = pasteboard.changeCount
         guard changeObservation.observe(changeCount: changeCount) != nil else { return }
-        guard Self.containsConvertibleImage(in: pasteboard) else { return }
+        guard Self.containsConvertibleImage(in: pasteboard, outputFormat: settings.imageOutputFormat) else { return }
         onImageDetected()
     }
     func acknowledgeConvertedChange(changeCount: Int) {
@@ -67,7 +67,7 @@ final class ClipboardAutoWebPController: NSObject {
     }
 
     private func synchronizeEnabledState() {
-        let shouldEnable = settings.clipboardImageAutoConvertToWebPEnabled
+        let shouldEnable = settings.automaticImageConversionEnabled
         guard shouldEnable != enabled else { return }
         enabled = shouldEnable
         changeObservation.seed(changeCount: pasteboard.changeCount)
@@ -96,15 +96,18 @@ final class ClipboardAutoWebPController: NSObject {
         pollTimer = nil
     }
 
-    private static func containsConvertibleImage(in pasteboard: NSPasteboard) -> Bool {
+    private static func containsConvertibleImage(
+        in pasteboard: NSPasteboard,
+        outputFormat: ClipboardImageFormat
+    ) -> Bool {
         guard let items = pasteboard.pasteboardItems else { return false }
         return items.prefix(PasteboardSnapshotPolicy.maximumItems).contains { item in
             item.types.prefix(PasteboardSnapshotPolicy.maximumTypesPerItem).contains { type in
                 if type == .fileURL { return true }
-                guard let contentType = UTType(type.rawValue), contentType.conforms(to: .image) else {
-                    return false
-                }
-                return !contentType.conforms(to: .webP)
+                guard PasteboardTypePolicy.isImage(type) else { return false }
+                let isOutputFormat = type.rawValue == outputFormat.typeIdentifier
+                    || UTType(type.rawValue)?.conforms(to: outputFormat.uniformType) == true
+                return !isOutputFormat
             }
         }
     }

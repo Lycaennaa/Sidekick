@@ -62,16 +62,18 @@ nonisolated enum ScreenshotSaveService {
         fileprivate let stagingURL: URL
         fileprivate let directoryURL: URL
         fileprivate let baseName: String
-        let webPData: Data
+        let imageFormat: ClipboardImageFormat
+        let imageData: Data
     }
 
     static func prepareInBackground(
         pngData: Data,
         directory: URL,
-        baseName: String
+        baseName: String,
+        format: ClipboardImageFormat = .webP
     ) async throws -> Prepared {
         let worker = Task.detached(priority: .utility) {
-            try prepare(pngData: pngData, directory: directory, baseName: baseName) {
+            try prepare(pngData: pngData, directory: directory, baseName: baseName, format: format) {
                 Task.isCancelled
             }
         }
@@ -86,14 +88,15 @@ nonisolated enum ScreenshotSaveService {
         pngData: Data,
         directory: URL,
         baseName: String,
-        isCancelled: ClipboardWebPEncoder.CancellationCheck
+        format: ClipboardImageFormat = .webP,
+        isCancelled: ClipboardImageConversionPolicy.CancellationCheck
     ) throws -> Prepared {
         try checkCancellation(isCancelled)
         guard directory.isFileURL,
               (try? directory.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
             throw Failure.invalidDirectory
         }
-        let webPData = try ClipboardWebPEncoder.encode(pngData, isCancelled: isCancelled)
+        let imageData = try ClipboardImageEncoder.encode(pngData, format: format, isCancelled: isCancelled)
         try checkCancellation(isCancelled)
         let normalizedDirectory = directory.standardizedFileURL
         let stagingURL = normalizedDirectory.appendingPathComponent(
@@ -101,13 +104,14 @@ nonisolated enum ScreenshotSaveService {
             isDirectory: false
         )
         do {
-            try ClipboardWebPFileService.writeOutput(webPData, to: stagingURL, isCancelled: isCancelled)
+            try ClipboardImageConversionFileService.writeOutput(imageData, to: stagingURL, isCancelled: isCancelled)
             try checkCancellation(isCancelled)
             return Prepared(
                 stagingURL: stagingURL,
                 directoryURL: normalizedDirectory,
                 baseName: ScreenshotFilenameTemplate.sanitizedBaseName(baseName),
-                webPData: webPData
+                imageFormat: format,
+                imageData: imageData
             )
         } catch {
             try? FileManager.default.removeItem(at: stagingURL)
@@ -125,7 +129,7 @@ nonisolated enum ScreenshotSaveService {
         for suffix in 1...10_000 {
             let suffixText = suffix == 1 ? "" : " (\(suffix))"
             let outputURL = prepared.directoryURL.appendingPathComponent(
-                "\(prepared.baseName)\(suffixText).webp"
+                "\(prepared.baseName)\(suffixText).\(prepared.imageFormat.fileExtension)"
             )
             do {
                 try FileManager.default.moveItem(at: prepared.stagingURL, to: outputURL)
@@ -143,7 +147,7 @@ nonisolated enum ScreenshotSaveService {
         try? FileManager.default.removeItem(at: prepared.stagingURL)
     }
 
-    private static func checkCancellation(_ isCancelled: ClipboardWebPEncoder.CancellationCheck) throws {
+    private static func checkCancellation(_ isCancelled: ClipboardImageConversionPolicy.CancellationCheck) throws {
         guard !isCancelled(), !Task.isCancelled else { throw CancellationError() }
     }
 }

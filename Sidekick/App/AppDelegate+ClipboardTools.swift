@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-private struct ConvertedWebPToastContext {
+private struct ConvertedImageToastContext {
     let url: URL
     let changeCount: Int
     let generation: UInt64
@@ -36,54 +36,56 @@ extension AppDelegate {
         }
     }
 
-    func syncWebPClipboardConverter() {
+    func syncImageConversionHotKey() {
         guard !isTerminating else {
-            clipboardWebPHotKey?.stop()
+            clipboardImageConversionHotKey?.stop()
             return
         }
-        guard settings.webPClipboardConverterEnabled else {
-            clipboardWebPHotKey?.stop()
-            clipboardWebPConversionOwnership.cancelPendingUtilityOperationIfNotAutomatic(
+        guard settings.imageConversionEnabled else {
+            clipboardImageConversionHotKey?.stop()
+            clipboardImageConversionOwnership.cancelPendingUtilityOperationIfNotAutomatic(
                 utilityGeneration: utilityToastGeneration,
                 cancel: { cancelPendingUtilityToast() }
             )
             return
         }
         guard !isScreenshotSaveAndCopyHotKeyRecording else {
-            clipboardWebPHotKey?.stop()
+            clipboardImageConversionHotKey?.stop()
             return
         }
-        guard clipboardWebPHotKey?.start() != noErr else { return }
-        settings.webPClipboardConverterEnabled = false
+        guard clipboardImageConversionHotKey?.start() != noErr else { return }
+        settings.imageConversionEnabled = false
         presentUtilityToast(
-            "WebP shortcut unavailable",
+            "Image conversion shortcut unavailable",
             style: .image,
             symbolName: "photo.badge.exclamationmark"
         )
     }
 
-    func startWebPConversion() {
-        guard !isTerminating, settings.webPClipboardConverterEnabled else { return }
-        performWebPConversion(automatically: false)
+    func startImageConversion() {
+        guard !isTerminating, settings.imageConversionEnabled else { return }
+        performImageConversion(automatically: false)
     }
 
-    func startAutomaticWebPConversion() {
-        guard !isTerminating, settings.clipboardImageAutoConvertToWebPEnabled else { return }
-        performWebPConversion(automatically: true)
+    func startAutomaticImageConversion() {
+        guard !isTerminating, settings.automaticImageConversionEnabled else { return }
+        performImageConversion(automatically: true)
     }
 
-    private func performWebPConversion(automatically: Bool) {
-        guard let clipboardWebPController else { return }
+    private func performImageConversion(automatically: Bool) {
+        guard let clipboardImageConversionController else { return }
         let operationGeneration = beginUtilityOperation()
         if automatically {
-            clipboardWebPConversionOwnership.beginAutomaticConversion(generation: operationGeneration)
+            clipboardImageConversionOwnership.beginAutomaticConversion(generation: operationGeneration)
         }
         let mutationGeneration = beginClipboardMutation()
-        clipboardWebPController.convertClipboardImage(skipAlreadyWebPFiles: automatically) { [weak self] _ in
+        clipboardImageConversionController.convertClipboardImage(
+            skipAlreadyOutputFormatFiles: automatically
+        ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.endClipboardMutation(mutationGeneration)
-                self.clipboardWebPConversionOwnership.completeAutomaticConversion(
+                self.clipboardImageConversionOwnership.completeAutomaticConversion(
                     generation: operationGeneration
                 )
             }
@@ -154,7 +156,7 @@ extension AppDelegate {
         }
     }
 
-    func presentConvertedWebPToast(
+    func presentConvertedImageToast(
         _ url: URL,
         changeCount: Int,
         enqueueEnrichment: ((
@@ -173,9 +175,10 @@ extension AppDelegate {
         let request = ClipboardImageEnrichmentRequest(
             generation: generation,
             localFileURL: url,
-            typeIdentifier: UTType.webP.identifier
+            typeIdentifier: ClipboardImageFormat(fileExtension: url.pathExtension)?.typeIdentifier
+                ?? UTType.image.identifier
         )
-        let context = ConvertedWebPToastContext(
+        let context = ConvertedImageToastContext(
             url: url,
             changeCount: changeCount,
             generation: generation,
@@ -184,7 +187,7 @@ extension AppDelegate {
         )
         let completion: ClipboardOptionalImageEnrichmentCompletion = { [weak self] enrichment in
             Task { @MainActor [weak self] in
-                await self?.handleConvertedWebPEnrichment(
+                await self?.handleConvertedImageEnrichment(
                     enrichment,
                     context: context
                 )
@@ -197,9 +200,9 @@ extension AppDelegate {
         }
     }
 
-    private func handleConvertedWebPEnrichment(
+    private func handleConvertedImageEnrichment(
         _ enrichment: ClipboardImageEnrichment?,
-        context: ConvertedWebPToastContext
+        context: ConvertedImageToastContext
     ) async {
         let url = context.url
         let changeCount = context.changeCount
@@ -283,13 +286,13 @@ extension AppDelegate {
 
     func beginUtilityOperation() -> UInt64 {
         utilityToastGeneration &+= 1
-        clipboardWebPConversionOwnership.invalidate()
+        clipboardImageConversionOwnership.invalidate()
         clipboardUtilityImageWorker.cancelAll()
         clipboardToastController?.cancelPendingAcknowledgment()
         clipboardToastController?.cancelPendingPayloadOperation()
         clipboardMarkdownController?.cancelPendingCleaning()
         activeMarkdownCleaning = nil
-        clipboardWebPController?.cancelPendingConversion()
+        clipboardImageConversionController?.cancelPendingConversion()
         cancelActiveClipboardMutation()
         return utilityToastGeneration
     }

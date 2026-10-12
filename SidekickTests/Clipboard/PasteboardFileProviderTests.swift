@@ -308,7 +308,7 @@ final class PasteboardFileProviderTests: XCTestCase {
         let pasteboard = PasteboardSnapshotFakePasteboard(items: [item])
         let reader = PasteboardSnapshotBlockingFileURLReader()
         let capture = Task { @MainActor in
-            await ClipboardWebPPasteboardCapture.captureImage(
+            await ClipboardImageConversionPasteboardCapture.captureImage(
                 from: pasteboard,
                 fileURLReader: reader
             )

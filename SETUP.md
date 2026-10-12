@@ -17,7 +17,7 @@ Releases are ad-hoc signed and not notarized. macOS may warn or block launch. Ve
 ## Permissions and features
 
 - Approve Screen Recording when macOS requests it to use screenshot capture.
-- Clipboard toasts, URL cleaning, Markdown cleaning, WebP conversion, and screenshot processing run locally. Screenshot results are copied to the pasteboard.
+- Clipboard toasts, URL cleaning, Markdown cleaning, image conversion (WebP or AVIF), and screenshot processing run locally. Choose the image format in Tools > Clipboard; screenshot results are copied to the pasteboard.
 - Microphone status reports activity and device/app names; Sidekick does not record audio.
 - Twitch notifications are optional. In Tools, save a public Twitch client ID for built-in sign-in or enter a token with `user:read:follows`. Tokens are stored in macOS Keychain and can be removed in Tools.
 

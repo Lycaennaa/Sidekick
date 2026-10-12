@@ -1,4 +1,4 @@
-struct ClipboardWebPConversionOwnership {
+struct ClipboardImageConversionOwnership {
     private(set) var automaticGeneration: UInt64?
 
     mutating func beginAutomaticConversion(generation: UInt64) {

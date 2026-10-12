@@ -62,28 +62,56 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppTheme.resolvedAppearance, .light)
     }
 
-    func testWebPClipboardConverterDefaultsEnabledAndPersists() {
+    func testImageConversionDefaultsEnabledAndPersists() {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
         let settings = AppSettings(defaults: defaults)
 
-        XCTAssertTrue(settings.webPClipboardConverterEnabled)
-        settings.webPClipboardConverterEnabled = false
+        XCTAssertTrue(settings.imageConversionEnabled)
+        settings.imageConversionEnabled = false
 
-        XCTAssertFalse(AppSettings(defaults: defaults).webPClipboardConverterEnabled)
+        XCTAssertFalse(AppSettings(defaults: defaults).imageConversionEnabled)
     }
-    func testClipboardImageAutoWebPDefaultsOffAndPersistsIndependently() {
+    func testAutomaticImageConversionDefaultsOffAndPersistsIndependently() {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
         let settings = AppSettings(defaults: defaults)
 
-        XCTAssertFalse(settings.clipboardImageAutoConvertToWebPEnabled)
-        XCTAssertTrue(settings.webPClipboardConverterEnabled)
-        settings.clipboardImageAutoConvertToWebPEnabled = true
+        XCTAssertFalse(settings.automaticImageConversionEnabled)
+        XCTAssertTrue(settings.imageConversionEnabled)
+        settings.automaticImageConversionEnabled = true
 
         let restored = AppSettings(defaults: defaults)
-        XCTAssertTrue(restored.clipboardImageAutoConvertToWebPEnabled)
-        XCTAssertTrue(restored.webPClipboardConverterEnabled)
+        XCTAssertTrue(restored.automaticImageConversionEnabled)
+        XCTAssertTrue(restored.imageConversionEnabled)
+    }
+
+    func testImageOutputFormatDefaultsToWebPAndPersistsAVIF() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.imageOutputFormat, .webP)
+        settings.imageOutputFormat = .avif
+
+        XCTAssertEqual(AppSettings(defaults: defaults).imageOutputFormat, .avif)
+    }
+
+    func testImageSettingsMigrationPreservesExistingValues() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        defaults.set(false, forKey: "webPClipboardConverterEnabled")
+        defaults.set(true, forKey: "clipboardImageAutoConvertToWebPEnabled")
+        defaults.set(true, forKey: "screenshotCopyAsWebP")
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertFalse(settings.imageConversionEnabled)
+        XCTAssertTrue(settings.automaticImageConversionEnabled)
+        XCTAssertTrue(settings.screenshotCopyAsOutputFormat)
+        XCTAssertNil(defaults.object(forKey: "webPClipboardConverterEnabled"))
+        XCTAssertNil(defaults.object(forKey: "clipboardImageAutoConvertToWebPEnabled"))
+        XCTAssertNil(defaults.object(forKey: "screenshotCopyAsWebP"))
     }
 
     func testMarkdownClipboardCleanerDefaultsEnabledAndPersists() {
@@ -303,17 +331,17 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(changeCount, 1)
     }
 
-    func testScreenshotCopyAsWebPDefaultsOffAndPersistsChanges() {
+    func testScreenshotCopyAsOutputFormatDefaultsOffAndPersistsChanges() {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
         let settings = AppSettings(defaults: defaults)
         var changeCount = 0
         settings.onChange = { changeCount += 1 }
 
-        XCTAssertFalse(settings.screenshotCopyAsWebP)
-        settings.screenshotCopyAsWebP = true
+        XCTAssertFalse(settings.screenshotCopyAsOutputFormat)
+        settings.screenshotCopyAsOutputFormat = true
 
-        XCTAssertTrue(AppSettings(defaults: defaults).screenshotCopyAsWebP)
+        XCTAssertTrue(AppSettings(defaults: defaults).screenshotCopyAsOutputFormat)
         XCTAssertEqual(changeCount, 1)
     }
 

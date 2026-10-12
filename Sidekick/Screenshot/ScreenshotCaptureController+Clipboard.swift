@@ -41,23 +41,24 @@ extension ScreenshotCaptureController {
 
     func prepareClipboardItemForCopy(
         _ selection: SelectedClipboardItem,
-        copyAsWebP: Bool,
-        preparedWebPData: Data?
+        copyAsOutputFormat: Bool,
+        imageFormat: ClipboardImageFormat,
+        preparedOutputFormatData: Data?
     ) async throws -> SelectedClipboardItem {
-        guard copyAsWebP,
+        guard copyAsOutputFormat,
               case let .screenshot(pngData, _, _) = selection.content else {
             return selection
         }
 
-        let webPData: Data
-        if let preparedWebPData {
-            webPData = preparedWebPData
+        let outputData: Data
+        if let preparedOutputFormatData {
+            outputData = preparedOutputFormatData
         } else {
-            webPData = try await prepareClipboardWebP(pngData)
+            outputData = try await prepareClipboardImage(pngData, imageFormat)
         }
         let item = NSPasteboardItem()
-        guard item.setData(webPData, forType: NSPasteboard.PasteboardType(UTType.webP.identifier)) else {
-            throw ClipboardWebPConversionError.cannotEncode
+        guard item.setData(outputData, forType: NSPasteboard.PasteboardType(imageFormat.typeIdentifier)) else {
+            throw ClipboardImageConversionError.cannotEncode
         }
         return SelectedClipboardItem(item: item, content: selection.content)
     }

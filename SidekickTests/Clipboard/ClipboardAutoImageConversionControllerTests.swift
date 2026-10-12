@@ -3,16 +3,16 @@ import ImageIO
 import UniformTypeIdentifiers
 import XCTest
 
-final class ClipboardAutoWebPControllerTests: XCTestCase {
+final class ClipboardAutoImageConversionControllerTests: XCTestCase {
     @MainActor
     func testOptInToggleOnlyProcessesNewClipboardImages() throws {
-        let suiteName = "ClipboardAutoWebPController.\(UUID().uuidString)"
+        let suiteName = "ClipboardAutoImageConversionController.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
         let pasteboard = makePasteboard()
         var requestCount = 0
-        let controller = ClipboardAutoWebPController(
+        let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
             onImageDetected: { requestCount += 1 }
@@ -28,7 +28,7 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         controller.poll()
         XCTAssertEqual(requestCount, 0)
 
-        settings.clipboardImageAutoConvertToWebPEnabled = true
+        settings.automaticImageConversionEnabled = true
         controller.applySettings()
         controller.poll()
         controller.poll()
@@ -40,7 +40,7 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         controller.poll()
         XCTAssertEqual(requestCount, 1)
 
-        settings.clipboardImageAutoConvertToWebPEnabled = false
+        settings.automaticImageConversionEnabled = false
         controller.applySettings()
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.setData(try pngData(width: 2, height: 2), forType: .png))
@@ -51,35 +51,35 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
 
     @MainActor
     func testDefaultProductionDependenciesAutomaticallyConvertRealPasteboardImage() async throws {
-        let suiteName = "ClipboardAutoWebPProduction.\(UUID().uuidString)"
+        let suiteName = "ClipboardAutoAVIFProduction.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
-        settings.clipboardImageAutoConvertToWebPEnabled = true
-
+        settings.automaticImageConversionEnabled = true
+        settings.imageOutputFormat = .avif
         let pasteboard = makePasteboard()
         let directory = try temporaryDirectory()
         let converted = expectation(description: "Clipboard image converted")
         var convertedURL: URL?
         var conversionRequestCount = 0
-        var messages: [String] = []
-        var autoController: ClipboardAutoWebPController?
-        let converter = ClipboardWebPController(
+        var autoController: ClipboardAutoImageConversionController?
+        let converter = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
+            outputFormat: { settings.imageOutputFormat },
             onConverted: { url, changeCount in
                 convertedURL = url
                 autoController?.acknowledgeConvertedChange(changeCount: changeCount)
                 converted.fulfill()
             },
-            onMessage: { messages.append($0) }
+            onMessage: { _ in }
         )
-        let controller = ClipboardAutoWebPController(
+        let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
             onImageDetected: {
                 conversionRequestCount += 1
-                converter.convertClipboardImage(skipAlreadyWebPFiles: true)
+                converter.convertClipboardImage(skipAlreadyOutputFormatFiles: true)
             }
         )
         autoController = controller
@@ -96,12 +96,11 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         await fulfillment(of: [converted], timeout: 10)
         XCTAssertEqual(conversionRequestCount, 1)
         let url = try XCTUnwrap(convertedURL)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-        XCTAssertTrue(messages.isEmpty)
+        XCTAssertEqual(url.pathExtension, "avif")
         let data = try Data(contentsOf: url)
         let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
-        XCTAssertEqual(CGImageSourceGetType(source) as String?, UTType.webP.identifier)
-        let isReferenced = await ClipboardWebPPasteboardCapture.referencesFile(
+        XCTAssertEqual(CGImageSourceGetType(source) as String?, ClipboardImageFormat.avif.typeIdentifier)
+        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             url,
             pasteboard: pasteboard
         )
@@ -123,10 +122,10 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
-        settings.clipboardImageAutoConvertToWebPEnabled = true
+        settings.automaticImageConversionEnabled = true
         let pasteboard = makePasteboard()
         var requestCount = 0
-        let controller = ClipboardAutoWebPController(
+        let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
             onImageDetected: { requestCount += 1 }
@@ -156,17 +155,17 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
-        settings.clipboardImageAutoConvertToWebPEnabled = true
+        settings.automaticImageConversionEnabled = true
 
         let pasteboard = makePasteboard()
         let directory = try temporaryDirectory()
         let sourceURL = directory.appendingPathComponent("image")
         try pngData(width: 3, height: 2).write(to: sourceURL)
         let converted = expectation(description: "Extensionless clipboard image converted")
-        var autoController: ClipboardAutoWebPController?
+        var autoController: ClipboardAutoImageConversionController?
         var convertedURL: URL?
         var conversionRequestCount = 0
-        let converter = ClipboardWebPController(
+        let converter = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory.appendingPathComponent("output"),
             onConverted: { url, changeCount in
@@ -176,12 +175,12 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
             },
             onMessage: { _ in }
         )
-        let controller = ClipboardAutoWebPController(
+        let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
             onImageDetected: {
                 conversionRequestCount += 1
-                converter.convertClipboardImage(skipAlreadyWebPFiles: true)
+                converter.convertClipboardImage(skipAlreadyOutputFormatFiles: true)
             }
         )
         autoController = controller
@@ -202,7 +201,7 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         let data = try Data(contentsOf: url)
         let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
         XCTAssertEqual(CGImageSourceGetType(source) as String?, UTType.webP.identifier)
-        let isReferenced = await ClipboardWebPPasteboardCapture.referencesFile(
+        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             url,
             pasteboard: pasteboard
         )
@@ -219,7 +218,7 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
     }
 
     private func makeWebPFile(in directory: URL) throws -> URL {
-        try ClipboardWebPTranscoder.convert(
+        try ClipboardImageConversionTranscoder.convert(
             .data(try pngData(width: 3, height: 2)),
             outputDirectory: directory.appendingPathComponent("source")
         )
@@ -231,26 +230,26 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
-        settings.clipboardImageAutoConvertToWebPEnabled = true
+        settings.automaticImageConversionEnabled = true
         let pasteboard = makePasteboard()
         let directory = try temporaryDirectory()
         let sourceURL = try makeWebPFile(in: directory)
         let outputDirectory = directory.appendingPathComponent("converted")
-        let completed = expectation(description: "Already-WebP input skipped")
-        var result: ClipboardWebPController.Result?
+        let completed = expectation(description: "Already-output-format input skipped")
+        var result: ClipboardImageConversionController.Result?
         var convertedCount = 0
         var messages: [String] = []
-        let converter = ClipboardWebPController(
+        let converter = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: outputDirectory,
             onConverted: { _, _ in convertedCount += 1 },
             onMessage: { messages.append($0) }
         )
-        let controller = ClipboardAutoWebPController(
+        let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
             onImageDetected: {
-                converter.convertClipboardImage(skipAlreadyWebPFiles: true) {
+                converter.convertClipboardImage(skipAlreadyOutputFormatFiles: true) {
                     result = $0
                     completed.fulfill()
                 }
@@ -276,10 +275,10 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         XCTAssertTrue(pasteboard.writeObjects([item]))
         await fulfillment(of: [completed], timeout: 10)
 
-        XCTAssertEqual(result, .alreadyWebP)
+        XCTAssertEqual(result, .alreadyOutputFormat)
         XCTAssertEqual(convertedCount, 0)
         XCTAssertTrue(messages.isEmpty)
-        let isReferenced = await ClipboardWebPPasteboardCapture.referencesFile(
+        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             sourceURL,
             pasteboard: pasteboard
         )
@@ -291,7 +290,7 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         try FileManager.default.removeItem(at: directory)
     }
     func testNoImageMessageIsSuppressedOnlyForAutomaticConversion() {
-        var ownership = ClipboardWebPConversionOwnership()
+        var ownership = ClipboardImageConversionOwnership()
         let generation: UInt64 = 17
         ownership.beginAutomaticConversion(generation: generation)
 
@@ -300,7 +299,7 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         XCTAssertTrue(ownership.shouldPresentNoImageMessage(utilityGeneration: generation))
     }
     func testManualDisabledCancellationRunsWithoutAutomaticOwner() {
-        let ownership = ClipboardWebPConversionOwnership()
+        let ownership = ClipboardImageConversionOwnership()
         var cancellationCount = 0
 
         ownership.cancelPendingUtilityOperationIfNotAutomatic(utilityGeneration: 17) {
@@ -316,8 +315,8 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
-        settings.webPClipboardConverterEnabled = false
-        var ownership = ClipboardWebPConversionOwnership()
+        settings.imageConversionEnabled = false
+        var ownership = ClipboardImageConversionOwnership()
         let utilityGeneration: UInt64 = 17
         ownership.beginAutomaticConversion(generation: utilityGeneration)
 
@@ -329,7 +328,7 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
         let directory = try temporaryDirectory()
         let converted = expectation(description: "Automatic conversion completed")
         var convertedURL: URL?
-        let converter = ClipboardWebPController(
+        let converter = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
             payloadReader: reader,
@@ -356,7 +355,7 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
             try? FileManager.default.removeItem(at: directory)
         }
 
-        converter.convertClipboardImage(skipAlreadyWebPFiles: true)
+        converter.convertClipboardImage(skipAlreadyOutputFormatFiles: true)
         await fulfillment(of: [reader.readStarted], timeout: 5)
         settings.clipboardToastEnabled = false
         XCTAssertEqual(cancellationCount, 0)
@@ -365,7 +364,7 @@ final class ClipboardAutoWebPControllerTests: XCTestCase {
 
         let url = try XCTUnwrap(convertedURL)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-        let isReferenced = await ClipboardWebPPasteboardCapture.referencesFile(
+        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             url,
             pasteboard: pasteboard
         )

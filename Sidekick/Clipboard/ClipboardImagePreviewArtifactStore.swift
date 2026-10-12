@@ -57,7 +57,7 @@ final class ClipboardImagePreviewArtifactStore {
     init(
         outputDirectory: URL = defaultClipboardImagePreviewDirectory(),
         writeData: @escaping WriteData = { data, url, isCancelled in
-            try ClipboardWebPFileService.writeOutput(
+            try ClipboardImageConversionFileService.writeOutput(
                 data,
                 to: url,
                 isCancelled: isCancelled

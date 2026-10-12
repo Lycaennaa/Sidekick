@@ -33,8 +33,9 @@ final class AppSettings {
         static let twitchOAuthClientID = "twitchOAuthClientID"
         static let excludedToastApplicationBundleIdentifiers = "excludedToastApplicationBundleIdentifiers"
         static let toastDuration = "toastDuration"
-        static let webPClipboardConverterEnabled = "webPClipboardConverterEnabled"
-        static let clipboardImageAutoConvertToWebPEnabled = "clipboardImageAutoConvertToWebPEnabled"
+        static let imageConversionEnabled = "imageConversionEnabled"
+        static let automaticImageConversionEnabled = "automaticImageConversionEnabled"
+        static let imageOutputFormat = "imageOutputFormat"
         static let markdownClipboardCleanerEnabled = "markdownClipboardCleanerEnabled"
         static let clearURLsClipboardEnabled = "clearURLsClipboardEnabled"
         static let microphoneToastEnabled = "microphoneToastEnabled"
@@ -42,27 +43,43 @@ final class AppSettings {
         static let screenshotSaveDirectoryPath = "screenshotSaveDirectoryPath"
         static let screenshotFilenameTemplate = "screenshotFilenameTemplate"
         static let screenshotCursorIncludedByDefault = "screenshotCursorIncludedByDefault"
-        static let screenshotCopyAsWebP = "screenshotCopyAsWebP"
+        static let screenshotCopyAsOutputFormat = "screenshotCopyAsOutputFormat"
         static let screenshotSaveAndCopyShortcut = "screenshotSaveAndCopyShortcut"
         static let appearance = "appearance"
+    }
+
+    private static func migrateFormatSettings(in defaults: UserDefaults) {
+        for (legacyKey, currentKey) in [
+            ("webPClipboardConverterEnabled", Key.imageConversionEnabled),
+            ("clipboardImageAutoConvertToWebPEnabled", Key.automaticImageConversionEnabled),
+            ("screenshotCopyAsWebP", Key.screenshotCopyAsOutputFormat)
+        ] {
+            if let value = defaults.object(forKey: legacyKey) {
+                defaults.set(value, forKey: currentKey)
+            }
+            defaults.removeObject(forKey: legacyKey)
+        }
     }
 
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
+
         self.defaults = defaults
+        Self.migrateFormatSettings(in: defaults)
         defaults.register(defaults: [
             Key.clipboardToastEnabled: true,
             Key.excludedToastApplicationBundleIdentifiers: [String](),
             Key.toastDuration: Self.defaultToastDuration,
-            Key.webPClipboardConverterEnabled: true,
-            Key.clipboardImageAutoConvertToWebPEnabled: false,
+            Key.imageConversionEnabled: true,
+            Key.automaticImageConversionEnabled: false,
+            Key.imageOutputFormat: ClipboardImageFormat.webP.rawValue,
             Key.markdownClipboardCleanerEnabled: true,
             Key.clearURLsClipboardEnabled: true,
             Key.microphoneToastEnabled: true,
             Key.twitchNotificationsEnabled: false,
             Key.screenshotCursorIncludedByDefault: false,
-            Key.screenshotCopyAsWebP: false,
+            Key.screenshotCopyAsOutputFormat: false,
             Key.screenshotSaveDirectoryPath: Self.defaultScreenshotSaveDirectoryURL.path,
             Key.screenshotFilenameTemplate: Self.defaultScreenshotFilenameTemplate,
             Key.appearance: AppAppearance.system.rawValue
@@ -211,15 +228,6 @@ final class AppSettings {
         }
     }
 
-    var webPClipboardConverterEnabled: Bool {
-        get { defaults.bool(forKey: Key.webPClipboardConverterEnabled) }
-        set {
-            guard newValue != webPClipboardConverterEnabled else { return }
-            defaults.set(newValue, forKey: Key.webPClipboardConverterEnabled)
-            onChange?()
-        }
-    }
-
     var markdownClipboardCleanerEnabled: Bool {
         get { defaults.bool(forKey: Key.markdownClipboardCleanerEnabled) }
         set {
@@ -252,15 +260,6 @@ final class AppSettings {
         set {
             guard newValue != screenshotCursorIncludedByDefault else { return }
             defaults.set(newValue, forKey: Key.screenshotCursorIncludedByDefault)
-            onChange?()
-        }
-    }
-
-    var screenshotCopyAsWebP: Bool {
-        get { defaults.bool(forKey: Key.screenshotCopyAsWebP) }
-        set {
-            guard newValue != screenshotCopyAsWebP else { return }
-            defaults.set(newValue, forKey: Key.screenshotCopyAsWebP)
             onChange?()
         }
     }
@@ -391,11 +390,39 @@ final class AppSettings {
 }
 
 extension AppSettings {
-    var clipboardImageAutoConvertToWebPEnabled: Bool {
-        get { defaults.bool(forKey: Key.clipboardImageAutoConvertToWebPEnabled) }
+    var imageConversionEnabled: Bool {
+        get { defaults.bool(forKey: Key.imageConversionEnabled) }
         set {
-            guard newValue != clipboardImageAutoConvertToWebPEnabled else { return }
-            defaults.set(newValue, forKey: Key.clipboardImageAutoConvertToWebPEnabled)
+            guard newValue != imageConversionEnabled else { return }
+            defaults.set(newValue, forKey: Key.imageConversionEnabled)
+            onChange?()
+        }
+    }
+    var screenshotCopyAsOutputFormat: Bool {
+        get { defaults.bool(forKey: Key.screenshotCopyAsOutputFormat) }
+        set {
+            guard newValue != screenshotCopyAsOutputFormat else { return }
+            defaults.set(newValue, forKey: Key.screenshotCopyAsOutputFormat)
+            onChange?()
+        }
+    }
+    var automaticImageConversionEnabled: Bool {
+        get { defaults.bool(forKey: Key.automaticImageConversionEnabled) }
+        set {
+            guard newValue != automaticImageConversionEnabled else { return }
+            defaults.set(newValue, forKey: Key.automaticImageConversionEnabled)
+            onChange?()
+        }
+    }
+
+    var imageOutputFormat: ClipboardImageFormat {
+        get {
+            defaults.string(forKey: Key.imageOutputFormat)
+                .flatMap(ClipboardImageFormat.init(rawValue:)) ?? .webP
+        }
+        set {
+            guard newValue != imageOutputFormat else { return }
+            defaults.set(newValue.rawValue, forKey: Key.imageOutputFormat)
             onChange?()
         }
     }

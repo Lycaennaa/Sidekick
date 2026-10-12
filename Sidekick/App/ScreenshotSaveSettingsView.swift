@@ -81,7 +81,7 @@ final class ScreenshotSaveSettingsView: NSView, NSTextFieldDelegate {
         templateField.delegate = self
         templateField.placeholderString = ScreenshotFilenameTemplate.defaultTemplate
         let help = NSTextField(
-            wrappingLabelWithString: "Tokens: {date}, {time}, {windowTitle}. Adds .webp automatically."
+            wrappingLabelWithString: "Tokens: {date}, {time}, {windowTitle}. Adds the selected output format."
         )
         help.textColor = .secondaryLabelColor
         help.font = .systemFont(ofSize: 12)

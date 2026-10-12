@@ -3,15 +3,15 @@ import UniformTypeIdentifiers
 import XCTest
 
 @MainActor
-final class ScreenshotWebPCopyIntegrationTests: XCTestCase {
+final class ScreenshotImageCopyIntegrationTests: XCTestCase {
     func testScreenshotWritesWebPToRealPasteboard() async throws {
         let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
-        let suiteName = "ScreenshotWebPCopy-\(UUID().uuidString)"
+        let suiteName = "ScreenshotImageCopy-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
-        settings.screenshotCopyAsWebP = true
-        let pasteboard = NSPasteboard(name: NSPasteboard.Name("ScreenshotWebP-\(UUID().uuidString)"))
+        settings.screenshotCopyAsOutputFormat = true
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("ScreenshotImageCopyPasteboard-\(UUID().uuidString)"))
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.setString("prior clipboard value", forType: .string))
         defer {
@@ -43,18 +43,19 @@ final class ScreenshotWebPCopyIntegrationTests: XCTestCase {
         XCTAssertEqual(decodedImage.height, image.height)
     }
 
-    func testSaveAndCopyReusesStagedWebPEncoding() async throws {
+    func testSaveAndCopyReusesStagedSelectedFormatEncoding() async throws {
         let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let suiteName = "ScreenshotWebPSaveCopy-\(UUID().uuidString)"
+        let suiteName = "ScreenshotImageCopySaveCopy-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
-        settings.screenshotCopyAsWebP = true
+        settings.screenshotCopyAsOutputFormat = true
+        settings.imageOutputFormat = .avif
         settings.screenshotSaveDirectoryURL = directory
         settings.screenshotFilenameTemplate = "Screenshot"
-        let pasteboard = NSPasteboard(name: NSPasteboard.Name("ScreenshotWebPSaveCopy-\(UUID().uuidString)"))
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("ScreenshotImageCopySaveCopy-\(UUID().uuidString)"))
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.setString("prior clipboard value", forType: .string))
         defer {
@@ -63,7 +64,7 @@ final class ScreenshotWebPCopyIntegrationTests: XCTestCase {
         }
         var savedURL: URL?
         var failure: ScreenshotCaptureController.Failure?
-        var clipboardWebPPreparations = 0
+        var clipboardImagePreparations = 0
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             settings: settings,
@@ -72,9 +73,9 @@ final class ScreenshotWebPCopyIntegrationTests: XCTestCase {
             onCopied: { XCTFail("Save-and-copy used copy-only completion") },
             onFailure: { failure = $0 },
             onSavedAndCopied: { savedURL = $0 },
-            prepareClipboardWebP: { pngData in
-                clipboardWebPPreparations += 1
-                return try await ClipboardWebPEncoder.encodeInBackground(pngData)
+            prepareClipboardImage: { pngData, format in
+                clipboardImagePreparations += 1
+                return try await ClipboardImageEncoder.encodeInBackground(pngData, format: format)
             }
         )
 
@@ -82,25 +83,28 @@ final class ScreenshotWebPCopyIntegrationTests: XCTestCase {
 
         let outputURL = try XCTUnwrap(savedURL)
         XCTAssertNil(failure)
-        XCTAssertEqual(clipboardWebPPreparations, 0)
-        let webPData = try XCTUnwrap(
-            pasteboard.data(forType: NSPasteboard.PasteboardType(UTType.webP.identifier))
+        XCTAssertEqual(clipboardImagePreparations, 0)
+        XCTAssertEqual(outputURL.pathExtension, "avif")
+        let avifData = try XCTUnwrap(
+            pasteboard.data(forType: NSPasteboard.PasteboardType(ClipboardImageFormat.avif.typeIdentifier))
         )
         XCTAssertNil(pasteboard.data(forType: .png))
-        XCTAssertEqual(try Data(contentsOf: outputURL), webPData)
+        XCTAssertEqual(try Data(contentsOf: outputURL), avifData)
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(avifData as CFData, nil))
+        XCTAssertEqual(CGImageSourceGetType(source) as String?, ClipboardImageFormat.avif.typeIdentifier)
     }
 
-    func testWebPCopyPreservesClipboardChangedDuringEncoding() async throws {
+    func testImageCopyPreservesClipboardChangedDuringEncoding() async throws {
         let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
-        let suiteName = "ScreenshotWebPRace-\(UUID().uuidString)"
+        let suiteName = "ScreenshotImageCopyRace-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
-        settings.screenshotCopyAsWebP = true
+        settings.screenshotCopyAsOutputFormat = true
         let pasteboard = PasteboardSnapshotFakePasteboard(
             items: [makePasteboardSnapshotItem(text: "before")]
         )
-        let gate = ScreenshotWebPPreparationGate()
+        let gate = ScreenshotImagePreparationGate()
         var copied = false
         var failure: ScreenshotCaptureController.Failure?
         let controller = ScreenshotCaptureController(
@@ -111,9 +115,9 @@ final class ScreenshotWebPCopyIntegrationTests: XCTestCase {
             payloadReader: InlinePasteboardPayloadReader(),
             onCopied: { copied = true },
             onFailure: { failure = $0 },
-            prepareClipboardWebP: { pngData in
-                let webPData = try await ClipboardWebPEncoder.encodeInBackground(pngData)
-                return await gate.suspend(webPData)
+            prepareClipboardImage: { pngData, format in
+                let outputData = try await ClipboardImageEncoder.encodeInBackground(pngData, format: format)
+                return await gate.suspend(outputData)
             }
         )
         let operation = Task { @MainActor in
@@ -130,13 +134,13 @@ final class ScreenshotWebPCopyIntegrationTests: XCTestCase {
         XCTAssertEqual(pasteboard.string(forType: .string), "newer")
     }
 
-    func testWebPCopyFailurePreservesExistingClipboard() async throws {
+    func testImageCopyFailurePreservesExistingClipboard() async throws {
         let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
-        let suiteName = "ScreenshotWebPFailure-\(UUID().uuidString)"
+        let suiteName = "ScreenshotImageCopyFailure-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
-        settings.screenshotCopyAsWebP = true
+        settings.screenshotCopyAsOutputFormat = true
         let pasteboard = PasteboardSnapshotFakePasteboard(
             items: [makePasteboardSnapshotItem(text: "preserve")]
         )
@@ -146,9 +150,9 @@ final class ScreenshotWebPCopyIntegrationTests: XCTestCase {
             settings: settings,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
             select: { _, _, _, _ in .selected(image) },
-            onCopied: { XCTFail("Failed WebP encoding was reported as copied") },
+            onCopied: { XCTFail("Failed image encoding was reported as copied") },
             onFailure: { failure = $0 },
-            prepareClipboardWebP: { _ in throw ClipboardWebPConversionError.cannotEncode }
+            prepareClipboardImage: { _, _ in throw ClipboardImageConversionError.cannotEncode }
         )
 
         await controller.copyActiveDisplayToClipboard()
@@ -159,7 +163,7 @@ final class ScreenshotWebPCopyIntegrationTests: XCTestCase {
     }
 
     @MainActor
-    private final class ScreenshotWebPPreparationGate {
+    private final class ScreenshotImagePreparationGate {
         private var hasStarted = false
         private var startWaiters: [CheckedContinuation<Void, Never>] = []
         private var continuation: CheckedContinuation<Void, Never>?

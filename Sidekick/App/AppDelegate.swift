@@ -12,9 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var clipboardToastController: ClipboardToastController?
     var clipboardUtilityImageWorker = ClipboardImageEnrichmentWorker()
     var clipboardImagePreviewOpener: ClipboardImagePreviewOpener?
-    var clipboardWebPController: ClipboardWebPController?
-    var clipboardAutoWebPController: ClipboardAutoWebPController?
-    var clipboardWebPHotKey: GlobalHotKey?
+    var clipboardImageConversionController: ClipboardImageConversionController?
+    var clipboardAutoImageConversionController: ClipboardAutoImageConversionController?
+    var clipboardImageConversionHotKey: GlobalHotKey?
     var screenshotCaptureController: ScreenshotCaptureController?
     var screenshotSaveAndClipboardHotKey: GlobalHotKey?
     var isScreenshotSaveAndCopyHotKeyRecording = false
@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var toolsWindowController: ToolsWindowController?
     private var systemAppearanceObservation: NSKeyValueObservation?
     var utilityToastGeneration: UInt64 = UInt64.max / 2
-    var clipboardWebPConversionOwnership = ClipboardWebPConversionOwnership()
+    var clipboardImageConversionOwnership = ClipboardImageConversionOwnership()
     var utilityToastPresentationToken: UInt64 = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func stopGlobalHotKeys() {
-        clipboardWebPHotKey?.stop()
+        clipboardImageConversionHotKey?.stop()
         clipboardMarkdownHotKey?.stop()
         screenshotSaveAndClipboardHotKey?.stop()
     }
@@ -122,8 +122,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         screenshotCaptureTask = nil
         screenshotCaptureController?.terminate()
         clipboardMarkdownController?.terminate()
-        clipboardAutoWebPController?.terminate()
-        clipboardWebPController?.terminate()
+        clipboardAutoImageConversionController?.terminate()
+        clipboardImageConversionController?.terminate()
         clipboardImagePreviewOpener?.terminate()
         clipboardToastController?.terminate()
         clipboardClearURLsController?.terminate()
@@ -198,21 +198,22 @@ extension AppDelegate {
     }
 
     private func installClipboardUtilities() {
-        installWebPController()
-        installAutomaticClipboardWebPController()
+        installImageConversionController()
+        installAutomaticClipboardImageController()
         installMarkdownController()
         installClearURLsController()
     }
 
-    private func installWebPController() {
-        clipboardWebPController = ClipboardWebPController(
+    private func installImageConversionController() {
+        clipboardImageConversionController = ClipboardImageConversionController(
+            outputFormat: { [weak self] in self?.settings.imageOutputFormat ?? .webP },
             onConverted: { [weak self] url, changeCount in
                 guard let self else { return }
-                self.clipboardAutoWebPController?.acknowledgeConvertedChange(changeCount: changeCount)
+                self.clipboardAutoImageConversionController?.acknowledgeConvertedChange(changeCount: changeCount)
                 let generation = self.utilityToastGeneration
                 Task { @MainActor [weak self] in
                     guard let self, self.utilityToastGeneration == generation else { return }
-                    self.presentConvertedWebPToast(
+                    self.presentConvertedImageToast(
                         url,
                         changeCount: changeCount,
                         expectedGeneration: generation
@@ -226,7 +227,7 @@ extension AppDelegate {
             onMessage: { [weak self] message in
                 guard let self else { return }
                 if message == "No image to convert",
-                   !self.clipboardWebPConversionOwnership.shouldPresentNoImageMessage(
+                   !self.clipboardImageConversionOwnership.shouldPresentNoImageMessage(
                        utilityGeneration: self.utilityToastGeneration
                    ) {
                     return
@@ -238,15 +239,15 @@ extension AppDelegate {
                 )
             }
         )
-        clipboardWebPHotKey = GlobalHotKey(shortcut: .webPClipboard) { [weak self] in
-            guard let self, self.settings.webPClipboardConverterEnabled else { return }
-            self.startWebPConversion()
+        clipboardImageConversionHotKey = GlobalHotKey(shortcut: .clipboardImageConversion) { [weak self] in
+            guard let self, self.settings.imageConversionEnabled else { return }
+            self.startImageConversion()
         }
     }
-    private func installAutomaticClipboardWebPController() {
-        clipboardAutoWebPController = ClipboardAutoWebPController(
+    private func installAutomaticClipboardImageController() {
+        clipboardAutoImageConversionController = ClipboardAutoImageConversionController(
             settings: settings,
-            onImageDetected: { [weak self] in self?.startAutomaticWebPConversion() }
+            onImageDetected: { [weak self] in self?.startAutomaticImageConversion() }
         )
     }
 
@@ -366,8 +367,8 @@ extension AppDelegate {
         settings.onChange = { [weak self] in
             guard let self else { return }
             self.clipboardToastController?.applySettings()
-            self.clipboardAutoWebPController?.applySettings()
-            self.syncWebPClipboardConverter()
+            self.clipboardAutoImageConversionController?.applySettings()
+            self.syncImageConversionHotKey()
             self.syncMarkdownHotKey()
             self.syncClearURLsClipboardCleaner()
             self.microphoneToastController?.applySettings()
@@ -401,13 +402,13 @@ extension AppDelegate {
     }
 
     private func startServices() {
-        syncWebPClipboardConverter()
+        syncImageConversionHotKey()
         syncMarkdownHotKey()
         startScreenshotSaveAndClipboardHotKey()
         syncClearURLsClipboardCleaner()
         installWorkspaceObservers()
         clipboardToastController?.start()
-        clipboardAutoWebPController?.start()
+        clipboardAutoImageConversionController?.start()
         if let controller = twitchNotificationController {
             Task { @MainActor [weak controller] in
                 await controller?.requestKeychainAccessAtStartup()

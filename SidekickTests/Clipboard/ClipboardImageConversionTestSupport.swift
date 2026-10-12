@@ -2,7 +2,7 @@ import AppKit
 import XCTest
 
 func makePasteboard() -> NSPasteboard {
-    NSPasteboard(name: NSPasteboard.Name("ClipboardWebPTests-\(UUID().uuidString)"))
+    NSPasteboard(name: NSPasteboard.Name("ClipboardImageConversionTests-\(UUID().uuidString)"))
 }
 @MainActor
 func makeTransactionalPasteboard() -> PasteboardSnapshotFakePasteboard {
@@ -31,7 +31,7 @@ func temporaryDirectory() throws -> URL {
     let directory = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
-        .appendingPathComponent(".kilo-tmp/ClipboardWebPTests-\(UUID().uuidString)")
+        .appendingPathComponent(".kilo-tmp/ClipboardImageConversionTests-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     return directory
 }
@@ -75,7 +75,7 @@ final class GenerationChangingPasteboard: PasteboardAccess {
     }
 }
 @MainActor
-func convert(with controller: ClipboardWebPController) async -> ClipboardWebPController.Result {
+func convert(with controller: ClipboardImageConversionController) async -> ClipboardImageConversionController.Result {
     await withCheckedContinuation { continuation in
         controller.convertClipboardImage { result in
             continuation.resume(returning: result)

@@ -69,8 +69,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         action: nil,
         keyEquivalent: ""
     )
-    private let webPClipboardConverterItem = NSMenuItem(
-        title: "WebP Clipboard converter",
+    private let imageConversionItem = NSMenuItem(
+        title: "Clipboard image converter",
         action: nil,
         keyEquivalent: ""
     )
@@ -128,7 +128,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         clipboardToastItem.state = enabled ? .on : .off
         markdownClipboardItem.state = settings.markdownClipboardCleanerEnabled ? .on : .off
         cleanMarkdownNowItem.isEnabled = true
-        webPClipboardConverterItem.state = settings.webPClipboardConverterEnabled ? .on : .off
+        imageConversionItem.state = settings.imageConversionEnabled ? .on : .off
         twitchNotificationsItem.state = settings.twitchNotificationsEnabled ? .on : .off
         clearURLsClipboardItem.state = clearURLsClipboardAvailable && settings.clearURLsClipboardEnabled ? .on : .off
         clearURLsClipboardItem.isEnabled = clearURLsClipboardAvailable
@@ -229,8 +229,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         onToggleTwitchNotifications()
     }
 
-    @objc private func toggleWebPClipboardConverter() {
-        settings.webPClipboardConverterEnabled.toggle()
+    @objc private func toggleImageConversion() {
+        settings.imageConversionEnabled.toggle()
     }
 
     @objc private func toggleClearURLsClipboard() {
@@ -354,9 +354,9 @@ extension StatusMenuController {
         clipboardToastItem.target = self
         menu.addItem(clipboardToastItem)
 
-        webPClipboardConverterItem.action = #selector(toggleWebPClipboardConverter)
-        webPClipboardConverterItem.target = self
-        menu.addItem(webPClipboardConverterItem)
+        imageConversionItem.action = #selector(toggleImageConversion)
+        imageConversionItem.target = self
+        menu.addItem(imageConversionItem)
 
         clearURLsClipboardItem.action = #selector(toggleClearURLsClipboard)
         clearURLsClipboardItem.target = self

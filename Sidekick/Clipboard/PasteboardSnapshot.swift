@@ -43,5 +43,12 @@ struct PasteboardSnapshot {
         case restoreFailed
     }
 
+    /// A representation already read during source selection and reused for rollback capture.
+    struct MaterializedRepresentation {
+        let itemIndex: Int
+        let type: NSPasteboard.PasteboardType
+        /// `nil` records that the earlier read did not produce readable data.
+        let data: Data?
+    }
     let items: [NSPasteboardItem]
 }

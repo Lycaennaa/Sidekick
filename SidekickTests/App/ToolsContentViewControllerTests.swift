@@ -42,7 +42,7 @@ final class ToolsContentViewControllerTests: XCTestCase {
 
         let heading = try XCTUnwrap(findTextField("Clipboard", in: clipboardView))
         let section = try XCTUnwrap(findTextField("Clipboard tools", in: clipboardView))
-        let firstTool = try XCTUnwrap(findTextField("Convert clipboard images to WebP", in: clipboardView))
+        let firstTool = try XCTUnwrap(findTextField("Convert clipboard images", in: clipboardView))
         let clipboardNotifications = try XCTUnwrap(findTextField("Clipboard notifications", in: clipboardView))
         let toastDuration = try XCTUnwrap(findTextField("Toast duration", in: clipboardView))
         XCTAssertEqual(clipboardNotifications.stringValue, "Clipboard notifications")
@@ -55,6 +55,42 @@ final class ToolsContentViewControllerTests: XCTestCase {
         let firstToolX = firstTool.convert(.zero, to: clipboardView).x
         XCTAssertEqual(headingX, sectionX, accuracy: 1)
         XCTAssertEqual(headingX, firstToolX, accuracy: 1)
+    }
+
+    @MainActor
+    func testClipboardFormatSelectorChangesConversionFormat() throws {
+        let suiteName = "ClipboardFormatSelector.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = AppSettings(defaults: defaults)
+        let picker = ClipboardImageOpeningApplicationPickerView(settings: settings)
+        let clipboardView = ClipboardSettingsView(
+            settings: settings,
+            imageOpeningApplicationPicker: picker,
+            clearURLsAvailable: false
+        )
+        let formatPopup = try XCTUnwrap(findPopup(withTitles: ["WebP", "AVIF"], in: clipboardView))
+
+        XCTAssertEqual(formatPopup.itemTitles, ["WebP", "AVIF"])
+        formatPopup.selectItem(at: 1)
+        guard let action = formatPopup.action else {
+            return XCTFail("Image output format selector has no action")
+        }
+        XCTAssertTrue(NSApplication.shared.sendAction(action, to: formatPopup.target, from: formatPopup))
+        XCTAssertEqual(settings.imageOutputFormat, .avif)
+    }
+
+    private func findPopup(withTitles titles: [String], in view: NSView) -> NSPopUpButton? {
+        if let popup = view as? NSPopUpButton, popup.itemTitles == titles {
+            return popup
+        }
+        for subview in view.subviews {
+            if let popup = findPopup(withTitles: titles, in: subview) {
+                return popup
+            }
+        }
+        return nil
     }
 
     private func findTextField(_ value: String, in view: NSView) -> NSTextField? {

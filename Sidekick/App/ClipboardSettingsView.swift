@@ -5,8 +5,9 @@ final class ClipboardSettingsView: NSView {
     private let settings: AppSettings
     private let clearURLsAvailable: Bool
     private let imageOpeningApplicationPicker: ClipboardImageOpeningApplicationPickerView
-    private let webPSwitch = NSSwitch()
-    private let automaticWebPSwitch = NSSwitch()
+    private let imageConversionSwitch = NSSwitch()
+    private let automaticImageConversionSwitch = NSSwitch()
+    private let imageOutputFormatPopup = NSPopUpButton()
     private let markdownSwitch = NSSwitch()
     private let clearURLsSwitch = NSSwitch()
     private let clipboardToastSwitch = NSSwitch()
@@ -32,23 +33,33 @@ final class ClipboardSettingsView: NSView {
     }
 
     func refresh() {
-        webPSwitch.state = settings.webPClipboardConverterEnabled ? .on : .off
-        automaticWebPSwitch.state = settings.clipboardImageAutoConvertToWebPEnabled ? .on : .off
+        imageConversionSwitch.state = settings.imageConversionEnabled ? .on : .off
+        automaticImageConversionSwitch.state = settings.automaticImageConversionEnabled ? .on : .off
         markdownSwitch.state = settings.markdownClipboardCleanerEnabled ? .on : .off
         clearURLsSwitch.state = clearURLsAvailable && settings.clearURLsClipboardEnabled ? .on : .off
         clearURLsSwitch.isEnabled = clearURLsAvailable
         clipboardToastSwitch.state = settings.clipboardToastEnabled ? .on : .off
         let selectedDuration = AppSettings.allowedToastDurations.firstIndex(of: settings.toastDuration) ?? 0
         toastDurationPopup.selectItem(at: selectedDuration)
+        let selectedFormat = ClipboardImageFormat.allCases.firstIndex(of: settings.imageOutputFormat) ?? 0
+        imageOutputFormatPopup.selectItem(at: selectedFormat)
         imageOpeningApplicationPicker.refresh()
     }
 
-    @objc private func toggleWebP() {
-        settings.webPClipboardConverterEnabled = webPSwitch.state == .on
+    @objc private func toggleImageConversion() {
+        settings.imageConversionEnabled = imageConversionSwitch.state == .on
     }
 
-    @objc private func toggleAutomaticWebP() {
-        settings.clipboardImageAutoConvertToWebPEnabled = automaticWebPSwitch.state == .on
+    @objc private func toggleAutomaticImageConversion() {
+        settings.automaticImageConversionEnabled = automaticImageConversionSwitch.state == .on
+    }
+
+    @objc private func selectImageOutputFormat() {
+        guard let rawValue = imageOutputFormatPopup.selectedItem?.representedObject as? String,
+              let format = ClipboardImageFormat(rawValue: rawValue) else {
+            return
+        }
+        settings.imageOutputFormat = format
     }
 
     @objc private func toggleMarkdown() {
@@ -83,9 +94,18 @@ final class ClipboardSettingsView: NSView {
         configureSwitches()
 
         let stack = NSStackView(
-            views: [title, detail, imageOpeningApplicationPicker, makeSeparator(), sectionTitle]
-                + makeToolRows()
-                + [makeSeparator(), makeClipboardNotificationSettings()]
+            views: [
+                title,
+                detail,
+                imageOpeningApplicationPicker,
+                makeSeparator(),
+                sectionTitle,
+                makeImageOutputFormatRow(),
+                makeSeparator()
+            ] + makeToolRows() + [
+                makeSeparator(),
+                makeClipboardNotificationSettings()
+            ]
         )
         stack.orientation = .vertical
         configureSettingsPageStack(stack)
@@ -101,13 +121,19 @@ final class ClipboardSettingsView: NSView {
     }
 
     private func configureSwitches() {
-        webPSwitch.target = self
-        webPSwitch.action = #selector(toggleWebP)
-        webPSwitch.setAccessibilityLabel("Convert clipboard images to WebP")
-        automaticWebPSwitch.target = self
-        automaticWebPSwitch.action = #selector(toggleAutomaticWebP)
-        automaticWebPSwitch.setAccessibilityLabel("Automatically convert clipboard images to WebP")
-        markdownSwitch.target = self
+        imageConversionSwitch.target = self
+        imageConversionSwitch.action = #selector(toggleImageConversion)
+        imageConversionSwitch.setAccessibilityLabel("Convert clipboard images")
+        automaticImageConversionSwitch.target = self
+        automaticImageConversionSwitch.action = #selector(toggleAutomaticImageConversion)
+        automaticImageConversionSwitch.setAccessibilityLabel("Automatically convert clipboard images")
+        imageOutputFormatPopup.target = self
+        imageOutputFormatPopup.action = #selector(selectImageOutputFormat)
+        imageOutputFormatPopup.setAccessibilityLabel("Image output format")
+        for format in ClipboardImageFormat.allCases {
+            imageOutputFormatPopup.addItem(withTitle: format.displayName)
+            imageOutputFormatPopup.lastItem?.representedObject = format.rawValue
+        }
         markdownSwitch.action = #selector(toggleMarkdown)
         markdownSwitch.setAccessibilityLabel("Clean clipboard Markdown")
         clearURLsSwitch.target = self
@@ -124,6 +150,26 @@ final class ClipboardSettingsView: NSView {
             toastDurationPopup.lastItem?.representedObject = NSNumber(value: duration)
         }
     }
+    private func makeImageOutputFormatRow() -> NSView {
+        let title = NSTextField(labelWithString: "Image output format")
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
+        let detail = NSTextField(
+            wrappingLabelWithString: "Used for clipboard conversions and encoded screenshots."
+        )
+        detail.textColor = .secondaryLabelColor
+        let labels = NSStackView(views: [title, detail])
+        labels.orientation = .vertical
+        labels.alignment = .leading
+        labels.spacing = 4
+        labels.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let row = NSStackView(views: [labels, imageOutputFormatPopup])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 18
+        return row
+    }
+
     private func makeClipboardNotificationSettings() -> NSView {
         let title = NSTextField(labelWithString: "Clipboard notifications")
         title.font = .systemFont(ofSize: 17, weight: .semibold)
@@ -189,19 +235,19 @@ final class ClipboardSettingsView: NSView {
     private func makeToolRows() -> [NSView] {
         [
             makeToolRow(
-                title: "Convert clipboard images to WebP",
-                detail: "Convert the current clipboard image at 75% quality.",
+                title: "Convert clipboard images",
+                detail: "Convert the current clipboard image to the selected output format.",
                 shortcut: "⌘⌥⇧C",
                 shortcutDescription: "Command–Option–Shift–C",
-                toggle: webPSwitch
+                toggle: imageConversionSwitch
             ),
             makeSeparator(),
             makeToolRow(
-                title: "Automatically convert clipboard images to WebP",
-                detail: "Convert new clipboard images to WebP files and replace the clipboard.",
+                title: "Automatically convert clipboard images",
+                detail: "Convert new clipboard images to the selected output format and replace the clipboard.",
                 shortcut: "Auto",
                 shortcutDescription: "Runs when new image content appears on the clipboard.",
-                toggle: automaticWebPSwitch
+                toggle: automaticImageConversionSwitch
             ),
             makeSeparator(),
             makeToolRow(

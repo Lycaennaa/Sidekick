@@ -80,7 +80,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
             makePasteboardSnapshotItem(text: "item-\(index)")
         })
         let itemOverflowPasteboard = PasteboardSnapshotFakePasteboard(items: itemOverflow)
-        let itemOverflowReferenced = await ClipboardWebPPasteboardCapture.referencesFile(
+        let itemOverflowReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             target,
             pasteboard: itemOverflowPasteboard,
             fileURLReader: BoundedFileURLReader(url: target)
@@ -96,7 +96,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
             ))
         }
         let typeOverflowPasteboard = PasteboardSnapshotFakePasteboard(items: [typeOverflow])
-        let typeOverflowReferenced = await ClipboardWebPPasteboardCapture.referencesFile(
+        let typeOverflowReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             target,
             pasteboard: typeOverflowPasteboard,
             fileURLReader: BoundedFileURLReader(url: target)
@@ -113,7 +113,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         items.append(imageItem)
         let pasteboard = PasteboardSnapshotFakePasteboard(items: items)
 
-        guard case .unavailable = await ClipboardWebPPasteboardCapture.captureImage(
+        guard case .unavailable = await ClipboardImageConversionPasteboardCapture.captureImage(
             from: pasteboard,
             payloadReader: InlinePasteboardPayloadReader()
         ) else {
@@ -134,7 +134,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         XCTAssertEqual(item.types[PasteboardSnapshotPolicy.maximumTypesPerItem], .png)
         let pasteboard = PasteboardSnapshotFakePasteboard(items: [item])
 
-        guard case .unavailable = await ClipboardWebPPasteboardCapture.captureImage(
+        guard case .unavailable = await ClipboardImageConversionPasteboardCapture.captureImage(
             from: pasteboard,
             payloadReader: InlinePasteboardPayloadReader()
         ) else {
@@ -172,7 +172,7 @@ final class PasteboardPayloadReaderTests: XCTestCase {
         XCTAssertTrue(item.setString(oversizedURL, forType: .fileURL))
         let pasteboard = PasteboardSnapshotFakePasteboard(items: [item])
 
-        let isReferenced = await ClipboardWebPPasteboardCapture.referencesFile(
+        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             URL(fileURLWithPath: "/tmp/target.webp"),
             pasteboard: pasteboard,
             fileURLReader: BoundedFileURLReader(

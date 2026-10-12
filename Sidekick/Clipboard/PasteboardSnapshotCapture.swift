@@ -114,26 +114,48 @@ extension PasteboardSnapshot {
         from pasteboard: any PasteboardAccess,
         expectedChangeCount: Int,
         limits: Limits,
+        sourceItems: [NSPasteboardItem]? = nil,
+        materializedRepresentations: [MaterializedRepresentation] = [],
         fileURLReader: any PasteboardFileURLReading = SystemPasteboardFileURLReader(),
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader()
     ) async -> CaptureResult {
         guard !Task.isCancelled,
               pasteboard.changeCount == expectedChangeCount else { return .stale }
-        guard let sourceItems = boundedItems(
-            from: pasteboard,
-            maximumItems: limits.maximumItems,
-            rejectingOverflow: true
-        ) else {
-            return .failed
+        let capturedItems: [NSPasteboardItem]
+        if let sourceItems {
+            guard sourceItems.count <= limits.maximumItems else { return .failed }
+            capturedItems = sourceItems
+        } else {
+            guard let boundedItems = boundedItems(
+                from: pasteboard,
+                maximumItems: limits.maximumItems,
+                rejectingOverflow: true
+            ) else {
+                return .failed
+            }
+            capturedItems = boundedItems
+        }
+        var cachedRepresentations: [MaterializedRepresentationKey: MaterializedRepresentationValue] = [:]
+        for representation in materializedRepresentations {
+            let key = MaterializedRepresentationKey(
+                itemIndex: representation.itemIndex,
+                typeIdentifier: representation.type.rawValue
+            )
+            if let data = representation.data {
+                cachedRepresentations[key] = .data(data)
+            } else {
+                cachedRepresentations[key] = .failed
+            }
         }
         let request = CaptureRequest(
             pasteboard: pasteboard,
             expectedChangeCount: expectedChangeCount,
             limits: limits,
+            cachedRepresentations: cachedRepresentations,
             fileURLReader: fileURLReader,
             payloadReader: payloadReader
         )
-        return await captureItems(sourceItems, request: request)
+        return await captureItems(capturedItems, request: request)
     }
 
     static func contentsMatch(
@@ -250,10 +272,21 @@ private extension PasteboardSnapshot {
                 || request.pasteboard.changeCount == request.expectedChangeCount)
     }
 
+    private struct MaterializedRepresentationKey: Hashable {
+        let itemIndex: Int
+        let typeIdentifier: String
+    }
+
+    private enum MaterializedRepresentationValue {
+        case data(Data)
+        case failed
+    }
+
     private struct CaptureRequest {
         let pasteboard: any PasteboardAccess
         let expectedChangeCount: Int
         let limits: Limits
+        let cachedRepresentations: [MaterializedRepresentationKey: MaterializedRepresentationValue]
         let fileURLReader: any PasteboardFileURLReading
         let payloadReader: any PasteboardPayloadReading
     }
@@ -277,13 +310,14 @@ private extension PasteboardSnapshot {
         var totalBytes = 0
         var copies: [NSPasteboardItem] = []
         copies.reserveCapacity(sourceItems.count)
-        for sourceItem in sourceItems {
+        for (itemIndex, sourceItem) in sourceItems.enumerated() {
             guard isCurrent(request) else { return .stale }
             guard sourceItem.types.count <= request.limits.maximumTypesPerItem else {
                 return .failed
             }
             switch await copyItem(
                 sourceItem,
+                itemIndex: itemIndex,
                 totalBytes: &totalBytes,
                 request: request
             ) {
@@ -302,6 +336,7 @@ private extension PasteboardSnapshot {
 
     private static func copyItem(
         _ sourceItem: NSPasteboardItem,
+        itemIndex: Int,
         totalBytes: inout Int,
         request: CaptureRequest
     ) async -> CaptureItemResult {
@@ -310,6 +345,7 @@ private extension PasteboardSnapshot {
             guard isCurrent(request) else { return .stale }
             switch await captureData(
                 from: sourceItem,
+                itemIndex: itemIndex,
                 forType: type,
                 maximumBytes: request.limits.maximumBytes - totalBytes,
                 request: request
@@ -332,10 +368,23 @@ private extension PasteboardSnapshot {
 
     private static func captureData(
         from item: NSPasteboardItem,
+        itemIndex: Int,
         forType type: NSPasteboard.PasteboardType,
         maximumBytes: Int,
         request: CaptureRequest
     ) async -> CaptureDataResult {
+        let key = MaterializedRepresentationKey(
+            itemIndex: itemIndex,
+            typeIdentifier: type.rawValue
+        )
+        if let cached = request.cachedRepresentations[key] {
+            switch cached {
+            case let .data(data):
+                return .data(data)
+            case .failed:
+                return .failed
+            }
+        }
         if type == .fileURL {
             let result = await request.fileURLReader.readFileURLData(
                 from: item,

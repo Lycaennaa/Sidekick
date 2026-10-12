@@ -1,34 +1,36 @@
 import Foundation
 
-nonisolated enum ClipboardWebPTranscoder {
-    typealias CancellationCheck = @Sendable () -> Bool
-    typealias ConversionError = ClipboardWebPConversionError
+nonisolated enum ClipboardImageConversionTranscoder {
+    typealias CancellationCheck = ClipboardImageConversionPolicy.CancellationCheck
+    typealias ConversionError = ClipboardImageConversionError
 
     static func convert(
-        _ source: ClipboardWebPSource,
+        _ source: ClipboardImageSource,
         outputDirectory: URL,
-        aggregateSourceBytes: Int = ClipboardWebPConfiguration.maximumAggregateSourceBytes,
+        format: ClipboardImageFormat = .webP,
+        aggregateSourceBytes: Int = ClipboardImageConversionPolicy.maximumAggregateSourceBytes,
         isCancelled: CancellationCheck = { false }
     ) throws -> URL {
         try checkCancellation(isCancelled)
         let outputData = try encodedData(
             source,
+            format: format,
             aggregateSourceBytes: max(0, aggregateSourceBytes),
             isCancelled: isCancelled
         )
-        try checkCancellation(isCancelled)
-        guard outputData.count <= ClipboardWebPConfiguration.maximumOutputBytes else {
+        guard outputData.count <= ClipboardImageConversionPolicy.maximumOutputBytes else {
             throw ConversionError.tooLarge
         }
 
         try checkCancellation(isCancelled)
-        try ClipboardWebPFileService.prepareOutputDirectory(outputDirectory)
+        try ClipboardImageConversionFileService.prepareOutputDirectory(outputDirectory)
         try checkCancellation(isCancelled)
-        let outputURL = try ClipboardWebPFileService.uniqueOutputURL(
+        let outputURL = try ClipboardImageConversionFileService.uniqueOutputURL(
             in: outputDirectory,
+            format: format,
             isCancelled: isCancelled
         )
-        try ClipboardWebPFileService.writeOutput(
+        try ClipboardImageConversionFileService.writeOutput(
             outputData,
             to: outputURL,
             isCancelled: isCancelled
@@ -37,18 +39,18 @@ nonisolated enum ClipboardWebPTranscoder {
     }
 
     private static func encodedData(
-        _ source: ClipboardWebPSource,
+        _ source: ClipboardImageSource,
+        format: ClipboardImageFormat,
         aggregateSourceBytes: Int,
         isCancelled: CancellationCheck
     ) throws -> Data {
-        try checkCancellation(isCancelled)
         switch source {
         case let .data(data):
-            guard data.count <= ClipboardWebPConfiguration.maximumSourceBytes,
+            guard data.count <= ClipboardImageConversionPolicy.maximumSourceBytes,
                   data.count <= aggregateSourceBytes else {
                 throw ConversionError.tooLarge
             }
-            return try ClipboardWebPEncoder.encode(data, isCancelled: isCancelled)
+            return try ClipboardImageEncoder.encode(data, format: format, isCancelled: isCancelled)
         case let .files(urls, fallback):
             var remainingSourceBytes = aggregateSourceBytes
             var lastError: Error?
@@ -56,13 +58,13 @@ nonisolated enum ClipboardWebPTranscoder {
                 try checkCancellation(isCancelled)
                 guard remainingSourceBytes > 0 else { break }
                 do {
-                    let data = try ClipboardWebPFileService.sourceData(
+                    let data = try ClipboardImageConversionFileService.sourceData(
                         url,
                         maximumBytes: remainingSourceBytes,
                         isCancelled: isCancelled
                     )
                     remainingSourceBytes -= data.count
-                    return try ClipboardWebPEncoder.encode(data, isCancelled: isCancelled)
+                    return try ClipboardImageEncoder.encode(data, format: format, isCancelled: isCancelled)
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch ConversionError.invalidImage {
@@ -73,12 +75,12 @@ nonisolated enum ClipboardWebPTranscoder {
             }
             if let fallback {
                 try checkCancellation(isCancelled)
-                guard fallback.count <= ClipboardWebPConfiguration.maximumSourceBytes,
+                guard fallback.count <= ClipboardImageConversionPolicy.maximumSourceBytes,
                       fallback.count <= remainingSourceBytes else {
                     throw ConversionError.tooLarge
                 }
                 remainingSourceBytes -= fallback.count
-                return try ClipboardWebPEncoder.encode(fallback, isCancelled: isCancelled)
+                return try ClipboardImageEncoder.encode(fallback, format: format, isCancelled: isCancelled)
             }
             throw lastError ?? ConversionError.invalidImage
         }

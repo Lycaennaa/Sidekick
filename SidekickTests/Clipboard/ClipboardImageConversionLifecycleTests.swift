@@ -1,12 +1,12 @@
 import AppKit
 import XCTest
 
-final class ClipboardWebPLifecycleTests: XCTestCase {
+final class ClipboardImageConversionLifecycleTests: XCTestCase {
     @MainActor
     func testExpirationClearsOnlyUnchangedConvertedClipboard() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 0.05,
             outputDirectory: directory,
@@ -36,7 +36,7 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
     func testExpirationPreservesNewClipboardContent() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 0.05,
             outputDirectory: directory,
@@ -67,7 +67,7 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
     func testTerminationClearsAndDeletesUnchangedConvertedClipboard() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
             fileURLReader: InlinePasteboardFileURLReader(),
@@ -96,7 +96,7 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
     func testTerminationPreservesMultiItemClipboardReferencingArtifact() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 60,
             outputDirectory: directory,
@@ -127,7 +127,7 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
 
         XCTAssertEqual(pasteboard.pasteboardItems?.count, 2)
         XCTAssertEqual(pasteboard.string(forType: .string), "unrelated")
-        let referencesArtifact = await ClipboardWebPPasteboardCapture.referencesFile(
+        let referencesArtifact = await ClipboardImageConversionPasteboardCapture.referencesFile(
             url,
             pasteboard: pasteboard,
             fileURLReader: InlinePasteboardFileURLReader()
@@ -140,8 +140,10 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
     func testRelaunchStartupCleanupPreservesReferencedArtifact() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
-        let referencedURL = directory.appendingPathComponent("Ref1234.webp")
-        let staleURL = directory.appendingPathComponent("Stale01.webp")
+        let legacyDirectory = directory.appendingPathComponent("Sidekick-ClipboardWebP", isDirectory: true)
+        try FileManager.default.createDirectory(at: legacyDirectory, withIntermediateDirectories: true)
+        let referencedURL = legacyDirectory.appendingPathComponent("Ref1234.webp")
+        let staleURL = legacyDirectory.appendingPathComponent("Stale01.webp")
         try Data([1]).write(to: referencedURL)
         try Data([2]).write(to: staleURL)
         let unrelatedURL = directory.appendingPathComponent("unrelated.webp")
@@ -153,9 +155,10 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.writeObjects([item]))
 
-        let owner = ClipboardWebPArtifactOwner(
+        let owner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
+            legacyOutputDirectories: [legacyDirectory],
             pasteboard: pasteboard,
             fileURLReader: InlinePasteboardFileURLReader(),
             currentGeneration: { pasteboard.changeCount }
@@ -171,11 +174,12 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: unrelatedURL.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: ownedDirectory.path))
 
-        let relaunchStaleURL = directory.appendingPathComponent("Relnch1.webp")
+        let relaunchStaleURL = legacyDirectory.appendingPathComponent("Relnch1.webp")
         try Data([3]).write(to: relaunchStaleURL)
-        let relaunchedOwner = ClipboardWebPArtifactOwner(
+        let relaunchedOwner = ClipboardImageConversionArtifactOwner(
             expirationInterval: 60,
             outputDirectory: directory,
+            legacyOutputDirectories: [legacyDirectory],
             pasteboard: pasteboard,
             fileURLReader: InlinePasteboardFileURLReader(),
             currentGeneration: { pasteboard.changeCount }
@@ -199,7 +203,7 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
             replacementItems: [replacementItem]
         )
         let directory = try temporaryDirectory()
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
              payloadReader: InlinePasteboardPayloadReader(),
@@ -224,7 +228,7 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
     func testConditionalReplacementRacePreservesNewClipboard() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
              payloadReader: InlinePasteboardPayloadReader(),
@@ -251,7 +255,7 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
     func testCancellingPendingConversionPreservesClipboardImage() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
              payloadReader: InlinePasteboardPayloadReader(),
@@ -265,7 +269,7 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
         pasteboard.clearContents()
         pasteboard.setData(try pngData(width: 2_000, height: 2_000), forType: .png)
         let completion = expectation(description: "Cancelled conversion completion")
-        var result: ClipboardWebPController.Result?
+        var result: ClipboardImageConversionController.Result?
         controller.convertClipboardImage {
             result = $0
             completion.fulfill()
@@ -285,12 +289,12 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
         let target = URL(fileURLWithPath: "/tmp/timeout.webp")
         let reader = TimeoutFileURLReader()
         let workerStarted = ThreadSafeFlag()
-        let worker = ClipboardWebPWorker(convert: { _, outputDirectory, _ in
+        let worker = ClipboardImageConversionWorker(convert: { _, outputDirectory, _, _ in
             workerStarted.mark()
             return outputDirectory.appendingPathComponent("unexpected.webp")
         })
         var messages: [String] = []
-        let controller = ClipboardWebPController(
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
             worker: worker,
@@ -317,30 +321,35 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
     }
 
     @MainActor
-    func testCancellingOwnedInstallPreventsSuccessSideEffects() async throws {
+    func testCancellingSnapshotCapturePreventsConversionSideEffects() async throws {
         let sourceURL = URL(fileURLWithPath: "/missing/source.png")
         let sourceItem = NSPasteboardItem()
         XCTAssertTrue(sourceItem.setString(sourceURL.absoluteString, forType: .fileURL))
+        XCTAssertTrue(sourceItem.setString("clipboard metadata", forType: .string))
         let pasteboard = PasteboardSnapshotFakePasteboard(items: [sourceItem])
-        let reader = InstallBlockingFileURLReader(sourceURL: sourceURL)
+        let reader = InstallBlockingPayloadReader()
         let directory = try temporaryDirectory()
-        let outputURL = directory.appendingPathComponent(
-            "Inst001.webp"
-        )
+        let outputURL = directory.appendingPathComponent("Inst001.webp")
+        let workerStarted = ThreadSafeFlag()
         var converted = false
-        var result: ClipboardWebPController.Result?
-        let completion = expectation(description: "Cancelled install completion")
-        let worker = ClipboardWebPWorker(convert: { _, _, _ in outputURL })
-        let controller = ClipboardWebPController(
+        var result: ClipboardImageConversionController.Result?
+        let completion = expectation(description: "Cancelled snapshot capture completion")
+        let worker = ClipboardImageConversionWorker(convert: { _, _, _, _ in
+            workerStarted.mark()
+            return outputURL
+        })
+        let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             outputDirectory: directory,
             worker: worker,
-            fileURLReader: reader,
+            fileURLReader: InlinePasteboardFileURLReader(),
+            payloadReader: reader,
             onConverted: { _, _ in converted = true },
             onMessage: { _ in }
         )
         defer {
             controller.terminate()
+            reader.resume(.cancelled)
             try? FileManager.default.removeItem(at: directory)
         }
 
@@ -348,15 +357,17 @@ final class ClipboardWebPLifecycleTests: XCTestCase {
             result = $0
             completion.fulfill()
         }
-        await fulfillment(of: [reader.installReadStarted], timeout: 5)
+        await fulfillment(of: [reader.captureReadStarted], timeout: 5)
 
         controller.cancelPendingConversion()
-        reader.resume(.data(reader.sourceData))
+        reader.resume(.data(Data("clipboard metadata".utf8)))
         await fulfillment(of: [completion], timeout: 5)
 
         XCTAssertEqual(result, .stale)
+        XCTAssertFalse(workerStarted.value)
         XCTAssertFalse(converted)
         XCTAssertEqual(pasteboard.items.first?.string(forType: .fileURL), sourceURL.absoluteString)
+        XCTAssertEqual(pasteboard.items.first?.string(forType: .string), "clipboard metadata")
     }
 }
 @MainActor
@@ -391,30 +402,27 @@ private final class ThreadSafeFlag: @unchecked Sendable {
 }
 
 @MainActor
-private final class InstallBlockingFileURLReader: PasteboardFileURLReading {
-    let sourceData: Data
-    let installReadStarted = XCTestExpectation(description: "Install file URL read started")
-    private var continuation: CheckedContinuation<PasteboardFileURLReadResult, Never>?
-    private var readCount = 0
+private final class InstallBlockingPayloadReader: PasteboardPayloadReading {
+    let captureReadStarted = XCTestExpectation(description: "Rollback snapshot payload read started")
+    private var continuation: CheckedContinuation<PasteboardPayloadReader.Result, Never>?
 
-    init(sourceURL: URL) {
-        sourceData = Data(sourceURL.absoluteString.utf8)
-    }
-
-    func readFileURLData(
+    func readData(
         from item: NSPasteboardItem,
-        maximumBytes: Int,
-        timeout: TimeInterval
-    ) async -> PasteboardFileURLReadResult {
-        readCount += 1
-        guard readCount == 2 else { return .data(sourceData) }
-        return await withCheckedContinuation { continuation in
-            self.continuation = continuation
-            installReadStarted.fulfill()
+        forType type: NSPasteboard.PasteboardType,
+        maximumBytes: Int
+    ) async -> PasteboardPayloadReader.Result {
+        if type == .string {
+            captureReadStarted.fulfill()
+            return await withCheckedContinuation { continuation = $0 }
         }
+        guard let data = item.data(forType: type) else { return .missing }
+        guard data.count <= maximumBytes else {
+            return .tooLarge(byteCount: data.count)
+        }
+        return .data(data)
     }
 
-    func resume(_ result: PasteboardFileURLReadResult) {
+    func resume(_ result: PasteboardPayloadReader.Result) {
         let continuation = self.continuation
         self.continuation = nil
         continuation?.resume(returning: result)

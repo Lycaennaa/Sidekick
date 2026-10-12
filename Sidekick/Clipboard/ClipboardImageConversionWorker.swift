@@ -1,24 +1,26 @@
 import Foundation
 
-nonisolated final class ClipboardWebPWorker: Sendable {
+nonisolated final class ClipboardImageConversionWorker: Sendable {
     enum Result: Sendable {
         case success(URL)
-        case failure(ClipboardWebPConversionFailure)
+        case failure(ClipboardImageConversionFailure)
         case cancelled
     }
 
     typealias Completion = @MainActor @Sendable (Result) -> Void
     typealias Cleanup = @MainActor @Sendable (URL) -> Void
     typealias Convert = @Sendable (
-        ClipboardWebPSource,
+        ClipboardImageSource,
         URL,
+        ClipboardImageFormat,
         @Sendable () -> Bool
     ) throws -> URL
     private typealias ConversionResult = Result
 
     private struct Work: Sendable {
-        let source: ClipboardWebPSource
+        let source: ClipboardImageSource
         let outputDirectory: URL
+        let format: ClipboardImageFormat
         let cleanup: Cleanup
         let completion: Completion
     }
@@ -27,37 +29,40 @@ nonisolated final class ClipboardWebPWorker: Sendable {
     private let convert: Convert
 
     init(
-        convert: @escaping Convert = { source, outputDirectory, isCancelled in
-            try ClipboardWebPTranscoder.convert(
+        convert: @escaping Convert = { source, outputDirectory, format, isCancelled in
+            try ClipboardImageConversionTranscoder.convert(
                 source,
                 outputDirectory: outputDirectory,
+                format: format,
                 isCancelled: isCancelled
             )
         }
     ) {
         self.convert = convert
         coordinator = ClipboardBackgroundWorkCoordinator(
-            label: "com.lycaennaa.sidekick.clipboard-webp"
+            label: "com.lycaennaa.sidekick.clipboard-image-conversion"
         )
     }
 
     convenience init(
-        convert: @escaping @Sendable (ClipboardWebPSource, URL) throws -> URL
+        convert: @escaping @Sendable (ClipboardImageSource, URL) throws -> URL
     ) {
-        self.init(convert: { source, outputDirectory, _ in
+        self.init(convert: { source, outputDirectory, _, _ in
             try convert(source, outputDirectory)
         })
     }
 
     func enqueue(
-        source: ClipboardWebPSource,
+        source: ClipboardImageSource,
         outputDirectory: URL,
+        format: ClipboardImageFormat = .webP,
         cleanup: @escaping Cleanup,
         completion: @escaping Completion
     ) {
         let work = Work(
             source: source,
             outputDirectory: outputDirectory,
+            format: format,
             cleanup: cleanup,
             completion: completion
         )
@@ -65,7 +70,7 @@ nonisolated final class ClipboardWebPWorker: Sendable {
             work,
             operation: { [convert] work, isCancelled in
                 do {
-                    return .success(try convert(work.source, work.outputDirectory, isCancelled))
+                    return .success(try convert(work.source, work.outputDirectory, work.format, isCancelled))
                 } catch is CancellationError {
                     return .cancelled
                 } catch {
@@ -86,8 +91,8 @@ nonisolated final class ClipboardWebPWorker: Sendable {
         )
     }
 
-    private static func failure(for error: any Error) -> ClipboardWebPConversionFailure {
-        if let conversionError = error as? ClipboardWebPConversionError {
+    private static func failure(for error: any Error) -> ClipboardImageConversionFailure {
+        if let conversionError = error as? ClipboardImageConversionError {
             return .conversion(conversionError)
         }
 

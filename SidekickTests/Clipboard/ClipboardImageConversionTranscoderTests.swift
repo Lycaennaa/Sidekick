@@ -2,7 +2,7 @@ import AppKit
 import XCTest
 
 @MainActor
-final class ClipboardWebPTranscoderTests: XCTestCase {
+final class ClipboardImageConversionTranscoderTests: XCTestCase {
     func testFileConversionStopsBeforeAggregateSourceBudget() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -13,13 +13,13 @@ final class ClipboardWebPTranscoderTests: XCTestCase {
         try pngData(width: 2, height: 2).write(to: validURL)
 
         XCTAssertThrowsError(
-            try ClipboardWebPTranscoder.convert(
+            try ClipboardImageConversionTranscoder.convert(
                 .files([invalidURL, validURL], fallback: nil),
                 outputDirectory: directory.appendingPathComponent("output"),
                 aggregateSourceBytes: 1
             )
         ) { error in
-            guard case ClipboardWebPTranscoder.ConversionError.invalidImage = error else {
+            guard case ClipboardImageConversionTranscoder.ConversionError.invalidImage = error else {
                 return XCTFail("Expected aggregate budget to stop before the valid file")
             }
         }
@@ -33,13 +33,13 @@ final class ClipboardWebPTranscoderTests: XCTestCase {
         let fallback = try pngData(width: 2, height: 2)
 
         XCTAssertThrowsError(
-            try ClipboardWebPTranscoder.convert(
+            try ClipboardImageConversionTranscoder.convert(
                 .files([invalidURL], fallback: fallback),
                 outputDirectory: directory.appendingPathComponent("output"),
                 aggregateSourceBytes: 1
             )
         ) { error in
-            guard case ClipboardWebPTranscoder.ConversionError.tooLarge = error else {
+            guard case ClipboardImageConversionTranscoder.ConversionError.tooLarge = error else {
                 return XCTFail("Expected fallback to consume the remaining aggregate budget")
             }
         }

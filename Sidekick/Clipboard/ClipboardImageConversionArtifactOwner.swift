@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class ClipboardWebPArtifactOwner {
+final class ClipboardImageConversionArtifactOwner {
     struct Lease: Equatable, Sendable {
         let url: URL
         let changeCount: Int
@@ -14,6 +14,7 @@ final class ClipboardWebPArtifactOwner {
 
     let outputDirectory: URL
     var onExpired: ExpirationHandler
+    private let ownedOutputDirectories: [URL]
 
     private let expirationInterval: TimeInterval
     private let onMessage: (String) -> Void
@@ -34,6 +35,7 @@ final class ClipboardWebPArtifactOwner {
     init(
         expirationInterval: TimeInterval,
         outputDirectory: URL,
+        legacyOutputDirectories: [URL] = [],
         pasteboard: (any PasteboardAccess)? = nil,
         fileURLReader: any PasteboardFileURLReading = SystemPasteboardFileURLReader(),
         onExpired: @escaping ExpirationHandler = { _ in },
@@ -46,6 +48,9 @@ final class ClipboardWebPArtifactOwner {
     ) {
         self.expirationInterval = expirationInterval
         self.outputDirectory = outputDirectory
+        ownedOutputDirectories = [outputDirectory] + legacyOutputDirectories.filter {
+            $0.standardizedFileURL != outputDirectory.standardizedFileURL
+        }
         self.fileURLReader = fileURLReader
         ownershipTransaction = pasteboard as? any PasteboardOwnershipTransaction
         self.onExpired = onExpired
@@ -61,15 +66,17 @@ final class ClipboardWebPArtifactOwner {
             at: outputDirectory,
             withIntermediateDirectories: true
         )
-        guard let urls = try? FileManager.default.contentsOfDirectory(
-            at: outputDirectory,
-            includingPropertiesForKeys: [.isDirectoryKey]
-        ) else {
-            return
-        }
-        let candidates = urls.filter {
-            ClipboardWebPFileService.isOwnedOutputURL($0, in: outputDirectory)
-                && (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != true
+        let candidates = ownedOutputDirectories.flatMap { directory -> [URL] in
+            guard let urls = try? FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [.isDirectoryKey]
+            ) else {
+                return []
+            }
+            return urls.filter {
+                ClipboardImageConversionFileService.isOwnedOutputURL($0, in: directory)
+                    && (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != true
+            }
         }
         startupCleanupTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -126,16 +133,24 @@ final class ClipboardWebPArtifactOwner {
         changeCount: Int,
         isOwned: @escaping @MainActor () async -> Bool
     ) async {
+        guard !Task.isCancelled, let lease else { return }
+        guard currentLease == lease else {
+            discard(lease)
+            return
+        }
+        let wasOwned = await isOwned()
+        guard !Task.isCancelled, !isTerminated, currentLease == lease else { return }
+        guard currentGeneration().map({ $0 == changeCount }) ?? true else {
+            discard(lease)
+            return
+        }
+        guard wasOwned else {
+            discard(lease)
+            return
+        }
+
         expirationTimer?.invalidate()
         expirationTimer = nil
-        guard let lease, currentLease == lease else {
-            discard(lease)
-            return
-        }
-        guard await isOwned() else {
-            discard(lease)
-            return
-        }
         let restoredLease = Lease(
             url: lease.url,
             changeCount: changeCount,
@@ -157,7 +172,9 @@ final class ClipboardWebPArtifactOwner {
     }
 
     func removeGeneratedFile(at url: URL) {
-        guard ClipboardWebPFileService.isOwnedOutputURL(url, in: outputDirectory) else {
+        guard ownedOutputDirectories.contains(where: {
+            ClipboardImageConversionFileService.isOwnedOutputURL(url, in: $0)
+        }) else {
             return
         }
         guard currentLease?.url.standardizedFileURL != url.standardizedFileURL else {
@@ -283,7 +300,7 @@ final class ClipboardWebPArtifactOwner {
     private func scheduleCleanupRetry() {
         guard !isTerminated, cleanupTimer == nil, cleanupRetryCount < 5 else {
             if cleanupRetryCount >= 5 {
-                onMessage("Couldn’t remove temporary WebP")
+                onMessage("Couldn’t remove temporary converted image")
             }
             return
         }

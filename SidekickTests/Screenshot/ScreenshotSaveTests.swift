@@ -42,7 +42,7 @@ final class ScreenshotSaveTests: XCTestCase {
         let data = Data(repeating: 0xA5, count: 2 * 1_024 * 1_024)
         let cancellationChecks = ScreenshotWriteCancellationChecks()
         XCTAssertThrowsError(
-            try ClipboardWebPFileService.writeOutput(data, to: output, isCancelled: {
+            try ClipboardImageConversionFileService.writeOutput(data, to: output, isCancelled: {
                 cancellationChecks.shouldCancel()
             })
         ) { error in
@@ -264,11 +264,12 @@ final class ScreenshotSaveTests: XCTestCase {
             select: { _, _, _, _ in .selected(image) },
             onCopied: { XCTFail("Terminated save was reported as copied") },
             onFailure: { XCTFail("Terminated save reported stale failure: \($0)") },
-            prepareSave: { data, saveDirectory, baseName in
+            prepareSave: { data, saveDirectory, baseName, format in
                 let prepared = try ScreenshotSaveService.prepare(
                     pngData: data,
                     directory: saveDirectory,
                     baseName: baseName,
+                    format: format,
                     isCancelled: { false }
                 )
                 return await gate.suspend(prepared)
@@ -309,11 +310,12 @@ final class ScreenshotSaveTests: XCTestCase {
             select: { _, _, _, _ in .selected(image) },
             onCopied: { XCTFail("Stale clipboard was replaced") },
             onFailure: { failure = $0 },
-            prepareSave: { data, saveDirectory, baseName in
+            prepareSave: { data, saveDirectory, baseName, format in
                 let prepared = try ScreenshotSaveService.prepare(
                     pngData: data,
                     directory: saveDirectory,
                     baseName: baseName,
+                    format: format,
                     isCancelled: { false }
                 )
                 return await gate.suspend(prepared)

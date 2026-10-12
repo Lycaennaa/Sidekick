@@ -5,7 +5,7 @@ final class ScreenshotSettingsView: NSView {
     private let settings: AppSettings
     private let onCapture: () -> Void
     private let cursorSwitch = NSSwitch()
-    private let webPCopySwitch = NSSwitch()
+    private let outputFormatCopySwitch = NSSwitch()
 
     init(settings: AppSettings, onCapture: @escaping () -> Void) {
         self.settings = settings
@@ -23,15 +23,15 @@ final class ScreenshotSettingsView: NSView {
 
     func refresh() {
         cursorSwitch.state = settings.screenshotCursorIncludedByDefault ? .on : .off
-        webPCopySwitch.state = settings.screenshotCopyAsWebP ? .on : .off
+        outputFormatCopySwitch.state = settings.screenshotCopyAsOutputFormat ? .on : .off
     }
 
     @objc private func toggleCursor() {
         settings.screenshotCursorIncludedByDefault = cursorSwitch.state == .on
     }
 
-    @objc private func toggleWebPCopy() {
-        settings.screenshotCopyAsWebP = webPCopySwitch.state == .on
+    @objc private func toggleOutputFormatCopy() {
+        settings.screenshotCopyAsOutputFormat = outputFormatCopySwitch.state == .on
     }
 
     @objc private func captureDisplay() {
@@ -97,11 +97,11 @@ final class ScreenshotSettingsView: NSView {
         return row
     }
 
-    private func makeWebPCopyRow() -> NSView {
-        let title = NSTextField(labelWithString: "Copy screenshots as WebP")
+    private func makeOutputFormatCopyRow() -> NSView {
+        let title = NSTextField(labelWithString: "Copy screenshots in selected format")
         title.font = .systemFont(ofSize: 14, weight: .semibold)
         let detail = NSTextField(
-            wrappingLabelWithString: "Encode the selected screenshot with the WebP converter before copying."
+            wrappingLabelWithString: "Encode screenshots using the selected image output format before copying."
         )
         detail.textColor = .secondaryLabelColor
         let labels = NSStackView(views: [title, detail])
@@ -110,11 +110,11 @@ final class ScreenshotSettingsView: NSView {
         labels.spacing = 4
         labels.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        webPCopySwitch.target = self
-        webPCopySwitch.action = #selector(toggleWebPCopy)
-        webPCopySwitch.setAccessibilityLabel("Copy screenshots as WebP")
+        outputFormatCopySwitch.target = self
+        outputFormatCopySwitch.action = #selector(toggleOutputFormatCopy)
+        outputFormatCopySwitch.setAccessibilityLabel("Copy screenshots in selected format")
 
-        let row = NSStackView(views: [labels, webPCopySwitch])
+        let row = NSStackView(views: [labels, outputFormatCopySwitch])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 18
@@ -140,7 +140,7 @@ final class ScreenshotSettingsView: NSView {
             makeSeparator(),
             makeCursorRow(),
             makeSeparator(),
-            makeWebPCopyRow()
+            makeOutputFormatCopyRow()
         ])
         stack.orientation = .vertical
         configureSettingsPageStack(stack)

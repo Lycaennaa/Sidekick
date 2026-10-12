@@ -66,7 +66,7 @@ extension AppDelegate {
 
     func updateScreenshotSaveAndCopyHotKey(_ shortcut: GlobalHotKey.Shortcut) -> Bool {
         guard !shortcut.conflictsWithApplicationMenuShortcut else { return false }
-        guard !shortcut.hasSameChord(as: .webPClipboard),
+        guard !shortcut.hasSameChord(as: .clipboardImageConversion),
               !shortcut.hasSameChord(as: .cleanMarkdown) else {
             return false
         }
@@ -87,12 +87,12 @@ extension AppDelegate {
         isScreenshotSaveAndCopyHotKeyRecording = isRecording
         if isRecording {
             screenshotSaveAndClipboardHotKey?.stop()
-            clipboardWebPHotKey?.stop()
+            clipboardImageConversionHotKey?.stop()
             clipboardMarkdownHotKey?.stop()
             return
         }
         guard !isTerminating else { return }
-        syncWebPClipboardConverter()
+        syncImageConversionHotKey()
         syncMarkdownHotKey()
         startScreenshotSaveAndClipboardHotKey()
     }

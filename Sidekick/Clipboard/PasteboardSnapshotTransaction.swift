@@ -199,6 +199,8 @@ final class PasteboardTransactionCoordinator: PasteboardOwnershipTransaction {
         expectedItems: [NSPasteboardItem],
         configuration: PasteboardSnapshot.ContentMatchConfiguration
     ) async -> Bool {
+        // Live provider reads verify current content against the captured rollback data.
+        // The snapshot is the expected value, not evidence that the clipboard still matches it.
         await PasteboardSnapshot.contentsMatch(
             currentItems: pasteboard.pasteboardItems,
             expectedItems: expectedItems,
