@@ -1,6 +1,5 @@
 import AppKit
 import CoreGraphics
-import ScreenCaptureKit
 enum ScreenshotAspectRatio: String, CaseIterable {
     case free = "Free"
     case square = "1:1"
@@ -83,26 +82,19 @@ enum ScreenshotSelectionChoice {
     case saveAndCopy(CGImage)
     case copiedPixelValue(String)
     case copyPixelValues(String)
-    case windowSelected(CGWindowID)
-    case saveAndCopyWindow(CGWindowID)
     case cancelled
     case displayUnavailable
     case cropFailed
-    case windowUnavailable
 }
 
 @MainActor
 enum ScreenshotSelectionOverlay {
     private struct ChoiceContext {
-        let screenshot: CapturedDisplayScreenshot
-        let showsCursor: Bool
         let view: ScreenshotSelectionView
     }
 
     static func select(
         _ screenshot: CapturedDisplayScreenshot,
-        showsCursor: Bool,
-        captureWindow: ScreenshotWindowCapture,
         copyPixelValues: ScreenshotPixelValueCopy
     ) async -> ScreenshotSelectionResult {
         guard let screen = NSScreen.screens.first(where: { $0.screenshotDisplayID == screenshot.displayID }),
@@ -124,8 +116,7 @@ enum ScreenshotSelectionOverlay {
         window.acceptsMouseMovedEvents = true
         let view = ScreenshotSelectionView(
             frame: NSRect(origin: .zero, size: screenshot.screenFrame.size),
-            image: screenshot.image,
-            windowTargets: screenshot.windowTargets
+            image: screenshot.image
         )
         let (choices, continuation) = AsyncStream<ScreenshotSelectionChoice>.makeStream(
             bufferingPolicy: .bufferingOldest(2)
@@ -139,13 +130,12 @@ enum ScreenshotSelectionOverlay {
             view.choiceContinuation = nil
             window.orderOut(nil)
         }
-        let context = ChoiceContext(screenshot: screenshot, showsCursor: showsCursor, view: view)
+        let context = ChoiceContext(view: view)
         let selectionResult: ScreenshotSelectionResult = await withTaskCancellationHandler {
             for await choice in choices {
                 if let result = await resultForChoice(
                     for: choice,
                     context: context,
-                    captureWindow: captureWindow,
                     copyPixelValues: copyPixelValues
                 ) {
                     return result
@@ -161,7 +151,6 @@ enum ScreenshotSelectionOverlay {
     private static func resultForChoice(
         for choice: ScreenshotSelectionChoice,
         context: ChoiceContext,
-        captureWindow: ScreenshotWindowCapture,
         copyPixelValues: ScreenshotPixelValueCopy
     ) async -> ScreenshotSelectionResult? {
         switch choice {
@@ -170,21 +159,7 @@ enum ScreenshotSelectionOverlay {
         case let .copyOnly(image):
             return .copyOnly(image)
         case let .saveAndCopy(image):
-            return .saveAndCopy(image, windowTitle: nil)
-        case let .windowSelected(windowID):
-            return await captureSelectedWindow(
-                windowID: windowID,
-                context: context,
-                capture: captureWindow,
-                forceSave: false
-            )
-        case let .saveAndCopyWindow(windowID):
-            return await captureSelectedWindow(
-                windowID: windowID,
-                context: context,
-                capture: captureWindow,
-                forceSave: true
-            )
+            return .saveAndCopy(image)
         default:
             return simpleResult(for: choice)
         }
@@ -201,28 +176,6 @@ enum ScreenshotSelectionOverlay {
         return nil
     }
 
-    private static func captureSelectedWindow(
-        windowID: CGWindowID,
-        context: ChoiceContext,
-        capture: ScreenshotWindowCapture,
-        forceSave: Bool
-    ) async -> ScreenshotSelectionResult {
-        guard let target = context.screenshot.windowTargets?.first(where: { $0.windowID == windowID }),
-              target.isSelectable else {
-            return .windowUnavailable
-        }
-        context.view.beginWindowCapture(target)
-        do {
-            let image = try await capture(target, context.showsCursor)
-            guard !Task.isCancelled else { return .cancelled }
-            return forceSave
-                ? .saveAndCopy(image, windowTitle: target.window?.title)
-                : .selectedWindow(image, windowTitle: target.window?.title)
-        } catch {
-            return Task.isCancelled ? .cancelled : .windowCaptureFailed
-        }
-    }
-
     private static func simpleResult(for choice: ScreenshotSelectionChoice) -> ScreenshotSelectionResult? {
         switch choice {
         case let .selected(image):
@@ -235,9 +188,7 @@ enum ScreenshotSelectionOverlay {
             return .displayUnavailable
         case .cropFailed:
             return .cropFailed
-        case .windowUnavailable:
-            return .windowUnavailable
-        case .copyOnly, .saveAndCopy, .saveAndCopyWindow, .copyPixelValues, .windowSelected:
+        case .copyOnly, .saveAndCopy, .copyPixelValues:
             return nil
         }
     }

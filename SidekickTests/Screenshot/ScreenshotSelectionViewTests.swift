@@ -113,8 +113,7 @@ final class ScreenshotSelectionViewTests: XCTestCase {
     private func makeView(image: CGImage) -> ScreenshotSelectionView {
         ScreenshotSelectionView(
             frame: NSRect(x: 0, y: 0, width: 400, height: 400),
-            image: image,
-            windowTargets: nil
+            image: image
         )
     }
 

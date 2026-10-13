@@ -357,11 +357,11 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.screenshotSaveDirectoryURL, AppSettings.defaultScreenshotSaveDirectoryURL)
         XCTAssertEqual(settings.screenshotFilenameTemplate, AppSettings.defaultScreenshotFilenameTemplate)
         settings.screenshotSaveDirectoryURL = directory
-        settings.screenshotFilenameTemplate = "Shot_{date}_{windowTitle}"
+        settings.screenshotFilenameTemplate = "Shot_{date}_{time}"
 
         let restored = AppSettings(defaults: defaults)
         XCTAssertEqual(restored.screenshotSaveDirectoryURL.path, directory.standardizedFileURL.path)
-        XCTAssertEqual(restored.screenshotFilenameTemplate, "Shot_{date}_{windowTitle}")
+        XCTAssertEqual(restored.screenshotFilenameTemplate, "Shot_{date}_{time}")
         XCTAssertEqual(changeCount, 2)
     }
     private var defaultsSuiteName: String {

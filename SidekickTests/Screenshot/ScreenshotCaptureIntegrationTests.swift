@@ -58,7 +58,7 @@ final class ScreenshotCaptureIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in .cancelled },
+            select: { _, _ in .cancelled },
             onCopied: { copied = true },
             onFailure: { failure = $0 }
         )
@@ -73,11 +73,6 @@ final class ScreenshotCaptureIntegrationTests: XCTestCase {
 
     func testScreenshotWritesPNGToRealPasteboard() async throws {
         let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
-        let target = ScreenshotWindowTarget(
-            windowID: 77,
-            bounds: CGRect(x: 20, y: 30, width: 40, height: 50),
-            layer: 0
-        )
         let pasteboard = NSPasteboard(name: NSPasteboard.Name("ScreenshotWriter-\(UUID().uuidString)"))
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.setString("prior clipboard value", forType: .string))
@@ -91,17 +86,7 @@ final class ScreenshotCaptureIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            captureWindow: { selected, _ in
-                XCTAssertEqual(selected.windowID, target.windowID)
-                return image
-            },
-            select: { _, showsCursor, windowCapture, _ in
-                do {
-                    return .selected(try await windowCapture(target, showsCursor))
-                } catch {
-                    return .windowCaptureFailed
-                }
-            },
+            select: { _, _ in .selected(image) },
             metadataRegistry: metadataRegistry,
             onCopied: { copied = true },
             onFailure: { failure = $0 }
@@ -133,7 +118,7 @@ final class ScreenshotCaptureIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in try await gate.capture() },
-            select: { screenshot, _, _, _ in .selected(screenshot.image) },
+            select: { screenshot, _ in .selected(screenshot.image) },
             onCopied: { XCTFail("Stale screenshot replaced the clipboard") },
             onFailure: { failure = $0 }
         )
@@ -160,7 +145,7 @@ final class ScreenshotCaptureIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in try await gate.capture() },
-            select: { screenshot, _, _, _ in .selected(screenshot.image) },
+            select: { screenshot, _ in .selected(screenshot.image) },
             onCopied: { copied = true },
             onFailure: { failure = $0 }
         )
@@ -231,7 +216,7 @@ final class ScreenshotCaptureIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            select: { screenshot, _, _, _ in .selected(screenshot.image) },
+            select: { screenshot, _ in .selected(screenshot.image) },
             metadataRegistry: ScreenshotClipboardMetadataRegistry(),
             payloadReader: reader,
             onCopied: { XCTFail("Cancelled screenshot was reported as copied") },

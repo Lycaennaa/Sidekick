@@ -59,7 +59,7 @@ final class ScreenshotSaveTests: XCTestCase {
     func testSavePlusCopyWritesWebPAndSelectedPNGToRealPasteboard() async throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let configuration = try makeSettings(directory: directory, template: "Screen-{windowTitle}")
+        let configuration = try makeSettings(directory: directory, template: "Screen")
         defer { configuration.defaults.removePersistentDomain(forName: configuration.suiteName) }
         let sourcePNG = try pngData(width: 8, height: 4)
         let source = try XCTUnwrap(CGImageSourceCreateWithData(sourcePNG as CFData, nil))
@@ -77,7 +77,7 @@ final class ScreenshotSaveTests: XCTestCase {
             pasteboard: pasteboard,
             settings: configuration.settings,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            select: { _, _, _, _ in .selectedWindow(image, windowTitle: "Editor/Window") },
+            select: { _, _ in .saveAndCopy(image) },
             onCopied: { XCTFail("Save-plus-copy used copy-only completion") },
             onFailure: { failure = $0 },
             onSavedAndCopied: { savedURL = $0 }
@@ -86,7 +86,7 @@ final class ScreenshotSaveTests: XCTestCase {
         await controller.copyActiveDisplayToClipboard(mode: .saveAndCopy)
 
         let outputURL = try XCTUnwrap(savedURL)
-        XCTAssertEqual(outputURL.lastPathComponent, "Screen-Editor-Window.webp")
+        XCTAssertEqual(outputURL.lastPathComponent, "Screen.webp")
         XCTAssertNil(failure)
         XCTAssertNotNil(pasteboard.data(forType: .png))
         XCTAssertNil(pasteboard.string(forType: .string))
@@ -116,7 +116,7 @@ final class ScreenshotSaveTests: XCTestCase {
             pasteboard: pasteboard,
             settings: configuration.settings,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in .saveAndCopy(image, windowTitle: nil) },
+            select: { _, _ in .saveAndCopy(image) },
             onCopied: { XCTFail("Explicit save action used copy-only completion") },
             onFailure: { failure = $0 },
             onSavedAndCopied: { savedURL = $0 }
@@ -147,7 +147,7 @@ final class ScreenshotSaveTests: XCTestCase {
             pasteboard: pasteboard,
             settings: configuration.settings,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in .copyOnly(image) },
+            select: { _, _ in .copyOnly(image) },
             onCopied: { copied = true },
             onFailure: { failure = $0 },
             onSavedAndCopied: { _ in XCTFail("HUD copy-only action saved a file") }
@@ -178,7 +178,7 @@ final class ScreenshotSaveTests: XCTestCase {
             pasteboard: pasteboard,
             settings: configuration.settings,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in .selected(image) },
+            select: { _, _ in .selected(image) },
             payloadReader: InlinePasteboardPayloadReader(),
             onCopied: { XCTFail("Stale clipboard was reported as copied") },
             onFailure: { failure = $0 },
@@ -207,7 +207,7 @@ final class ScreenshotSaveTests: XCTestCase {
             pasteboard: pasteboard,
             settings: configuration.settings,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in .selected(image) },
+            select: { _, _ in .selected(image) },
             payloadReader: InlinePasteboardPayloadReader(),
             onCopied: { XCTFail("Clipboard restore failure was reported as copied") },
             onFailure: { failure = $0 },
@@ -236,7 +236,7 @@ final class ScreenshotSaveTests: XCTestCase {
             pasteboard: pasteboard,
             settings: configuration.settings,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in .selected(image) },
+            select: { _, _ in .selected(image) },
             onCopied: { XCTFail("Failed save was reported as copied") },
             onFailure: { failure = $0 }
         )
@@ -261,7 +261,7 @@ final class ScreenshotSaveTests: XCTestCase {
             pasteboard: pasteboard,
             settings: configuration.settings,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in .selected(image) },
+            select: { _, _ in .selected(image) },
             onCopied: { XCTFail("Terminated save was reported as copied") },
             onFailure: { XCTFail("Terminated save reported stale failure: \($0)") },
             prepareSave: { data, saveDirectory, baseName, format in
@@ -307,7 +307,7 @@ final class ScreenshotSaveTests: XCTestCase {
             pasteboard: pasteboard,
             settings: configuration.settings,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in .selected(image) },
+            select: { _, _ in .selected(image) },
             onCopied: { XCTFail("Stale clipboard was replaced") },
             onFailure: { failure = $0 },
             prepareSave: { data, saveDirectory, baseName, format in

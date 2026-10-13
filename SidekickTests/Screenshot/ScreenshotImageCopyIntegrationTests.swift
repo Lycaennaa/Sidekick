@@ -24,7 +24,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
             pasteboard: pasteboard,
             settings: settings,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            select: { _, _, _, _ in .selected(image) },
+            select: { _, _ in .selected(image) },
             onCopied: { copied = true },
             onFailure: { failure = $0 }
         )
@@ -69,7 +69,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
             pasteboard: pasteboard,
             settings: settings,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            select: { _, _, _, _ in .selected(image) },
+            select: { _, _ in .selected(image) },
             onCopied: { XCTFail("Save-and-copy used copy-only completion") },
             onFailure: { failure = $0 },
             onSavedAndCopied: { savedURL = $0 },
@@ -111,7 +111,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
             pasteboard: pasteboard,
             settings: settings,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            select: { _, _, _, _ in .selected(image) },
+            select: { _, _ in .selected(image) },
             payloadReader: InlinePasteboardPayloadReader(),
             onCopied: { copied = true },
             onFailure: { failure = $0 },
@@ -149,7 +149,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
             pasteboard: pasteboard,
             settings: settings,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            select: { _, _, _, _ in .selected(image) },
+            select: { _, _ in .selected(image) },
             onCopied: { XCTFail("Failed image encoding was reported as copied") },
             onFailure: { failure = $0 },
             prepareClipboardImage: { _, _ in throw ClipboardImageConversionError.cannotEncode }

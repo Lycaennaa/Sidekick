@@ -5,25 +5,23 @@ import XCTest
 
 @MainActor
 final class ScreenshotSaveValidationTests: XCTestCase {
-    func testFilenameTemplateExpandsDateTimeAndOptionalWindowTitle() throws {
+    func testFilenameTemplateExpandsDateTimeAndIgnoresLegacyWindowTitle() throws {
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let date = Date(timeIntervalSince1970: 0)
 
-        let titled = ScreenshotFilenameTemplate.baseName(
-            template: "Shot_{date}_{time}_{windowTitle}",
+        let expanded = ScreenshotFilenameTemplate.baseName(
+            template: "Shot_{date}_{time}",
             date: date,
-            windowTitle: "Editor/Window: Main",
             timeZone: timeZone
         )
-        let withoutTitle = ScreenshotFilenameTemplate.baseName(
+        let legacyTemplate = ScreenshotFilenameTemplate.baseName(
             template: "Shot_{date}_{windowTitle}",
             date: date,
-            windowTitle: nil,
             timeZone: timeZone
         )
 
-        XCTAssertEqual(titled, "Shot_1970-01-01_00-00-00_Editor-Window- Main")
-        XCTAssertEqual(withoutTitle, "Shot_1970-01-01")
+        XCTAssertEqual(expanded, "Shot_1970-01-01_00-00-00")
+        XCTAssertEqual(legacyTemplate, "Shot_1970-01-01")
         XCTAssertFalse(ScreenshotFilenameTemplate.sanitizedBaseName("../../Screenshots/../Desktop").contains("/"))
     }
 

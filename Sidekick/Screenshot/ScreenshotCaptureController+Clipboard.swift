@@ -46,7 +46,7 @@ extension ScreenshotCaptureController {
         preparedOutputFormatData: Data?
     ) async throws -> SelectedClipboardItem {
         guard copyAsOutputFormat,
-              case let .screenshot(pngData, _, _) = selection.content else {
+              case let .screenshot(pngData, _) = selection.content else {
             return selection
         }
 
@@ -156,7 +156,6 @@ extension ScreenshotCaptureController {
 extension ScreenshotCaptureController {
     func makeScreenshotItem(
         from image: CGImage,
-        windowTitle: String?,
         delivery: ScreenshotCaptureMode
     ) -> SelectedClipboardItem? {
         guard let pngData = ScreenshotPNGEncoder.encode(image) else {
@@ -170,7 +169,7 @@ extension ScreenshotCaptureController {
         }
         return SelectedClipboardItem(
             item: item,
-            content: .screenshot(pngData, windowTitle, delivery)
+            content: .screenshot(pngData, delivery)
         )
     }
 
@@ -185,13 +184,11 @@ extension ScreenshotCaptureController {
     ) -> SelectedClipboardItem? {
         switch result {
         case let .copyOnly(image):
-            return makeScreenshotItem(from: image, windowTitle: nil, delivery: .copy)
-        case let .saveAndCopy(image, windowTitle):
-            return makeScreenshotItem(from: image, windowTitle: windowTitle, delivery: .saveAndCopy)
+            return makeScreenshotItem(from: image, delivery: .copy)
+        case let .saveAndCopy(image):
+            return makeScreenshotItem(from: image, delivery: .saveAndCopy)
         case let .selected(image):
-            return makeScreenshotItem(from: image, windowTitle: nil, delivery: delivery)
-        case let .selectedWindow(image, windowTitle):
-            return makeScreenshotItem(from: image, windowTitle: windowTitle, delivery: delivery)
+            return makeScreenshotItem(from: image, delivery: delivery)
         case let .copiedPixelValue(value):
             let item = NSPasteboardItem()
             guard item.setString(value, forType: .string) else {
@@ -202,7 +199,7 @@ extension ScreenshotCaptureController {
         case .cancelled:
             activeRequestID = nil
             return nil
-        case .displayUnavailable, .cropFailed, .windowUnavailable, .windowCaptureFailed:
+        case .displayUnavailable, .cropFailed:
             guard let failure = selectionFailure(for: result) else { return nil }
             failSelection(with: failure)
             return nil
@@ -215,10 +212,6 @@ extension ScreenshotCaptureController {
             return .selectionDisplayUnavailable
         case .cropFailed:
             return .selectionCropFailed
-        case .windowUnavailable:
-            return .selectionWindowUnavailable
-        case .windowCaptureFailed:
-            return .windowCapture
         default:
             return nil
         }

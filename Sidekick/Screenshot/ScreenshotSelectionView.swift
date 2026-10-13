@@ -1,13 +1,8 @@
 import AppKit
 import CoreGraphics
 final class ScreenshotSelectionView: NSView {
-    private enum Mode {
-        case region
-        case window
-    }
 
     private let image: CGImage
-    private let windowTargets: [ScreenshotWindowTarget]?
     private let inspectionHUD: ScreenshotPixelInspectionHUD
     private let imageLayer = CALayer()
     private let shadeLayer = CALayer()
@@ -15,22 +10,17 @@ final class ScreenshotSelectionView: NSView {
     private let selectionBorder = CAShapeLayer()
     private let cursorRulerLayer = CAShapeLayer()
     private let instructionLayer = CATextLayer()
-    private var mode = Mode.region
     private var selectionAspectRatio = ScreenshotAspectRatio.free
     private var dragStart: NSPoint?
     private var cursorPoint: NSPoint?
     private var selection = NSRect.zero
-    private var hoveredWindow: ScreenshotWindowTarget?
-    private var selectedWindowTarget: ScreenshotWindowTarget?
     private let saveAndCopyButton = NSButton(title: "Save & Copy", target: nil, action: nil)
     var choiceContinuation: AsyncStream<ScreenshotSelectionChoice>.Continuation?
     private var hasFinishedSelection = false
     private var isCopyingPixelValues = false
-    private var isCapturingWindow = false
 
-    init(frame: NSRect, image: CGImage, windowTargets: [ScreenshotWindowTarget]?) {
+    init(frame: NSRect, image: CGImage) {
         self.image = image
-        self.windowTargets = windowTargets
         inspectionHUD = ScreenshotPixelInspectionHUD(image: image)
         super.init(frame: frame)
         wantsLayer = true
@@ -61,7 +51,7 @@ final class ScreenshotSelectionView: NSView {
 
         instructionLayer.string = [
             "C copies area (full screen if none) • Shift-C pixel details • F full screen •",
-            "Drag region • W then click a window • Save & Copy • Return • Esc"
+            "Drag region • Save & Copy • Return • Esc"
         ].joined(separator: " ")
         instructionLayer.font = NSFont.systemFont(ofSize: 14)
         instructionLayer.fontSize = 14
@@ -86,19 +76,12 @@ final class ScreenshotSelectionView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard !isCapturingWindow else { return }
         let point = convert(event.locationInWindow, from: nil)
         cursorPoint = point
-        if mode == .window {
-            guard selectedWindowTarget == nil else { return }
-            updateHoveredWindow(at: point)
-        } else {
-            updateSelectionLayers()
-        }
+        updateSelectionLayers()
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard !isCapturingWindow else { return }
         let point = convert(event.locationInWindow, from: nil)
         cursorPoint = point
         updateSelectionLayers()
@@ -108,31 +91,13 @@ final class ScreenshotSelectionView: NSView {
             }
             return
         }
-        if mode == .window {
-            switch ScreenshotWindowTargeting.selection(at: point, from: windowTargets ?? []) {
-            case .none:
-                selectedWindowTarget = nil
-                hoveredWindow = nil
-                selection = .zero
-                updateSelectionLayers()
-            case .unavailable:
-                send(.windowUnavailable)
-            case let .selected(target):
-                selectedWindowTarget = target
-                hoveredWindow = target
-                selection = target.bounds
-                updateSelectionLayers()
-            }
-            return
-        }
-        selectedWindowTarget = nil
         dragStart = point
         selection = .zero
         updateSelectionLayers()
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard !isCapturingWindow, mode == .region, let dragStart else { return }
+        guard let dragStart else { return }
         let point = convert(event.locationInWindow, from: nil)
         cursorPoint = point
         selection = selectionAspectRatio.selectionRect(
@@ -145,7 +110,7 @@ final class ScreenshotSelectionView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard !isCapturingWindow, mode == .region, let dragStart else { return }
+        guard let dragStart else { return }
         let end = convert(event.locationInWindow, from: nil)
         cursorPoint = end
         let rect = selectionAspectRatio.selectionRect(
@@ -194,14 +159,11 @@ final class ScreenshotSelectionView: NSView {
     }
 
     private func handleKeyAction(_ event: NSEvent) -> Bool {
-        guard !isCapturingWindow else { return true }
         if handlePixelCopyKey(event) { return true }
         switch event.keyCode {
         case 3: finishFullDisplay()
         case 0 where event.modifierFlags.contains(.shift): cycleAspectRatio(reverse: true)
         case 0: cycleAspectRatio()
-        case 13: selectWindowMode()
-        case 15: selectRegionMode()
         case 36, 76: acceptSelection()
         case 53: send(.cancelled)
         default: return false
@@ -221,63 +183,11 @@ final class ScreenshotSelectionView: NSView {
         }
     }
 
-    private func selectWindowMode() {
-        guard let windowTargets, !windowTargets.isEmpty else {
-            send(.windowUnavailable)
-            return
-        }
-        mode = .window
-        instructionLayer.string = [
-            "C copies the selected area • Shift-C pixel details • F full screen •",
-            "Click window • R region • Save & Copy button • Return • Esc"
-        ].joined(separator: " ")
-        selectedWindowTarget = nil
-        selection = .zero
-        hoveredWindow = nil
-        updateSelectionLayers()
-    }
-    func beginWindowCapture(_ target: ScreenshotWindowTarget) {
-        isCapturingWindow = true
-        mode = .window
-        selection = target.bounds
-        hoveredWindow = target
-        selectedWindowTarget = target
-        instructionLayer.string = "Capturing selected window…"
-        updateSelectionLayers()
-    }
-
-    private func selectRegionMode() {
-        mode = .region
-        instructionLayer.string = [
-            "C copies the selected area • Shift-C pixel details • F full screen •",
-            "Drag region • Hover pixels • W windows • Save & Copy button • Return • Esc"
-        ].joined(separator: " ")
-        selectedWindowTarget = nil
-        selection = .zero
-        hoveredWindow = nil
-        updateSelectionLayers()
-    }
-
-    private func updateHoveredWindow(at point: NSPoint) {
-        hoveredWindow = windowTargets?.first(where: { $0.bounds.contains(point) })
-        selection = hoveredWindow?.bounds ?? .zero
-        updateSelectionLayers()
-    }
-
     private func acceptSelection(forceSaveAndCopy: Bool = false) {
-        if let selectedWindowTarget {
-            let selectionChoice = forceSaveAndCopy
-                ? ScreenshotSelectionChoice.saveAndCopyWindow(selectedWindowTarget.windowID)
-                : .windowSelected(selectedWindowTarget.windowID)
-            send(selectionChoice)
-            return
-        }
         finishSelection(selection.isEmpty ? bounds : selection, forceSaveAndCopy: forceSaveAndCopy)
     }
 
     private func finishFullDisplay() {
-        selectedWindowTarget = nil
-        hoveredWindow = nil
         selection = bounds
         updateSelectionLayers()
         finishSelection(bounds)
@@ -330,9 +240,7 @@ final class ScreenshotSelectionView: NSView {
         CATransaction.setDisableActions(true)
         shadeMask.path = path
         selectionBorder.path = selection.isEmpty ? nil : CGPath(rect: selection, transform: nil)
-        selectionBorder.strokeColor = hoveredWindow.map {
-            $0.isSelectable ? NSColor.white.cgColor : NSColor.systemRed.cgColor
-        } ?? NSColor.white.cgColor
+        selectionBorder.strokeColor = NSColor.white.cgColor
         CATransaction.commit()
         let rulerPoint = currentRulerPoint()
         updateCursorRulers(at: rulerPoint)
@@ -350,7 +258,7 @@ final class ScreenshotSelectionView: NSView {
 
     private func currentRulerPoint() -> CGPoint? {
         guard let cursorPoint else { return nil }
-        guard mode == .region, let dragStart, !selection.isEmpty else { return cursorPoint }
+        guard let dragStart, !selection.isEmpty else { return cursorPoint }
         return selectionAspectRatio.selectionCorner(from: dragStart, to: cursorPoint, selection: selection)
     }
 

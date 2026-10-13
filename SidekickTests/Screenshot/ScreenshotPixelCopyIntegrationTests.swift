@@ -28,7 +28,7 @@ final class ScreenshotPixelCopyIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            select: { _, _, _, copyPixelValues in
+            select: { _, copyPixelValues in
                 copySucceeded = await copyPixelValues(copiedValues)
                 return .cancelled
             },
@@ -64,7 +64,7 @@ final class ScreenshotPixelCopyIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            select: { screenshot, _, _, copyPixelValues in
+            select: { screenshot, copyPixelValues in
                 copySucceeded = await copyPixelValues("Pixel: 0, 0\nHEX: #000000")
                 return .selected(screenshot.image)
             },
@@ -93,7 +93,7 @@ final class ScreenshotPixelCopyIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in screenshot },
-            select: { _, _, _, copyPixelValues in
+            select: { _, copyPixelValues in
                 pasteboard.replaceContents("newer clipboard value")
                 copySucceeded = await copyPixelValues("Pixel: 0, 0\nHEX: #3366CC")
                 return .cancelled
@@ -121,7 +121,7 @@ final class ScreenshotPixelCopyIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in
+            select: { _, _ in
                 pasteboard.replaceContents("newer clipboard value")
                 return .cancelled
             },
@@ -146,7 +146,7 @@ final class ScreenshotPixelCopyIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in screenshot },
-            select: { _, _, _, _ in await gate.select() },
+            select: { _, _ in await gate.select() },
             onCopied: { XCTFail("Pixel-value selection must not report an image copy") },
             onPixelValueCopied: { copied = true },
             onFailure: { failure = $0 }
@@ -183,7 +183,7 @@ final class ScreenshotPixelCopyIntegrationTests: XCTestCase {
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             capture: { _ in screenshot },
-            select: { _, _, _, copyPixelValues in
+            select: { _, copyPixelValues in
                 copySucceeded = await copyPixelValues("Pixel: 0, 0\nHEX: #000000")
                 return .cancelled
             },

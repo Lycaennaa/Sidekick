@@ -9,28 +9,19 @@ enum ScreenshotCaptureMode: Sendable, Equatable {
 enum ScreenshotSelectionResult {
     case selected(CGImage)
     case copyOnly(CGImage)
-    case saveAndCopy(CGImage, windowTitle: String?)
-    case selectedWindow(CGImage, windowTitle: String?)
+    case saveAndCopy(CGImage)
     case copiedPixelValue(String)
     case cancelled
     case displayUnavailable
     case cropFailed
-    case windowUnavailable
-    case windowCaptureFailed
 }
 
 typealias ScreenshotPixelValueCopy = @MainActor (String) async -> Bool
 
 enum ScreenshotCaptureFailurePresentation {
-    static func permissionAwareCaptureMessage(
-        screenRecordingAllowed: Bool,
-        isWindowCapture: Bool = false
-    ) -> String {
+    static func permissionAwareCaptureMessage(screenRecordingAllowed: Bool) -> String {
         guard screenRecordingAllowed else {
             return "Allow Screen Recording for Sidekick in System Settings, then retry."
-        }
-        if isWindowCapture {
-            return "Couldn’t capture the selected window; choose another window or region."
         }
         return "Couldn’t capture the display."
     }
@@ -42,8 +33,6 @@ enum ScreenshotCaptureFailurePresentation {
         .encoding: "Couldn’t prepare the selected content for the clipboard.",
         .selectionDisplayUnavailable: "The captured display changed before selection; retry the screenshot.",
         .selectionCropFailed: "Couldn’t create the selected screenshot; try again.",
-        .selectionWindowUnavailable:
-            "That window is fully hidden or unavailable; choose an exposed portion or drag a region.",
         .save: "Couldn’t save screenshot. Check that the configured folder is available.",
         .savedButNotCopied: "Screenshot saved, but it could not be copied to the clipboard.",
         .savedButClipboardChanged: "Screenshot saved, but clipboard changed; newer clipboard contents were kept.",
@@ -58,11 +47,6 @@ enum ScreenshotCaptureFailurePresentation {
         switch failure {
         case .capture:
             return permissionAwareCaptureMessage(screenRecordingAllowed: screenRecordingAllowed())
-        case .windowCapture:
-            return permissionAwareCaptureMessage(
-                screenRecordingAllowed: screenRecordingAllowed(),
-                isWindowCapture: true
-            )
         default:
             return failureMessages[failure] ?? "Couldn’t complete the screenshot operation."
         }
@@ -70,7 +54,7 @@ enum ScreenshotCaptureFailurePresentation {
 }
 
 enum SelectedClipboardItemContent {
-    case screenshot(Data, String?, ScreenshotCaptureMode)
+    case screenshot(Data, ScreenshotCaptureMode)
     case pixelValue
 }
 
@@ -78,7 +62,6 @@ enum SelectedClipboardItemContent {
 final class ScreenshotCaptureController {
     enum Failure: Hashable {
         case capture
-        case windowCapture
         case clipboard
         case clipboardChanged
         case clipboardSnapshot
@@ -86,7 +69,6 @@ final class ScreenshotCaptureController {
         case encoding
         case selectionDisplayUnavailable
         case selectionCropFailed
-        case selectionWindowUnavailable
         case save
         case savedButNotCopied
         case savedButClipboardChanged
@@ -140,11 +122,8 @@ final class ScreenshotCaptureController {
     }
 
     typealias Capture = @MainActor (Bool) async throws -> CapturedDisplayScreenshot
-    typealias WindowCapture = ScreenshotWindowCapture
     typealias Select = @MainActor (
         CapturedDisplayScreenshot,
-        Bool,
-        WindowCapture,
         ScreenshotPixelValueCopy
     ) async -> ScreenshotSelectionResult
     typealias SavePreparation = @MainActor (
@@ -157,7 +136,6 @@ final class ScreenshotCaptureController {
 
     private let settings: AppSettings
     private let capture: Capture
-    private let captureWindow: WindowCapture
     private let select: Select
     let clipboardWriter: ScreenshotClipboardWriter
     let onCopied: () -> Void
@@ -178,9 +156,6 @@ final class ScreenshotCaptureController {
         capture: @escaping Capture = { showsCursor in
             try await ActiveDisplayScreenshotCapture.capture(showsCursor: showsCursor)
         },
-        captureWindow: @escaping WindowCapture = { target, showsCursor in
-            try await ActiveDisplayScreenshotCapture.captureWindow(target, showsCursor: showsCursor)
-        },
         select: Select? = nil,
         metadataRegistry: ScreenshotClipboardMetadataRegistry = ScreenshotClipboardMetadataRegistry(),
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader(),
@@ -198,12 +173,9 @@ final class ScreenshotCaptureController {
         )
         self.settings = settings
         self.capture = capture
-        self.captureWindow = captureWindow
-        self.select = select ?? { screenshot, showsCursor, windowCapture, copyPixelValues in
+        self.select = select ?? { screenshot, copyPixelValues in
             await ScreenshotSelectionOverlay.select(
                 screenshot,
-                showsCursor: showsCursor,
-                captureWindow: windowCapture,
                 copyPixelValues: copyPixelValues
             )
         }
@@ -247,7 +219,7 @@ final class ScreenshotCaptureController {
         ) else {
             return
         }
-        await selectAndCopy(screenshot, showsCursor: showsCursor, request: request)
+        await selectAndCopy(screenshot, request: request)
     }
 
     private func captureScreenshot(
@@ -276,10 +248,9 @@ final class ScreenshotCaptureController {
 
     private func selectAndCopy(
         _ screenshot: CapturedDisplayScreenshot,
-        showsCursor: Bool,
         request: RequestState
     ) async {
-        let result = await select(screenshot, showsCursor, captureWindow) { [weak self] value in
+        let result = await select(screenshot) { [weak self] value in
             guard let self else { return false }
             return await self.copyPixelValue(value, request: request)
         }
@@ -302,10 +273,9 @@ final class ScreenshotCaptureController {
         request: RequestState
     ) async -> SelectedClipboardItem? {
         var preparedOutputFormatData: Data?
-        if case let .screenshot(pngData, windowTitle, .saveAndCopy) = selection.content {
+        if case let .screenshot(pngData, .saveAndCopy) = selection.content {
             guard let savedData = await saveSelectedScreenshot(
                 pngData,
-                windowTitle: windowTitle,
                 request: request
             ) else { return nil }
             guard validateClipboardRequest(request) else { return nil }
@@ -346,7 +316,6 @@ final class ScreenshotCaptureController {
 
     private func saveSelectedScreenshot(
         _ pngData: Data,
-        windowTitle: String?,
         request: RequestState
     ) async -> Data? {
         guard activeRequestID == request.id else { return nil }
@@ -360,8 +329,7 @@ final class ScreenshotCaptureController {
         }
         let baseName = ScreenshotFilenameTemplate.baseName(
             template: request.filenameTemplate,
-            date: request.startedAt,
-            windowTitle: windowTitle
+            date: request.startedAt
         )
         pendingSaveRequestID = request.id
         do {

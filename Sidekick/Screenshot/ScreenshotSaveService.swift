@@ -6,7 +6,6 @@ nonisolated enum ScreenshotFilenameTemplate {
     static func baseName(
         template: String,
         date: Date,
-        windowTitle: String?,
         timeZone: TimeZone = .current
     ) -> String {
         let dateFormatter = DateFormatter()
@@ -21,7 +20,7 @@ nonisolated enum ScreenshotFilenameTemplate {
             template
                 .replacingOccurrences(of: "{date}", with: dateValue)
                 .replacingOccurrences(of: "{time}", with: timeValue)
-                .replacingOccurrences(of: "{windowTitle}", with: windowTitle ?? "")
+                .replacingOccurrences(of: "{windowTitle}", with: "")
         )
     }
 
