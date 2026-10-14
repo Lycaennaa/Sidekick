@@ -42,7 +42,9 @@ Prebuilt installation contacts `api.github.com` and downloads `desktop.asar` fro
 
 Preferences are stored in `UserDefaults`; the Twitch OAuth token is stored in the Keychain. Sidekick does not store clipboard text in a database.
 
-Sidekick runs without App Sandbox and operates with the signed-in user’s normal permissions. This allows its local clipboard and file utilities to work. The app does not record microphone audio.
+Sidekick’s main app runs without App Sandbox and has the signed-in user’s ordinary local-file access. The Finder Sync extension remains sandboxed with a temporary absolute-path read-only exception to resolve Finder targets. macOS privacy protections still apply. The app does not record microphone audio.
+
+Finder file creation is user initiated. The Finder Sync extension sends the target folder to Sidekick through a local URL request. After the user confirms a filename, the app creates that zero-byte file with coordinated exclusive creation; an existing item is never replaced. Cancel creates no file. Sidekick does not send file contents or names to its own or third-party services. If the user chooses a network-mounted folder, the remote filesystem receives the requested filename as part of creating the file.
 
 ## Deletion
 

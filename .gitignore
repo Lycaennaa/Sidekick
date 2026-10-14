@@ -25,3 +25,4 @@
 **/*.xcresult
 /dist/
 *.txt
+/.tmp/

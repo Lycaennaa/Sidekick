@@ -87,6 +87,17 @@ Sidekick's window selection and capture behavior was implemented independently, 
 - License URL: https://github.com/Equicord/Equilotl/blob/1a3d96276611c81b99e76428427e730c25aee119/LICENSE
 - Relationship: High-level install/restore behavior reference only. No Equilotl code or assets are included or copied. Equilotl injects Equicord into discord.
 
+## MacNewFile source reference
+
+Sidekick's Finder new-file behavior was informed by review of MacNewFile. Sidekick's implementation is written separately in Swift; no MacNewFile source files or assets are included. This project is not affiliated with or endorsed by MacNewFile.
+
+- Source: https://github.com/GarfieldFluffJr/MacNewFile/tree/9ae35d2986355cb4d13f04a497e32b6b105d4636
+- Version: v3.1.1
+- Reference revision: `9ae35d2986355cb4d13f04a497e32b6b105d4636`
+- License: GPL-3.0
+- License URL: https://github.com/GarfieldFluffJr/MacNewFile/blob/9ae35d2986355cb4d13f04a497e32b6b105d4636/LICENSE
+- Relationship: Source-informed behavior reference only.
+
 ## Equicord optional runtime release and source build
 
 - Project: [Equicord](https://github.com/Equicord/Equicord)

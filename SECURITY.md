@@ -2,7 +2,9 @@
 
 ## Security-sensitive behavior
 
-Sidekick runs without App Sandbox and has the signed-in user’s normal access to clipboard data and referenced local files. Screenshot capture is user initiated. Twitch tokens are stored in Keychain and sent to Twitch when the optional notification feature is used. Source builds fetch a public ClearURLs data file from GitLab; the installed app uses the bundled file and does not request rule updates.
+Sidekick’s main app runs without App Sandbox and has the signed-in user’s ordinary access to local files. The Finder Sync extension remains sandboxed with a temporary absolute-path read-only exception to resolve Finder targets. The local request displays the target path, and the app creates no file until the user confirms. Screenshot capture is user initiated. Twitch tokens are stored in Keychain and sent to Twitch when the optional notification feature is used. Source builds fetch a public ClearURLs data file from GitLab; the installed app uses the bundled file and does not request rule updates.
+
+The Finder Sync extension only offers its command inside configured monitored roots and forwards the target to Sidekick. The app creates the requested name only after user confirmation, using coordinated exclusive creation so existing items are never replaced; cancel creates no file.
 
 [Equicord](https://github.com/Equicord/Equicord) is third-party code downloaded only after the user requests installation. It runs inside Discord with Discord's access to the signed-in user's data. Equicord is not affiliated with Discord or Sidekick.
 

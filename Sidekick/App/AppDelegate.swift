@@ -56,6 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startServices()
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        FinderNewFileRequestHandler.handle(urls)
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         twitchNotificationController?.retryAuthorizationIfNeeded()
     }

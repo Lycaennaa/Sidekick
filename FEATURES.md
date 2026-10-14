@@ -2,6 +2,10 @@
 
 Sidekick runs in the macOS menu bar and requires macOS 15 or later.
 
+## Finder
+
+- Create an empty file by right-clicking a folder or Finder background. Sidekick prompts for a filename and creates it in the target folder; cancel creates nothing.
+
 ## Clipboard
 
 - Show copied text, source app, and character, word, and token counts in clipboard toasts.

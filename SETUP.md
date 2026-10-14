@@ -17,6 +17,9 @@ Releases are ad-hoc signed and not notarized. macOS may warn or block launch. Ve
 ## Permissions and features
 
 - Approve Screen Recording when macOS requests it to use screenshot capture.
+- Enable Sidekick’s Finder Sync extension in macOS settings to add the “New File” command to Finder folder and background menus.
+- Finder Sync remains sandboxed with a temporary absolute-path read-only exception to identify Finder targets. Sidekick’s main app creates the requested file using the signed-in user’s permissions; macOS privacy protections still apply.
+- Choosing “New File” opens Sidekick’s filename prompt. Automation and Accessibility permissions are not required.
 - Clipboard toasts, URL cleaning, Markdown cleaning, image conversion (WebP or AVIF), and screenshot processing run locally. Choose the image format in Tools > Clipboard; screenshot results are copied to the pasteboard.
 - Microphone status reports activity and device/app names; Sidekick does not record audio.
 - Twitch notifications are optional. In Tools, save a public Twitch client ID for built-in sign-in or enter a token with `user:read:follows`. Tokens are stored in macOS Keychain and can be removed in Tools.

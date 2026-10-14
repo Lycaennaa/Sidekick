@@ -12,7 +12,9 @@ User-visible changes are listed here. No public release tag exists yet.
 - Exclude fully occluded windows and system UI from window capture, and require Screen Recording access.
 - GitHub Actions CI and a maintainer-dispatched release workflow for ZIP and DMG assets.
 - Build-time ClearURLs rules fetching with bundled, offline runtime processing.
+- Add a Finder context-menu command that opens Sidekick to create a zero-byte file after the user enters a name, without replacing existing items.
 
 ### Fixed
 
 - Reuse captured clipboard representations for rollback and preserve newer artifact ownership during async restoration.
+- Focus the filename field when the Finder prompt opens.
