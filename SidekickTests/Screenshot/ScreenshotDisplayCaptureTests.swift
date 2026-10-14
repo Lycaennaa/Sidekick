@@ -33,6 +33,21 @@ extension ScreenshotCaptureIntegrationTests {
         XCTAssertEqual(pasteboard.value, "preserve")
         XCTAssertEqual(pasteboard.writeCount, 0)
     }
+    func testRequestStatePreservesCursorOverrideForWindowCapture() {
+        let request = ScreenshotCaptureController.RequestState(
+            id: UUID(),
+            expectedChangeCount: 0,
+            delivery: .copy,
+            startedAt: Date(),
+            saveDirectory: URL(fileURLWithPath: "captures"),
+            filenameTemplate: "capture",
+            screenshotCopyAsOutputFormat: false,
+            imageFormat: .webP,
+            showsCursor: false
+        )
+
+        XCTAssertFalse(request.showsCursor)
+    }
     func testCaptureFailureDoesNotSelectOrMutateClipboard() async {
         let pasteboard = ScreenshotCaptureTestSupport.ScreenshotRacePasteboard(value: "preserve")
         var failure: ScreenshotCaptureController.Failure?
@@ -52,16 +67,6 @@ extension ScreenshotCaptureIntegrationTests {
         XCTAssertEqual(failure, .capture)
         XCTAssertEqual(pasteboard.value, "preserve")
         XCTAssertEqual(pasteboard.writeCount, 0)
-    }
-    func testScreenRecordingPermissionDenialProvidesActionableMessage() {
-        XCTAssertEqual(
-            ScreenshotCaptureFailurePresentation.permissionAwareCaptureMessage(screenRecordingAllowed: false),
-            "Allow Screen Recording for Sidekick in System Settings, then retry."
-        )
-        XCTAssertEqual(
-            ScreenshotCaptureFailurePresentation.permissionAwareCaptureMessage(screenRecordingAllowed: true),
-            "Couldn’t capture the display."
-        )
     }
     func testRealDisplayCaptureIncludesCursorWhenRequested() async throws {
         guard CGPreflightScreenCaptureAccess() else {

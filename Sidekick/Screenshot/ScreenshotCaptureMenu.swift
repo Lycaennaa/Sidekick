@@ -4,7 +4,9 @@ import AppKit
 final class ScreenshotCaptureMenu: NSObject {
     private let settings: AppSettings
     private let onCaptureScreenshot: (ScreenshotCaptureMode, Bool?) -> Void
+    private let onCaptureWindow: () -> Void
     private let captureItem = NSMenuItem(title: "Capture Display to Clipboard", action: nil, keyEquivalent: "")
+    private let captureWindowItem = NSMenuItem(title: "Capture Window to Clipboard", action: nil, keyEquivalent: "")
     private let saveAndCopyItem = NSMenuItem(
         title: "Save Screenshot and Copy",
         action: nil,
@@ -42,12 +44,19 @@ final class ScreenshotCaptureMenu: NSObject {
     )
     private weak var statusMenu: NSMenu?
 
-    init(settings: AppSettings, onCaptureScreenshot: @escaping (ScreenshotCaptureMode, Bool?) -> Void) {
+    init(
+        settings: AppSettings,
+        onCaptureScreenshot: @escaping (ScreenshotCaptureMode, Bool?) -> Void,
+        onCaptureWindow: @escaping () -> Void
+    ) {
         self.settings = settings
         self.onCaptureScreenshot = onCaptureScreenshot
+        self.onCaptureWindow = onCaptureWindow
         super.init()
 
         captureItem.action = #selector(captureUsingDefaultCursorSetting)
+        captureWindowItem.action = #selector(captureWindow)
+        captureWindowItem.target = self
         captureItem.target = self
         saveAndCopyItem.action = #selector(saveAndCopy)
         saveAndCopyItem.target = self
@@ -77,6 +86,7 @@ final class ScreenshotCaptureMenu: NSObject {
     func add(to menu: NSMenu) {
         statusMenu = menu
         menu.addItem(captureItem)
+        menu.addItem(captureWindowItem)
         menu.addItem(saveAndCopyItem)
         menu.addItem(.separator())
         menu.addItem(cursorOptionsItem)
@@ -90,6 +100,13 @@ final class ScreenshotCaptureMenu: NSObject {
 
     @objc func captureUsingDefaultCursorSetting() {
         capture(mode: .copy, cursorOverride: nil)
+    }
+
+    @objc func captureWindow() {
+        statusMenu?.cancelTracking()
+        DispatchQueue.main.async { [onCaptureWindow] in
+            onCaptureWindow()
+        }
     }
 
     @objc func saveAndCopy() {

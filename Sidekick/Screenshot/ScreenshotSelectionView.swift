@@ -50,7 +50,7 @@ final class ScreenshotSelectionView: NSView {
         layer?.addSublayer(cursorRulerLayer)
 
         instructionLayer.string = [
-            "C copies area (full screen if none) • Shift-C pixel details • F full screen •",
+            "W window • C copies area (full screen if none) • Shift-C pixel details • F full screen •",
             "Drag region • Save & Copy • Return • Esc"
         ].joined(separator: " ")
         instructionLayer.font = NSFont.systemFont(ofSize: 14)
@@ -161,6 +161,7 @@ final class ScreenshotSelectionView: NSView {
     private func handleKeyAction(_ event: NSEvent) -> Bool {
         if handlePixelCopyKey(event) { return true }
         switch event.keyCode {
+        case 13: send(.windowCapture)
         case 3: finishFullDisplay()
         case 0 where event.modifierFlags.contains(.shift): cycleAspectRatio(reverse: true)
         case 0: cycleAspectRatio()

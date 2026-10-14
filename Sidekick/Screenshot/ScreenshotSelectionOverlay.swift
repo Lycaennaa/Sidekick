@@ -82,6 +82,7 @@ enum ScreenshotSelectionChoice {
     case saveAndCopy(CGImage)
     case copiedPixelValue(String)
     case copyPixelValues(String)
+    case windowCapture
     case cancelled
     case displayUnavailable
     case cropFailed
@@ -182,6 +183,8 @@ enum ScreenshotSelectionOverlay {
             return .selected(image)
         case let .copiedPixelValue(value):
             return .copiedPixelValue(value)
+        case .windowCapture:
+            return .windowCapture
         case .cancelled:
             return .cancelled
         case .displayUnavailable:

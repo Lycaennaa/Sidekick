@@ -4,6 +4,26 @@ import XCTest
 
 @MainActor
 final class ScreenshotSelectionViewTests: XCTestCase {
+    func testWKeyOpensWindowSelection() async throws {
+        let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
+        let view = makeView(image: image)
+        let (choices, continuation) = AsyncStream<ScreenshotSelectionChoice>.makeStream(
+            bufferingPolicy: .bufferingOldest(1)
+        )
+        view.choiceContinuation = continuation
+        defer {
+            continuation.finish()
+            view.choiceContinuation = nil
+        }
+
+        view.keyDown(with: try keyEvent(keyCode: 13, character: "w"))
+
+        var iterator = choices.makeAsyncIterator()
+        guard case .windowCapture? = await iterator.next() else {
+            return XCTFail("W must switch the screenshot overlay to window selection")
+        }
+    }
+
     func testCKeyCopiesTheFrozenDisplayWhenNoAreaIsDrawn() async throws {
         let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
         let view = makeView(image: image)

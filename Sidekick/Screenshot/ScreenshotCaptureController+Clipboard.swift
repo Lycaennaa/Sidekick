@@ -196,6 +196,8 @@ extension ScreenshotCaptureController {
                 return nil
             }
             return SelectedClipboardItem(item: item, content: .pixelValue)
+        case .windowCapture:
+            return nil
         case .cancelled:
             activeRequestID = nil
             return nil

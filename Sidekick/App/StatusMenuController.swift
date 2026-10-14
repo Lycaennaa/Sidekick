@@ -91,6 +91,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         onShowTools: @escaping () -> Void,
         onCleanMarkdown: @escaping () -> Void,
         onCaptureScreenshot: @escaping (ScreenshotCaptureMode, Bool?) -> Void,
+        onCaptureWindow: @escaping () -> Void,
         onToggleTwitchNotifications: @escaping () -> Void,
         onPause: @escaping (TimeInterval?) -> Void,
         onResume: @escaping () -> Void,
@@ -102,7 +103,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         self.settings = settings
         self.screenshotCaptureMenu = ScreenshotCaptureMenu(
             settings: settings,
-            onCaptureScreenshot: onCaptureScreenshot
+            onCaptureScreenshot: onCaptureScreenshot,
+            onCaptureWindow: onCaptureWindow
         )
         self.clearURLsClipboardAvailable = clearURLsClipboardAvailable
         self.onShowTools = onShowTools

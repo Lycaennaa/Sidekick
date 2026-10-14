@@ -22,10 +22,14 @@ final class ScreenshotCaptureMenuTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
         invocations = []
-        let screenshotMenu = ScreenshotCaptureMenu(settings: settings) { [weak self] mode, cursorOverride in
-            self?.invocations.append((mode, cursorOverride))
-            self?.nextExpectation?.fulfill()
-        }
+        let screenshotMenu = ScreenshotCaptureMenu(
+            settings: settings,
+            onCaptureScreenshot: { [weak self] mode, cursorOverride in
+                self?.invocations.append((mode, cursorOverride))
+                self?.nextExpectation?.fulfill()
+            },
+            onCaptureWindow: {}
+        )
         let menu = NSMenu()
         screenshotMenu.add(to: menu)
         let cursorItem = try XCTUnwrap(menu.items.first { $0.title == "Screenshot Cursor Options" })

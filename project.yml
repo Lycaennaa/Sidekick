@@ -28,6 +28,7 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         TwitchOAuthClientID: none
+        NSScreenCaptureUsageDescription: "Sidekick needs screen recording access to list and capture on-screen windows."
     sources:
       - path: Sidekick
         excludes:
@@ -70,6 +71,7 @@ targets:
         ENABLE_USER_SELECTED_FILES: readonly
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_EXPAND_BUILD_SETTINGS: YES
+        INFOPLIST_KEY_NSScreenCaptureUsageDescription: "Sidekick needs screen recording access to list and capture on-screen windows."
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
         MARKETING_VERSION: 0.1.0
         OTHER_CODE_SIGN_FLAGS: '-r "=designated => identifier \"$(PRODUCT_BUNDLE_IDENTIFIER)\""'
@@ -128,6 +130,8 @@ targets:
       - path: Sidekick/App/SettingsPageStackLayout.swift
       - path: Sidekick/App/ToastPresentationCoordinator.swift
       - path: Sidekick/Screenshot/ScreenCaptureService.swift
+      - path: Sidekick/Screenshot/WindowScreenshotCapture.swift
+      - path: Sidekick/Screenshot/ScreenshotWindowGeometry.swift
       - path: Sidekick/Screenshot/ScreenshotCaptureController.swift
       - path: Sidekick/Screenshot/ScreenshotCaptureController+Clipboard.swift
       - path: Sidekick/Screenshot/ScreenshotClipboardWriter.swift

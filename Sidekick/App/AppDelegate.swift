@@ -338,6 +338,9 @@ extension AppDelegate {
             onCaptureScreenshot: { [weak self] mode, cursorOverride in
                 self?.captureScreenshotToClipboard(cursorOverride: cursorOverride, mode: mode)
             },
+            onCaptureWindow: { [weak self] in
+                self?.captureScreenshotToClipboard(windowSelection: true)
+            },
             onToggleTwitchNotifications: { [weak self] in
                 self?.settings.twitchNotificationsEnabled.toggle()
             },

@@ -11,6 +11,7 @@ enum ScreenshotSelectionResult {
     case copyOnly(CGImage)
     case saveAndCopy(CGImage)
     case copiedPixelValue(String)
+    case windowCapture
     case cancelled
     case displayUnavailable
     case cropFailed
@@ -23,7 +24,7 @@ enum ScreenshotCaptureFailurePresentation {
         guard screenRecordingAllowed else {
             return "Allow Screen Recording for Sidekick in System Settings, then retry."
         }
-        return "Couldn’t capture the display."
+        return "Couldn’t capture the screen content."
     }
     private static let failureMessages: [ScreenshotCaptureController.Failure: String] = [
         .clipboard: "Couldn’t copy the selected content; your previous clipboard was restored.",
@@ -31,6 +32,7 @@ enum ScreenshotCaptureFailurePresentation {
         .clipboardSnapshot: "Couldn’t safely preserve the existing clipboard; it was not replaced.",
         .clipboardRestore: "Copy failed and the previous clipboard could not be restored.",
         .encoding: "Couldn’t prepare the selected content for the clipboard.",
+        .noCapturableWindow: "No capturable windows are currently available.",
         .selectionDisplayUnavailable: "The captured display changed before selection; retry the screenshot.",
         .selectionCropFailed: "Couldn’t create the selected screenshot; try again.",
         .save: "Couldn’t save screenshot. Check that the configured folder is available.",
@@ -62,6 +64,7 @@ enum SelectedClipboardItemContent {
 final class ScreenshotCaptureController {
     enum Failure: Hashable {
         case capture
+        case noCapturableWindow
         case clipboard
         case clipboardChanged
         case clipboardSnapshot
@@ -83,6 +86,7 @@ final class ScreenshotCaptureController {
         let filenameTemplate: String
         let screenshotCopyAsOutputFormat: Bool
         let imageFormat: ClipboardImageFormat
+        let showsCursor: Bool
         var expectedChangeCount: Int
         var savedURL: URL?
 
@@ -94,7 +98,8 @@ final class ScreenshotCaptureController {
             saveDirectory: URL,
             filenameTemplate: String,
             screenshotCopyAsOutputFormat: Bool,
-            imageFormat: ClipboardImageFormat
+            imageFormat: ClipboardImageFormat,
+            showsCursor: Bool
         ) {
             self.id = id
             self.expectedChangeCount = expectedChangeCount
@@ -104,6 +109,7 @@ final class ScreenshotCaptureController {
             self.filenameTemplate = filenameTemplate
             self.screenshotCopyAsOutputFormat = screenshotCopyAsOutputFormat
             self.imageFormat = imageFormat
+            self.showsCursor = showsCursor
         }
     }
 
@@ -210,7 +216,8 @@ final class ScreenshotCaptureController {
             saveDirectory: settings.screenshotSaveDirectoryURL,
             filenameTemplate: settings.screenshotFilenameTemplate,
             screenshotCopyAsOutputFormat: settings.screenshotCopyAsOutputFormat,
-            imageFormat: settings.imageOutputFormat
+            imageFormat: settings.imageOutputFormat,
+            showsCursor: showsCursor
         )
         activeRequestID = request.id
         guard let screenshot = await captureScreenshot(
@@ -220,6 +227,23 @@ final class ScreenshotCaptureController {
             return
         }
         await selectAndCopy(screenshot, request: request)
+    }
+
+    func copySelectedWindowToClipboard(mode: ScreenshotCaptureMode = .copy) async {
+        guard activeRequestID == nil else { return }
+        let request = RequestState(
+            id: UUID(),
+            expectedChangeCount: clipboardWriter.changeCount,
+            delivery: mode,
+            startedAt: Date(),
+            saveDirectory: settings.screenshotSaveDirectoryURL,
+            filenameTemplate: settings.screenshotFilenameTemplate,
+            screenshotCopyAsOutputFormat: settings.screenshotCopyAsOutputFormat,
+            imageFormat: settings.imageOutputFormat,
+            showsCursor: settings.screenshotCursorIncludedByDefault
+        )
+        activeRequestID = request.id
+        await captureSelectedWindow(request, mode: mode)
     }
 
     private func captureScreenshot(
@@ -253,6 +277,11 @@ final class ScreenshotCaptureController {
         let result = await select(screenshot) { [weak self] value in
             guard let self else { return false }
             return await self.copyPixelValue(value, request: request)
+        }
+        if case .windowCapture = result {
+            guard validateClipboardRequest(request) else { return }
+            await captureSelectedWindow(request, mode: request.delivery)
+            return
         }
         if case .cancelled = result {
             guard activeRequestID == request.id else { return }
@@ -397,4 +426,73 @@ final class ScreenshotCaptureController {
         activeRequestID = nil
     }
 
+}
+
+private extension ScreenshotCaptureController {
+    func captureSelectedWindow(_ request: RequestState, mode: ScreenshotCaptureMode) async {
+        guard CGPreflightScreenCaptureAccess() else {
+            activeRequestID = nil
+            onFailure(.capture)
+            return
+        }
+        do {
+            let windows = try await WindowScreenshotCapture.windows()
+            guard isWindowCaptureRequestActive(request) else { return }
+            guard !windows.isEmpty else {
+                activeRequestID = nil
+                onFailure(.noCapturableWindow)
+                return
+            }
+            guard let windowID = await WindowScreenshotSelection.choose(from: windows) else {
+                cancelWindowCaptureRequest(request)
+                return
+            }
+            guard isWindowCaptureRequestActive(request) else { return }
+            let image = try await WindowScreenshotCapture.capture(
+                windowID: windowID,
+                showsCursor: request.showsCursor
+            )
+            guard isWindowCaptureRequestActive(request) else { return }
+            await copyWindowImage(image, mode: mode, request: request)
+        } catch {
+            failWindowCapture(request)
+        }
+    }
+
+    func isWindowCaptureRequestActive(_ request: RequestState) -> Bool {
+        guard activeRequestID == request.id else { return false }
+        guard !Task.isCancelled else {
+            activeRequestID = nil
+            return false
+        }
+        return true
+    }
+
+    func copyWindowImage(
+        _ image: CGImage,
+        mode: ScreenshotCaptureMode,
+        request: RequestState
+    ) async {
+        guard validateClipboardRequest(request),
+              let selection = makeScreenshotItem(from: image, delivery: mode),
+              let clipboardSelection = await prepareSelectedClipboardItem(selection, request: request),
+              validateClipboardRequest(request) else {
+            return
+        }
+        await installClipboardItem(clipboardSelection, request: request)
+    }
+
+    func cancelWindowCaptureRequest(_ request: RequestState) {
+        if activeRequestID == request.id { activeRequestID = nil }
+    }
+
+    func failWindowCapture(_ request: RequestState) {
+        guard activeRequestID == request.id else { return }
+        guard !Task.isCancelled else {
+            activeRequestID = nil
+            return
+        }
+        activeRequestID = nil
+        onFailure(.capture)
+    }
 }

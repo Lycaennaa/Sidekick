@@ -69,6 +69,16 @@ Sidekick's Twitch-related implementation was informed by review of Streamlink Tw
 - License URL: https://github.com/streamlink/streamlink-twitch-gui/blob/ae4acc3afbfd7f9f400423bab26c53ddb12c760f/LICENSE
 - Relationship: Source-informed implementation/reference only.
 
+## Capso window-capture source reference
+
+Sidekick's window selection and capture behavior was implemented independently, using Capso as a clean-room behavioral reference. No Capso source code or assets are included, and Capso is not a Sidekick dependency.
+
+- Project: [Capso](https://github.com/lzhgus/Capso)
+- Reference revision: `6a6b5634c603be0db1ad66e82b6cec4f119296cf`
+- License: Business Source License 1.1
+- Copyright: © 2026 lzhgus
+- License URL: https://github.com/lzhgus/Capso/blob/6a6b5634c603be0db1ad66e82b6cec4f119296cf/LICENSE
+
 ## Equilotl source reference
 
 - Reviewed revision: `1a3d96276611c81b99e76428427e730c25aee119`
