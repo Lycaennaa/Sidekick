@@ -5,6 +5,19 @@ import ScreenCaptureKit
 struct WindowScreenshotInventory {
     let windows: [ScreenshotWindow]
     fileprivate let captureWindowsByID: [CGWindowID: SCWindow]
+
+    init() {
+        windows = []
+        captureWindowsByID = [:]
+    }
+
+    fileprivate init(
+        windows: [ScreenshotWindow],
+        captureWindowsByID: [CGWindowID: SCWindow]
+    ) {
+        self.windows = windows
+        self.captureWindowsByID = captureWindowsByID
+    }
 }
 
 enum WindowScreenshotCapture {
@@ -187,48 +200,90 @@ enum WindowCaptureError: Error {
 
 @MainActor
 enum WindowScreenshotSelection {
-    static func choose(from windows: [ScreenshotWindow]) async -> CGWindowID? {
-        guard !windows.isEmpty else { return nil }
-        let (choices, continuation) = AsyncStream<CGWindowID?>.makeStream(bufferingPolicy: .bufferingNewest(1))
-        let grouped = Dictionary(grouping: windows, by: \.screenFrame)
-        let panels = NSScreen.screens.map { screen -> WindowScreenshotSelectionPanel in
-            let screenFrame = screen.frame
-            let screenWindows = grouped[screenFrame] ?? []
-            let panel = WindowScreenshotSelectionPanel(
-                contentRect: screenFrame,
-                styleMask: [.borderless, .nonactivatingPanel],
-                backing: .buffered,
-                defer: false
-            )
-            panel.level = .screenSaver
-            panel.backgroundColor = .clear
-            panel.isOpaque = false
-            panel.hasShadow = false
-            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            panel.acceptsMouseMovedEvents = true
-            let view = WindowScreenshotSelectionView(
-                frame: NSRect(origin: .zero, size: screenFrame.size),
-                windows: screenWindows
-            )
-            view.onSelect = { continuation.yield($0) }
-            view.onCancel = { continuation.yield(nil) }
-            panel.contentView = view
-            panel.orderFrontRegardless()
-            return panel
+    @MainActor
+    final class Session {
+        private struct Surface {
+            let screenFrame: CGRect
+            let panel: WindowScreenshotSelectionPanel
+            let view: WindowScreenshotSelectionView
         }
-        NSApp.activate(ignoringOtherApps: true)
-        panels.first?.makeKeyAndOrderFront(nil)
-        defer {
+
+        private let choices: AsyncStream<CGWindowID?>
+        private let continuation: AsyncStream<CGWindowID?>.Continuation
+        private var surfaces: [Surface] = []
+        private var isClosed = false
+        private(set) var isCancelled = false
+
+        init() {
+            let (choices, continuation) = AsyncStream<CGWindowID?>.makeStream(
+                bufferingPolicy: .bufferingNewest(1)
+            )
+            self.choices = choices
+            self.continuation = continuation
+            let surfaces = NSScreen.screens.map { screen -> Surface in
+                let screenFrame = screen.frame
+                let panel = WindowScreenshotSelectionPanel(
+                    contentRect: screenFrame,
+                    styleMask: [.borderless, .nonactivatingPanel],
+                    backing: .buffered,
+                    defer: false
+                )
+                panel.level = .screenSaver
+                panel.backgroundColor = .clear
+                panel.isOpaque = false
+                panel.hasShadow = false
+                panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+                panel.acceptsMouseMovedEvents = true
+                let view = WindowScreenshotSelectionView(
+                    frame: NSRect(origin: .zero, size: screenFrame.size),
+                    windows: []
+                )
+                view.onSelect = { continuation.yield($0) }
+                panel.contentView = view
+                panel.orderFrontRegardless()
+                return Surface(screenFrame: screenFrame, panel: panel, view: view)
+            }
+            self.surfaces = surfaces
+            surfaces.forEach { surface in
+                surface.view.onCancel = { [weak self] in self?.cancel() }
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            surfaces.first?.panel.makeKeyAndOrderFront(nil)
+        }
+
+        func update(windows: [ScreenshotWindow]) {
+            let windowsByScreen = Dictionary(grouping: windows, by: \.screenFrame)
+            for surface in surfaces {
+                surface.view.updateWindows(windowsByScreen[surface.screenFrame] ?? [], searching: false)
+            }
+        }
+
+        func waitForSelection() async -> CGWindowID? {
+            await withTaskCancellationHandler {
+                for await choice in choices { return choice }
+                return nil
+            } onCancel: {
+                continuation.yield(nil)
+            }
+        }
+
+        func close() {
+            guard !isClosed else { return }
+            isClosed = true
             continuation.finish()
-            panels.forEach { $0.orderOut(nil) }
+            surfaces.forEach { surface in
+                surface.view.onSelect = nil
+                surface.view.onCancel = nil
+                surface.panel.orderOut(nil)
+            }
         }
-        let selection = await withTaskCancellationHandler {
-            for await choice in choices { return choice }
-            return nil
-        } onCancel: {
+
+        private func cancel() {
+            guard !isClosed else { return }
+            isCancelled = true
             continuation.yield(nil)
+            close()
         }
-        return selection
     }
 }
 
@@ -238,10 +293,11 @@ private final class WindowScreenshotSelectionPanel: NSPanel {
 }
 @MainActor
 private final class WindowScreenshotSelectionView: NSView {
-    let windows: [ScreenshotWindow]
+    var windows: [ScreenshotWindow]
     var onSelect: ((CGWindowID) -> Void)?
     var onCancel: (() -> Void)?
     private var hoveredID: CGWindowID?
+    private var isSearchingForWindows = true
 
     init(frame: NSRect, windows: [ScreenshotWindow]) {
         self.windows = windows
@@ -254,6 +310,13 @@ private final class WindowScreenshotSelectionView: NSView {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    func updateWindows(_ windows: [ScreenshotWindow], searching: Bool) {
+        self.windows = windows
+        isSearchingForWindows = searching
+        hoveredID = nil
+        needsDisplay = true
+    }
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -277,7 +340,9 @@ private final class WindowScreenshotSelectionView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.black.withAlphaComponent(0.28).setFill()
         bounds.fill()
-        let instruction = "Click a window to capture • Click elsewhere to cancel" as NSString
+        let instruction = (isSearchingForWindows
+            ? "Looking for capturable windows… • Escape or click to cancel"
+            : "Click a window to capture • Click elsewhere to cancel") as NSString
         let instructionAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
             .foregroundColor: NSColor.white

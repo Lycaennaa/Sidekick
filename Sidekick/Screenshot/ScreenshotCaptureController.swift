@@ -139,6 +139,8 @@ final class ScreenshotCaptureController {
         ClipboardImageFormat
     ) async throws -> ScreenshotSaveService.Prepared
     typealias ImagePreparation = @MainActor (Data, ClipboardImageFormat) async throws -> Data
+    typealias WindowInventory = @MainActor () async throws -> WindowScreenshotInventory
+    typealias WindowCaptureAccess = @MainActor () -> Bool
 
     private let settings: AppSettings
     private let capture: Capture
@@ -150,6 +152,9 @@ final class ScreenshotCaptureController {
     let onSavedAndCopied: (URL) -> Void
     private let prepareSave: SavePreparation
     let prepareClipboardImage: ImagePreparation
+    let windowInventory: WindowInventory
+    let hasWindowCaptureAccess: WindowCaptureAccess
+    static let windowInventoryAttemptLimit = 3
     var activeRequestID: UUID?
     private var pendingSaveRequestID: UUID?
 
@@ -163,6 +168,12 @@ final class ScreenshotCaptureController {
             try await ActiveDisplayScreenshotCapture.capture(showsCursor: showsCursor)
         },
         select: Select? = nil,
+        windowInventory: @escaping WindowInventory = {
+            try await WindowScreenshotCapture.windows()
+        },
+        hasWindowCaptureAccess: @escaping WindowCaptureAccess = {
+            CGPreflightScreenCaptureAccess()
+        },
         metadataRegistry: ScreenshotClipboardMetadataRegistry = ScreenshotClipboardMetadataRegistry(),
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader(),
         onCopied: @escaping () -> Void,
@@ -185,6 +196,8 @@ final class ScreenshotCaptureController {
                 copyPixelValues: copyPixelValues
             )
         }
+        self.windowInventory = windowInventory
+        self.hasWindowCaptureAccess = hasWindowCaptureAccess
         self.onCopied = onCopied
         self.onPixelValueCopied = onPixelValueCopied
         self.onFailure = onFailure
@@ -428,47 +441,7 @@ final class ScreenshotCaptureController {
 
 }
 
-private extension ScreenshotCaptureController {
-    func captureSelectedWindow(_ request: RequestState, mode: ScreenshotCaptureMode) async {
-        guard CGPreflightScreenCaptureAccess() else {
-            activeRequestID = nil
-            onFailure(.capture)
-            return
-        }
-        do {
-            let inventory = try await WindowScreenshotCapture.windows()
-            guard isWindowCaptureRequestActive(request) else { return }
-            guard !inventory.windows.isEmpty else {
-                activeRequestID = nil
-                onFailure(.noCapturableWindow)
-                return
-            }
-            guard let windowID = await WindowScreenshotSelection.choose(from: inventory.windows) else {
-                cancelWindowCaptureRequest(request)
-                return
-            }
-            guard isWindowCaptureRequestActive(request) else { return }
-            let image = try await WindowScreenshotCapture.capture(
-                windowID: windowID,
-                from: inventory,
-                showsCursor: request.showsCursor
-            )
-            guard isWindowCaptureRequestActive(request) else { return }
-            await copyWindowImage(image, mode: mode, request: request)
-        } catch {
-            failWindowCapture(request)
-        }
-    }
-
-    func isWindowCaptureRequestActive(_ request: RequestState) -> Bool {
-        guard activeRequestID == request.id else { return false }
-        guard !Task.isCancelled else {
-            activeRequestID = nil
-            return false
-        }
-        return true
-    }
-
+extension ScreenshotCaptureController {
     func copyWindowImage(
         _ image: CGImage,
         mode: ScreenshotCaptureMode,
@@ -481,19 +454,5 @@ private extension ScreenshotCaptureController {
             return
         }
         await installClipboardItem(clipboardSelection, request: request)
-    }
-
-    func cancelWindowCaptureRequest(_ request: RequestState) {
-        if activeRequestID == request.id { activeRequestID = nil }
-    }
-
-    func failWindowCapture(_ request: RequestState) {
-        guard activeRequestID == request.id else { return }
-        guard !Task.isCancelled else {
-            activeRequestID = nil
-            return
-        }
-        activeRequestID = nil
-        onFailure(.capture)
     }
 }

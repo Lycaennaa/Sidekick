@@ -22,3 +22,5 @@ User-visible changes are listed here. No public release tag exists yet.
 - Avoid offering screenshot windows missing from a partial on-screen enumeration.
 - Exclude Sidekick's fullscreen screenshot overlay from window capture.
 - Reuse enumerated window objects and display geometry during window capture to avoid redundant system queries.
+
+- Keep window capture active while retrying empty window inventories twice.

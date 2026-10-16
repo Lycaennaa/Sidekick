@@ -176,6 +176,7 @@ targets:
       - path: Sidekick/Screenshot/WindowScreenshotCapture.swift
       - path: Sidekick/Screenshot/ScreenshotWindowGeometry.swift
       - path: Sidekick/Screenshot/ScreenshotCaptureController.swift
+      - path: Sidekick/Screenshot/ScreenshotCaptureController+Window.swift
       - path: Sidekick/Screenshot/ScreenshotCaptureController+Clipboard.swift
       - path: Sidekick/Screenshot/ScreenshotClipboardWriter.swift
       - path: Sidekick/Screenshot/ScreenshotSaveService.swift

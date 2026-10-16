@@ -124,3 +124,56 @@ extension ScreenshotCaptureIntegrationTests {
         }
     }
 }
+
+extension ScreenshotCaptureIntegrationTests {
+    func testWindowCaptureKeepsVisibleModeDuringTwoEmptyInventoryRetries() async throws {
+        let application = NSApplication.shared
+        guard !NSScreen.screens.isEmpty else {
+            throw XCTSkip("A display is required for the window-capture overlay")
+        }
+        let secondAttemptStarted = expectation(description: "Second window inventory attempt started")
+        let visibleSelectionPanels = {
+            application.windows.filter {
+                $0.isVisible &&
+                    $0.level == .screenSaver &&
+                    $0.styleMask.contains(.nonactivatingPanel)
+            }.count
+        }
+        let initialPanelCount = visibleSelectionPanels()
+        var attemptCount = 0
+        var secondAttemptContinuation: CheckedContinuation<Void, Never>?
+        var failures: [ScreenshotCaptureController.Failure] = []
+        let controller = ScreenshotCaptureController(
+            pasteboard: ScreenshotCaptureTestSupport.ScreenshotRacePasteboard(value: "preserve"),
+            windowInventory: {
+                attemptCount += 1
+                if attemptCount == 2 {
+                    await withCheckedContinuation { continuation in
+                        secondAttemptContinuation = continuation
+                        secondAttemptStarted.fulfill()
+                    }
+                }
+                return WindowScreenshotInventory()
+            },
+            hasWindowCaptureAccess: { true },
+            onCopied: { XCTFail("An empty inventory must not report a copied window") },
+            onFailure: { failures.append($0) }
+        )
+        let operation = Task { @MainActor in
+            await controller.copySelectedWindowToClipboard()
+        }
+
+        await fulfillment(of: [secondAttemptStarted], timeout: 5)
+        XCTAssertGreaterThan(visibleSelectionPanels(), initialPanelCount)
+        XCTAssertNotNil(controller.activeRequestID)
+        XCTAssertTrue(failures.isEmpty)
+
+        secondAttemptContinuation?.resume()
+        await operation.value
+
+        XCTAssertEqual(attemptCount, 3)
+        XCTAssertEqual(failures, [.noCapturableWindow])
+        XCTAssertNil(controller.activeRequestID)
+        XCTAssertEqual(visibleSelectionPanels(), initialPanelCount)
+    }
+}
