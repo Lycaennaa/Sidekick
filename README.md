@@ -1,6 +1,6 @@
 # Sidekick
 
-Sidekick is a macOS menu bar utility for clipboard activity, screenshots, audio status, output volume, optional Twitch notifications, and Finder file creation. Requires macOS 15 or later.
+Sidekick is a macOS menu bar utility that displays toasts for clipboard activity, screenshots, microphone usage and Twitch notifications. Other features include a Finder extension to add new files, a Discord client mod injector and mute audio until time. Each feature is optional.
 
 ## Quick start
 
