@@ -242,23 +242,6 @@ final class ScreenshotCaptureController {
         await selectAndCopy(screenshot, request: request)
     }
 
-    func copySelectedWindowToClipboard(mode: ScreenshotCaptureMode = .copy) async {
-        guard activeRequestID == nil else { return }
-        let request = RequestState(
-            id: UUID(),
-            expectedChangeCount: clipboardWriter.changeCount,
-            delivery: mode,
-            startedAt: Date(),
-            saveDirectory: settings.screenshotSaveDirectoryURL,
-            filenameTemplate: settings.screenshotFilenameTemplate,
-            screenshotCopyAsOutputFormat: settings.screenshotCopyAsOutputFormat,
-            imageFormat: settings.imageOutputFormat,
-            showsCursor: settings.screenshotCursorIncludedByDefault
-        )
-        activeRequestID = request.id
-        await captureSelectedWindow(request, mode: mode)
-    }
-
     private func captureScreenshot(
         showsCursor: Bool,
         requestID: UUID

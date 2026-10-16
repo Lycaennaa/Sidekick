@@ -126,7 +126,7 @@ extension ScreenshotCaptureIntegrationTests {
 }
 
 extension ScreenshotCaptureIntegrationTests {
-    func testWindowCaptureKeepsVisibleModeDuringTwoEmptyInventoryRetries() async throws {
+    func testOverlayWindowSelectionKeepsVisibleModeDuringTwoEmptyInventoryRetries() async throws {
         let application = NSApplication.shared
         guard !NSScreen.screens.isEmpty else {
             throw XCTSkip("A display is required for the window-capture overlay")
@@ -140,11 +140,16 @@ extension ScreenshotCaptureIntegrationTests {
             }.count
         }
         let initialPanelCount = visibleSelectionPanels()
+        let screenshot = ScreenshotCaptureTestSupport.capturedScreenshot(
+            from: try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
+        )
         var attemptCount = 0
         var secondAttemptContinuation: CheckedContinuation<Void, Never>?
         var failures: [ScreenshotCaptureController.Failure] = []
         let controller = ScreenshotCaptureController(
             pasteboard: ScreenshotCaptureTestSupport.ScreenshotRacePasteboard(value: "preserve"),
+            capture: { _ in screenshot },
+            select: { _, _ in .windowCapture },
             windowInventory: {
                 attemptCount += 1
                 if attemptCount == 2 {
@@ -160,7 +165,7 @@ extension ScreenshotCaptureIntegrationTests {
             onFailure: { failures.append($0) }
         )
         let operation = Task { @MainActor in
-            await controller.copySelectedWindowToClipboard()
+            await controller.copyActiveDisplayToClipboard()
         }
 
         await fulfillment(of: [secondAttemptStarted], timeout: 5)

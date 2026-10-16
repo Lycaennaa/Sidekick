@@ -339,11 +339,8 @@ extension AppDelegate {
             clearURLsClipboardAvailable: clipboardClearURLsController != nil,
             onShowTools: { [weak self] in self?.showTools() },
             onCleanMarkdown: { [weak self] in self?.cleanMarkdownClipboard() },
-            onCaptureScreenshot: { [weak self] mode, cursorOverride in
-                self?.captureScreenshotToClipboard(cursorOverride: cursorOverride, mode: mode)
-            },
-            onCaptureWindow: { [weak self] in
-                self?.captureScreenshotToClipboard(windowSelection: true)
+            onCaptureScreen: { [weak self] in
+                self?.captureScreenshotToClipboard(cursorOverride: nil, mode: .copy)
             },
             onToggleTwitchNotifications: { [weak self] in
                 self?.settings.twitchNotificationsEnabled.toggle()

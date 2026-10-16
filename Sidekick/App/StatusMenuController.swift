@@ -90,8 +90,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         clearURLsClipboardAvailable: Bool,
         onShowTools: @escaping () -> Void,
         onCleanMarkdown: @escaping () -> Void,
-        onCaptureScreenshot: @escaping (ScreenshotCaptureMode, Bool?) -> Void,
-        onCaptureWindow: @escaping () -> Void,
+        onCaptureScreen: @escaping () -> Void,
         onToggleTwitchNotifications: @escaping () -> Void,
         onPause: @escaping (TimeInterval?) -> Void,
         onResume: @escaping () -> Void,
@@ -101,11 +100,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         onQuit: @escaping () -> Void
     ) {
         self.settings = settings
-        self.screenshotCaptureMenu = ScreenshotCaptureMenu(
-            settings: settings,
-            onCaptureScreenshot: onCaptureScreenshot,
-            onCaptureWindow: onCaptureWindow
-        )
+        self.screenshotCaptureMenu = ScreenshotCaptureMenu(onCaptureScreen: onCaptureScreen)
         self.clearURLsClipboardAvailable = clearURLsClipboardAvailable
         self.onShowTools = onShowTools
         self.onCleanMarkdown = onCleanMarkdown
@@ -126,7 +121,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     func refresh(toolState: ToolState) {
         let enabled = toolState != .disabled
-        screenshotCaptureMenu.refresh()
         clipboardToastItem.state = enabled ? .on : .off
         markdownClipboardItem.state = settings.markdownClipboardCleanerEnabled ? .on : .off
         cleanMarkdownNowItem.isEnabled = true

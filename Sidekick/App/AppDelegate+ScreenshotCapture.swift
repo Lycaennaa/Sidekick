@@ -129,8 +129,7 @@ extension AppDelegate {
 
     func captureScreenshotToClipboard(
         cursorOverride: Bool? = nil,
-        mode: ScreenshotCaptureMode = .copy,
-        windowSelection: Bool = false
+        mode: ScreenshotCaptureMode = .copy
     ) {
         guard !isTerminating,
               !applicationTerminationPending,
@@ -139,11 +138,7 @@ extension AppDelegate {
         let requestID = UUID()
         screenshotCaptureRequestID = requestID
         screenshotCaptureTask = Task { @MainActor [weak self, controller] in
-            if windowSelection {
-                await controller.copySelectedWindowToClipboard(mode: mode)
-            } else {
-                await controller.copyActiveDisplayToClipboard(cursorOverride: cursorOverride, mode: mode)
-            }
+            await controller.copyActiveDisplayToClipboard(cursorOverride: cursorOverride, mode: mode)
             guard let self, self.screenshotCaptureRequestID == requestID else { return }
             self.screenshotCaptureTask = nil
             self.screenshotCaptureRequestID = nil
