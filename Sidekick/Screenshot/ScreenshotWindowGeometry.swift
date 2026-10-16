@@ -210,14 +210,17 @@ struct ScreenshotWindowCandidate {
 
     var isSelectable: Bool {
         let isSystemMenuBar = windowLayer == Int(CGWindowLevelForKey(.mainMenuWindow))
+        let screenSaverWindowLayer = Int(CGWindowLevelForKey(.screenSaverWindow))
+        let isOwnFullscreenCapture = isOwnAppWindow && windowLayer == screenSaverWindowLayer
         let isElevatedApplicationWindow = hasOwningApplication
             && windowLayer > 0
-            && windowLayer < Int(CGWindowLevelForKey(.screenSaverWindow))
+            && windowLayer < screenSaverWindowLayer
         let isEligibleLayer = windowLayer == 0
             || isOwnAppWindow
             || isElevatedApplicationWindow
         let isIgnoredSystemBundle = bundleID.map { Self.ignoredSystemBundleIDs.contains($0) } ?? false
         return !isSystemMenuBar
+            && !isOwnFullscreenCapture
             && !isIgnoredSystemBundle
             && isOnScreen
             && frame.width > 100

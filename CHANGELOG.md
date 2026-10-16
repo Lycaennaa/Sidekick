@@ -19,4 +19,6 @@ User-visible changes are listed here. No public release tag exists yet.
 - Reuse captured clipboard representations for rollback and preserve newer artifact ownership during async restoration.
 - Focus the filename field when the Finder prompt opens.
 - Avoid unnecessary occlusion work for windows with non-overlapping frames during window capture.
+- Avoid offering screenshot windows missing from a partial on-screen enumeration.
+- Exclude Sidekick's fullscreen screenshot overlay from window capture.
 - Reuse enumerated window objects and display geometry during window capture to avoid redundant system queries.

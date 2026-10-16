@@ -137,13 +137,11 @@ enum WindowScreenshotCapture {
             expectedIDs.insert(window.windowID)
             if let bundleID { bundleIDs[window.windowID] = bundleID }
         }
-        guard !selectableIDs.isEmpty, selectableIDs.isSubset(of: expectedIDs) else { return nil }
         let windowInfo = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID
-        ) as? [[String: Any]] ?? []
-        var enumeratedSelectableIDs = Set<CGWindowID>()
-        enumeratedSelectableIDs.reserveCapacity(selectableIDs.count)
+        ) as? [[String: Any]]
+        guard let windowInfo else { return nil }
         let occlusionWindows = windowInfo.compactMap { info -> ScreenshotWindowOcclusion? in
             guard let number = info[kCGWindowNumber as String] as? NSNumber else { return nil }
             let id = CGWindowID(number.uint32Value)
@@ -153,9 +151,6 @@ enum WindowScreenshotCapture {
                   let alpha = info[kCGWindowAlpha as String] as? NSNumber else {
                 return nil
             }
-            if selectableIDs.contains(id) {
-                enumeratedSelectableIDs.insert(id)
-            }
             return ScreenshotWindowOcclusion(
                 id: id,
                 frame: frame,
@@ -163,7 +158,6 @@ enum WindowScreenshotCapture {
                 bundleIdentifier: bundleIDs[id]
             )
         }
-        guard selectableIDs.isSubset(of: enumeratedSelectableIDs) else { return nil }
         return occlusionWindows
     }
 

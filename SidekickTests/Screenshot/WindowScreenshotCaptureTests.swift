@@ -52,12 +52,13 @@ final class WindowScreenshotCaptureTests: XCTestCase {
 
     }
 
-    func testCandidatePolicyExcludesNotificationCenterAndMenuBar() {
+    func testCandidatePolicyExcludesSystemUIAndOwnFullscreenCapture() {
         func candidate(
             bundleID: String? = "com.example.app",
             appName: String = "Example",
             hasOwningApplication: Bool = true,
-            windowLayer: Int = 0
+            windowLayer: Int = 0,
+            isOwnAppWindow: Bool = false
         ) -> ScreenshotWindowCandidate {
             ScreenshotWindowCandidate(
                 frame: CGRect(x: 0, y: 0, width: 600, height: 400),
@@ -67,11 +68,16 @@ final class WindowScreenshotCaptureTests: XCTestCase {
                 bundleID: bundleID,
                 hasOwningApplication: hasOwningApplication,
                 windowLayer: windowLayer,
-                isOwnAppWindow: false
+                isOwnAppWindow: isOwnAppWindow
             )
         }
 
         XCTAssertTrue(candidate().isSelectable)
+        XCTAssertTrue(candidate(isOwnAppWindow: true).isSelectable)
+        XCTAssertFalse(candidate(
+            windowLayer: Int(CGWindowLevelForKey(.screenSaverWindow)),
+            isOwnAppWindow: true
+        ).isSelectable)
         XCTAssertFalse(
             candidate(bundleID: "com.apple.notificationcenterui", appName: "Notification Center").isSelectable
         )
@@ -126,7 +132,6 @@ final class WindowScreenshotCaptureTests: XCTestCase {
             [1, 2]
         )
     }
-
     func testVisibilityKeepsUnoccludedWindowsWhenFramesDoNotOverlap() {
         let occluderFrame = CGRect(x: 0, y: 0, width: 50, height: 100)
         let windowFrame = CGRect(x: 200, y: 0, width: 100, height: 100)
@@ -291,27 +296,27 @@ final class WindowScreenshotCaptureTests: XCTestCase {
         )
     }
 
-    func testCandidateOrderingDistinguishesUnavailableFromEmptyOcclusionOrder() {
+    func testPartialOnScreenEnumerationExcludesUnconfirmedCandidates() {
         XCTAssertEqual(
             ScreenshotWindowVisibility.orderedCandidateIDs(
-                candidateIDs: [1, 2],
-                frontToBackWindowIDs: nil
+                candidateIDs: [1, 2, 3],
+                frontToBackWindowIDs: [3, 1]
             ),
-            [1, 2]
+            [3, 1]
         )
         XCTAssertEqual(
             ScreenshotWindowVisibility.orderedCandidateIDs(
-                candidateIDs: [1, 2],
+                candidateIDs: [1, 2, 3],
                 frontToBackWindowIDs: []
             ),
             []
         )
         XCTAssertEqual(
             ScreenshotWindowVisibility.orderedCandidateIDs(
-                candidateIDs: [1, 2],
-                frontToBackWindowIDs: [2, 1]
+                candidateIDs: [1, 2, 3],
+                frontToBackWindowIDs: nil
             ),
-            [2, 1]
+            [1, 2, 3]
         )
     }
 
