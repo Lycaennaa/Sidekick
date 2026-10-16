@@ -153,7 +153,7 @@ enum ScreenshotWindowVisibility {
 
     private static func uncoveredRegions(_ frame: CGRect, coveredBy occluders: [CGRect]) -> [CGRect] {
         var uncovered = [frame]
-        for occluder in occluders {
+        for occluder in occluders where frame.intersects(occluder) {
             uncovered = uncovered.flatMap { rectangle in
                 let overlap = rectangle.intersection(occluder)
                 guard !overlap.isNull, !overlap.isEmpty else { return [rectangle] }

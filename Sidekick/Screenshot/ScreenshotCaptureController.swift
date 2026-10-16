@@ -436,20 +436,21 @@ private extension ScreenshotCaptureController {
             return
         }
         do {
-            let windows = try await WindowScreenshotCapture.windows()
+            let inventory = try await WindowScreenshotCapture.windows()
             guard isWindowCaptureRequestActive(request) else { return }
-            guard !windows.isEmpty else {
+            guard !inventory.windows.isEmpty else {
                 activeRequestID = nil
                 onFailure(.noCapturableWindow)
                 return
             }
-            guard let windowID = await WindowScreenshotSelection.choose(from: windows) else {
+            guard let windowID = await WindowScreenshotSelection.choose(from: inventory.windows) else {
                 cancelWindowCaptureRequest(request)
                 return
             }
             guard isWindowCaptureRequestActive(request) else { return }
             let image = try await WindowScreenshotCapture.capture(
                 windowID: windowID,
+                from: inventory,
                 showsCursor: request.showsCursor
             )
             guard isWindowCaptureRequestActive(request) else { return }

@@ -27,16 +27,29 @@ final class WindowScreenshotCaptureTests: XCTestCase {
         window.displayIfNeeded()
         defer { window.close() }
 
-        let windows = try await WindowScreenshotCapture.windows()
-        let selectedWindow = try XCTUnwrap(windows.first(where: { $0.title == title }))
+        let inventory = try await WindowScreenshotCapture.windows()
+        let selectedWindow = try XCTUnwrap(inventory.windows.first(where: { $0.title == title }))
 
         let image = try await WindowScreenshotCapture.capture(
             windowID: selectedWindow.id,
+            from: inventory,
             showsCursor: false
         )
 
         XCTAssertGreaterThan(image.width, 0)
         XCTAssertGreaterThan(image.height, 0)
+        window.close()
+        do {
+            _ = try await WindowScreenshotCapture.capture(
+                windowID: selectedWindow.id,
+                from: inventory,
+                showsCursor: false
+            )
+            XCTFail("A closed window must not be captured from the stale enumeration")
+        } catch {
+            // ScreenCaptureKit reports that the previously enumerated window is unavailable.
+        }
+
     }
 
     func testCandidatePolicyExcludesNotificationCenterAndMenuBar() {
@@ -111,6 +124,33 @@ final class WindowScreenshotCaptureTests: XCTestCase {
                 selectableIDs: [1, 2, 4]
             ),
             [1, 2]
+        )
+    }
+
+    func testVisibilityKeepsUnoccludedWindowsWhenFramesDoNotOverlap() {
+        let occluderFrame = CGRect(x: 0, y: 0, width: 50, height: 100)
+        let windowFrame = CGRect(x: 200, y: 0, width: 100, height: 100)
+        let windows = [
+            ScreenshotWindowOcclusion(
+                id: 1,
+                frame: occluderFrame,
+                alpha: 1,
+                bundleIdentifier: "com.example.front"
+            ),
+            ScreenshotWindowOcclusion(
+                id: 2,
+                frame: windowFrame,
+                alpha: 1,
+                bundleIdentifier: "com.example.rear"
+            )
+        ]
+
+        XCTAssertEqual(
+            ScreenshotWindowVisibility.visibleRegionsByWindowID(
+                frontToBack: windows,
+                selectableIDs: [2]
+            ),
+            [2: [windowFrame]]
         )
     }
 
