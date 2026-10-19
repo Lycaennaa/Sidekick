@@ -46,9 +46,21 @@ nonisolated enum ClipboardImageDecoder {
             details.append("\(pixelWidth) × \(pixelHeight)")
         }
         let sourceType = (CGImageSourceGetType(source) as String?) ?? request.typeIdentifier
-        if let format = UTType(sourceType)?.preferredFilenameExtension?.uppercased(),
+        let encodedFormatCandidate = UTType(sourceType)?.preferredFilenameExtension?.uppercased()
+        let encodedFormat = encodedFormatCandidate.flatMap { $0.count <= 12 ? $0 : nil }
+        let declaredFormatCandidate = UTType(request.typeIdentifier)
+            .flatMap { $0.conforms(to: .image) ? $0.preferredFilenameExtension?.uppercased() : nil }
+        let declaredFormat = declaredFormatCandidate.flatMap { $0.count <= 12 ? $0 : nil }
+        // Keep the advertised clipboard type visible alongside the bytes' detected encoding.
+        let format: String?
+        if let declaredFormat, let encodedFormat, declaredFormat != encodedFormat {
+            format = "\(declaredFormat) type, \(encodedFormat) data"
+        } else {
+            format = declaredFormat ?? encodedFormat
+        }
+        if let format,
            !format.isEmpty,
-           format.count <= 12 {
+           format.count <= 40 {
             details.append(format)
         }
         var imageFooter = details

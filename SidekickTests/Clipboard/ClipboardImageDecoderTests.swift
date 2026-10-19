@@ -1,5 +1,6 @@
 import AppKit
 import Darwin
+import ImageIO
 import XCTest
 
 @MainActor
@@ -21,6 +22,58 @@ final class ClipboardImageDecoderTests: XCTestCase {
         XCTAssertLessThanOrEqual(result.thumbnail.width, ClipboardImageDecoder.maximumThumbnailPixelSize)
         XCTAssertLessThanOrEqual(result.thumbnail.height, ClipboardImageDecoder.maximumThumbnailPixelSize)
     }
+    func testImageDecoderReportsDeclaredAndEncodedFormatsWhenTheyDisagree() async throws {
+        let sourcePNG = try pngData(width: 4, height: 3)
+        let sourceWebP = try ClipboardImageEncoder.encode(
+            sourcePNG,
+            format: .webP,
+            isCancelled: { false }
+        )
+        let imageSource = try XCTUnwrap(CGImageSourceCreateWithData(sourceWebP as CFData, nil))
+        XCTAssertEqual(
+            CGImageSourceGetType(imageSource) as String?,
+            ClipboardImageFormat.webP.typeIdentifier
+        )
+
+        let pasteboard = NSPasteboard(
+            name: NSPasteboard.Name("ClipboardImageDecoderTests.\(UUID().uuidString)")
+        )
+        defer { pasteboard.clearContents() }
+        let item = NSPasteboardItem()
+        XCTAssertTrue(item.setData(sourceWebP, forType: .png))
+        XCTAssertTrue(pasteboard.writeObjects([item]))
+        let analysis = await ClipboardPayloadClassifier.analyze(
+            items: try XCTUnwrap(pasteboard.pasteboardItems),
+            generation: 10
+        )
+        let request = try XCTUnwrap(imageEnrichment(from: analysis.classification))
+        XCTAssertEqual(request.typeIdentifier, NSPasteboard.PasteboardType.png.rawValue)
+        let result = try XCTUnwrap(ClipboardImageDecoder.decode(request))
+        XCTAssertEqual(
+            result.imageFooter,
+            "4 × 3 • PNG type, WEBP data • \(byteCountLabel(sourceWebP.count))"
+        )
+    }
+
+    func testRealPasteboardPNGUsesPNGFooter() async throws {
+        let data = try pngData(width: 4, height: 3)
+        let pasteboard = NSPasteboard(
+            name: NSPasteboard.Name("ClipboardImageDecoderTests.\(UUID().uuidString)")
+        )
+        defer { pasteboard.clearContents() }
+        let item = NSPasteboardItem()
+        XCTAssertTrue(item.setData(data, forType: .png))
+        XCTAssertTrue(pasteboard.writeObjects([item]))
+        let analysis = await ClipboardPayloadClassifier.analyze(
+            items: try XCTUnwrap(pasteboard.pasteboardItems),
+            generation: 11
+        )
+        let request = try XCTUnwrap(imageEnrichment(from: analysis.classification))
+        XCTAssertEqual(request.typeIdentifier, NSPasteboard.PasteboardType.png.rawValue)
+        let result = try XCTUnwrap(ClipboardImageDecoder.decode(request))
+        XCTAssertEqual(result.imageFooter, "4 × 3 • PNG • \(byteCountLabel(data.count))")
+    }
+
 
     func testImageDecoderRejectsMalformedAndCancelledWork() {
         let request = ClipboardImageEnrichmentRequest(
