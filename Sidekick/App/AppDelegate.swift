@@ -251,7 +251,12 @@ extension AppDelegate {
     private func installAutomaticClipboardImageController() {
         clipboardAutoImageConversionController = ClipboardAutoImageConversionController(
             settings: settings,
-            onImageDetected: { [weak self] in self?.startAutomaticImageConversion() }
+            onImageDetected: { [weak self] capturedSource, outputFormat in
+                self?.startAutomaticImageConversion(
+                    capturedSource: capturedSource,
+                    outputFormat: outputFormat
+                )
+            }
         )
     }
 

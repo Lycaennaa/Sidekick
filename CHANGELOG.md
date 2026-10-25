@@ -14,6 +14,7 @@ User-visible changes are listed here. No public release tag exists yet.
 - GitHub Actions CI and a maintainer-dispatched release workflow for ZIP and DMG assets.
 - Build-time ClearURLs rules fetching with bundled, offline runtime processing.
 - Add a Finder context-menu command that opens Sidekick to create a zero-byte file after the user enters a name, without replacing existing items.
+- Copying a folder no longer triggers automatic image conversion.
 
 ### Fixed
 

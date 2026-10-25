@@ -4,6 +4,39 @@ import XCTest
 
 final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
     @MainActor
+    func testAutomaticConversionIgnoresCopiedFolder() async throws {
+        let suiteName = "ClipboardAutoFolder.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettings(defaults: defaults)
+        settings.automaticImageConversionEnabled = true
+
+        let sourceDirectory = try temporaryDirectory()
+        let folderURL = sourceDirectory.appendingPathComponent("folder.png")
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let pasteboard = makePasteboard()
+        var conversionRequestCount = 0
+        let controller = ClipboardAutoImageConversionController(
+            settings: settings,
+            pasteboard: pasteboard,
+            onImageDetected: { _, _ in conversionRequestCount += 1 }
+        )
+        controller.start()
+        defer {
+            controller.terminate()
+            pasteboard.clearContents()
+            try? FileManager.default.removeItem(at: sourceDirectory)
+        }
+
+        pasteboard.clearContents()
+        XCTAssertTrue(AutomaticClipboardInput.fileURL(folderURL).write(to: pasteboard))
+        await controller.poll()
+        await controller.poll()
+
+        XCTAssertEqual(conversionRequestCount, 0)
+    }
+
+    @MainActor
     func testAutomaticConvertsRealPasteboardPNGToWebP() async throws {
         try await assertAutomaticReencode(
             input: .data(try pngData(width: 4, height: 3), type: .png),
@@ -84,9 +117,9 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
         let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
-            onImageDetected: {
+            onImageDetected: { capturedSource, outputFormat in
                 conversionRequestCount += 1
-                converter.convertClipboardImage(skipAlreadyOutputFormatFiles: true)
+                converter.convertCapturedClipboardImage(capturedSource, outputFormat: outputFormat)
             }
         )
         acknowledgeConvertedChange = { [weak controller] changeCount in
@@ -116,8 +149,8 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
         )
         XCTAssertTrue(isReferenced)
 
-        controller.poll()
-        controller.poll()
+        await controller.poll()
+        await controller.poll()
         XCTAssertEqual(conversionRequestCount, 1)
 
         converter.terminate()

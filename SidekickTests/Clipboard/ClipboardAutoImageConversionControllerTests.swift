@@ -5,7 +5,7 @@ import XCTest
 
 final class ClipboardAutoImageConversionControllerTests: XCTestCase {
     @MainActor
-    func testOptInToggleOnlyProcessesNewClipboardImages() throws {
+    func testOptInToggleOnlyProcessesNewClipboardImages() async throws {
         let suiteName = "ClipboardAutoImageConversionController.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -15,7 +15,7 @@ final class ClipboardAutoImageConversionControllerTests: XCTestCase {
         let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
-            onImageDetected: { requestCount += 1 }
+            onImageDetected: { _, _ in requestCount += 1 }
         )
         controller.start()
         defer {
@@ -24,66 +24,71 @@ final class ClipboardAutoImageConversionControllerTests: XCTestCase {
         }
 
         XCTAssertTrue(pasteboard.setData(try pngData(width: 2, height: 2), forType: .png))
-        controller.poll()
-        controller.poll()
+        await controller.poll()
+        await controller.poll()
         XCTAssertEqual(requestCount, 0)
 
         settings.automaticImageConversionEnabled = true
         controller.applySettings()
-        controller.poll()
-        controller.poll()
+        await controller.poll()
+        await controller.poll()
         XCTAssertEqual(requestCount, 0)
 
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.setData(try pngData(width: 2, height: 2), forType: .png))
-        controller.poll()
-        controller.poll()
+        await controller.poll()
+        await controller.poll()
         XCTAssertEqual(requestCount, 1)
 
         settings.automaticImageConversionEnabled = false
         controller.applySettings()
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.setData(try pngData(width: 2, height: 2), forType: .png))
-        controller.poll()
-        controller.poll()
+        await controller.poll()
+        await controller.poll()
         XCTAssertEqual(requestCount, 1)
     }
-
-
-
     @MainActor
-    func testFileURLDetectionDoesNotMaterializeProvider() throws {
-        let suiteName = "ClipboardAutoWebPProviderProbe.\(UUID().uuidString)"
+    func testManualConversionCancelsDetectionAndKeepsNewClipboardData() async throws {
+        let suiteName = "ClipboardAutoDetectionRace.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
         settings.automaticImageConversionEnabled = true
         let pasteboard = makePasteboard()
-        var requestCount = 0
+        let newerImageData = try pngData(width: 5, height: 4)
+        let sourceItem = NSPasteboardItem()
+        XCTAssertTrue(sourceItem.setString("file:///source", forType: .fileURL))
+        let reader = BlockingAutomaticFileURLReader()
+        var conversionRequestCount = 0
         let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
-            onImageDetected: { requestCount += 1 }
+            fileURLReader: reader,
+            onImageDetected: { _, _ in conversionRequestCount += 1 }
         )
         controller.start()
-        let provider = PasteboardSnapshotBlockingDataProvider(data: Data("file:///source".utf8))
-        provider.release.signal()
-        let item = NSPasteboardItem()
-        XCTAssertTrue(item.setDataProvider(provider, forTypes: [.fileURL]))
-        pasteboard.clearContents()
-        XCTAssertTrue(pasteboard.writeObjects([item]))
         defer {
+            reader.release(with: .data(Data("file:///source".utf8)))
             controller.terminate()
             pasteboard.clearContents()
         }
 
-        controller.poll()
-        controller.poll()
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.writeObjects([sourceItem]))
+        await controller.poll()
+        let detectionTask = Task { @MainActor in await controller.poll() }
+        await fulfillment(of: [reader.readStarted], timeout: 5)
 
-        XCTAssertEqual(requestCount, 1)
-        XCTAssertEqual(provider.invocationCount, 0)
+        controller.cancelPendingDetection()
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setData(newerImageData, forType: .png))
+        reader.release(with: .data(Data("file:///source".utf8)))
+        await detectionTask.value
+
+        XCTAssertEqual(conversionRequestCount, 0)
+        XCTAssertEqual(pasteboard.data(forType: .png), newerImageData)
     }
-
 
     private func makeWebPFile(in directory: URL) throws -> URL {
         try ClipboardImageConversionTranscoder.convert(
@@ -93,43 +98,39 @@ final class ClipboardAutoImageConversionControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testAutomaticModeSkipsMixedWebPFileAndDataRepresentations() async throws {
+    func testAutomaticModeSkipsAlreadyOutputFormatDataAndFiles() async throws {
         let suiteName = "ClipboardAutoWebPAlreadyWebP.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
         settings.automaticImageConversionEnabled = true
+        settings.imageOutputFormat = .webP
         let pasteboard = makePasteboard()
         let directory = try temporaryDirectory()
         let sourceURL = try makeWebPFile(in: directory)
-        let outputDirectory = directory.appendingPathComponent("converted")
-        let completed = expectation(description: "Already-output-format input skipped")
-        var result: ClipboardImageConversionController.Result?
-        var convertedCount = 0
-        var messages: [String] = []
-        let converter = ClipboardImageConversionController(
-            pasteboard: pasteboard,
-            outputDirectory: outputDirectory,
-            onConverted: { _, _ in convertedCount += 1 },
-            onMessage: { messages.append($0) }
-        )
+        var conversionRequestCount = 0
         let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
-            onImageDetected: {
-                converter.convertClipboardImage(skipAlreadyOutputFormatFiles: true) {
-                    result = $0
-                    completed.fulfill()
-                }
-            }
+            onImageDetected: { _, _ in conversionRequestCount += 1 }
         )
         controller.start()
         defer {
             controller.terminate()
-            converter.terminate()
             pasteboard.clearContents()
             try? FileManager.default.removeItem(at: directory)
         }
+
+        pasteboard.clearContents()
+        XCTAssertTrue(
+            pasteboard.setData(
+                try Data(contentsOf: sourceURL),
+                forType: NSPasteboard.PasteboardType(UTType.webP.identifier)
+            )
+        )
+        await controller.poll()
+        await controller.poll()
+        XCTAssertEqual(conversionRequestCount, 0)
 
         let item = NSPasteboardItem()
         XCTAssertTrue(item.setString(sourceURL.absoluteString, forType: .fileURL))
@@ -141,21 +142,16 @@ final class ClipboardAutoImageConversionControllerTests: XCTestCase {
         )
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.writeObjects([item]))
-        await fulfillment(of: [completed], timeout: 10)
 
-        XCTAssertEqual(result, .alreadyOutputFormat)
-        XCTAssertEqual(convertedCount, 0)
-        XCTAssertTrue(messages.isEmpty)
+        await controller.poll()
+        await controller.poll()
+
+        XCTAssertEqual(conversionRequestCount, 0)
         let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
             sourceURL,
             pasteboard: pasteboard
         )
         XCTAssertTrue(isReferenced)
-
-        converter.terminate()
-        await converter.waitForTerminationCleanup()
-        pasteboard.clearContents()
-        try FileManager.default.removeItem(at: directory)
     }
     func testNoImageMessageIsSuppressedOnlyForAutomaticConversion() {
         var ownership = ClipboardImageConversionOwnership()
@@ -270,6 +266,25 @@ private final class BlockingAutoWebPPayloadReader: PasteboardPayloadReading {
     func release(with data: Data) {
         let result = PasteboardPayloadReader.Result.data(data)
         releasedResult = result
+        continuation?.resume(returning: result)
+        continuation = nil
+    }
+}
+@MainActor
+private final class BlockingAutomaticFileURLReader: PasteboardFileURLReading {
+    let readStarted = XCTestExpectation(description: "Automatic file URL read started")
+    private var continuation: CheckedContinuation<PasteboardFileURLReadResult, Never>?
+
+    func readFileURLData(
+        from item: NSPasteboardItem,
+        maximumBytes: Int,
+        timeout: TimeInterval
+    ) async -> PasteboardFileURLReadResult {
+        readStarted.fulfill()
+        return await withCheckedContinuation { continuation = $0 }
+    }
+
+    func release(with result: PasteboardFileURLReadResult) {
         continuation?.resume(returning: result)
         continuation = nil
     }

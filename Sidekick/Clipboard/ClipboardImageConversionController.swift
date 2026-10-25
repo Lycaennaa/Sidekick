@@ -73,6 +73,32 @@ final class ClipboardImageConversionController {
             )
         }
     }
+    func convertCapturedClipboardImage(
+        _ captured: ClipboardImageConversionCapturedSource,
+        outputFormat: ClipboardImageFormat,
+        completion: @escaping (Result) -> Void = { _ in }
+    ) {
+        guard !installer.isTerminated else {
+            completion(.cancelled)
+            return
+        }
+        let requestToken = installer.beginRequest()
+        captureTask?.cancel()
+        captureTask = nil
+        worker.cancelAll()
+        guard installer.isRequestCurrent(token: requestToken),
+              installer.isCurrent(token: requestToken, sourceChangeCount: captured.changeCount) else {
+            completion(.stale)
+            return
+        }
+
+        enqueueCaptured(
+            captured,
+            requestToken: requestToken,
+            outputFormat: outputFormat,
+            completion: completion
+        )
+    }
 
     func terminate() {
         guard !installer.isTerminated else { return }
@@ -118,6 +144,19 @@ extension ClipboardImageConversionController {
             return
         }
 
+        enqueueCaptured(
+            captured,
+            requestToken: requestToken,
+            outputFormat: outputFormat,
+            completion: completion
+        )
+    }
+    private func enqueueCaptured(
+        _ captured: ClipboardImageConversionCapturedSource,
+        requestToken: UInt64,
+        outputFormat: ClipboardImageFormat,
+        completion: @escaping (Result) -> Void
+    ) {
         let installer = self.installer
         worker.enqueue(
             source: captured.source,

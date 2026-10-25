@@ -126,8 +126,9 @@ extension ClipboardImageConversionPasteboardCapture {
         let matchIsOutputFormat = match.map {
             UTType($0.type.rawValue)?.conforms(to: outputFormat.uniformType) == true
         } ?? true
+        let hasOutputFormatRepresentation = match != nil || !scannedFiles.image.isEmpty
         if skipAlreadyOutputFormatFiles,
-           !scannedFiles.image.isEmpty,
+            hasOutputFormatRepresentation,
            convertibleFileURLs.isEmpty,
            scannedFiles.ambiguous.isEmpty,
            matchIsOutputFormat {
@@ -180,6 +181,12 @@ extension ClipboardImageConversionPasteboardCapture {
                 materializedRepresentations.append(
                     .init(itemIndex: itemIndex, type: .fileURL, data: data)
                 )
+                let isDirectory = await isDirectoryFileURL(data)
+                guard !Task.isCancelled,
+                      request.pasteboard.changeCount == request.sourceChangeCount else {
+                    return .terminal(.stale)
+                }
+                if isDirectory { continue }
                 appendFileURL(
                     from: data,
                     imageFileURLs: &imageFileURLs,
@@ -202,6 +209,16 @@ extension ClipboardImageConversionPasteboardCapture {
                 materializedRepresentations: materializedRepresentations
             )
         )
+    }
+
+    private static func isDirectoryFileURL(_ data: Data) async -> Bool {
+        guard let url = PasteboardTypePolicy.url(from: data, localOnly: true) else { return false }
+        if url.hasDirectoryPath { return true }
+        return await isDirectory(url)
+    }
+
+    nonisolated private static func isDirectory(_ url: URL) async -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
     }
 
     private static func appendFileURL(

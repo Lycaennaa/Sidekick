@@ -8,6 +8,16 @@ private struct ConvertedImageToastContext {
     let request: ClipboardImageEnrichmentRequest
     let presentationToken: UInt64
 }
+@MainActor
+private enum ImageConversionRequest {
+    case manual
+    case automatic(ClipboardImageConversionCapturedSource, outputFormat: ClipboardImageFormat)
+
+    var isAutomatic: Bool {
+        if case .automatic = self { return true }
+        return false
+    }
+}
 
 extension AppDelegate {
     func syncClearURLsClipboardCleaner() {
@@ -64,24 +74,26 @@ extension AppDelegate {
 
     func startImageConversion() {
         guard !isTerminating, settings.imageConversionEnabled else { return }
-        performImageConversion(automatically: false)
+        performImageConversion(.manual)
     }
 
-    func startAutomaticImageConversion() {
+    func startAutomaticImageConversion(
+        capturedSource: ClipboardImageConversionCapturedSource,
+        outputFormat: ClipboardImageFormat
+    ) {
         guard !isTerminating, settings.automaticImageConversionEnabled else { return }
-        performImageConversion(automatically: true)
+        performImageConversion(.automatic(capturedSource, outputFormat: outputFormat))
     }
 
-    private func performImageConversion(automatically: Bool) {
+    private func performImageConversion(_ request: ImageConversionRequest) {
         guard let clipboardImageConversionController else { return }
+        let automatically = request.isAutomatic
         let operationGeneration = beginUtilityOperation()
         if automatically {
             clipboardImageConversionOwnership.beginAutomaticConversion(generation: operationGeneration)
         }
         let mutationGeneration = beginClipboardMutation()
-        clipboardImageConversionController.convertClipboardImage(
-            skipAlreadyOutputFormatFiles: automatically
-        ) { [weak self] _ in
+        let completion: (ClipboardImageConversionController.Result) -> Void = { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.endClipboardMutation(mutationGeneration)
@@ -89,6 +101,17 @@ extension AppDelegate {
                     generation: operationGeneration
                 )
             }
+        }
+
+        switch request {
+        case .manual:
+            clipboardImageConversionController.convertClipboardImage(completion: completion)
+        case let .automatic(capturedSource, outputFormat):
+            clipboardImageConversionController.convertCapturedClipboardImage(
+                capturedSource,
+                outputFormat: outputFormat,
+                completion: completion
+            )
         }
     }
 
@@ -287,6 +310,7 @@ extension AppDelegate {
     func beginUtilityOperation() -> UInt64 {
         utilityToastGeneration &+= 1
         clipboardImageConversionOwnership.invalidate()
+        clipboardAutoImageConversionController?.cancelPendingDetection()
         clipboardUtilityImageWorker.cancelAll()
         clipboardToastController?.cancelPendingAcknowledgment()
         clipboardToastController?.cancelPendingPayloadOperation()
