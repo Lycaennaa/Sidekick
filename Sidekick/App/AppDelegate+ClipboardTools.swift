@@ -78,11 +78,18 @@ extension AppDelegate {
     }
 
     func startAutomaticImageConversion(
-        capturedSource: ClipboardImageConversionCapturedSource,
+        capture: ClipboardImageConversionCapture,
         outputFormat: ClipboardImageFormat
     ) {
         guard !isTerminating, settings.automaticImageConversionEnabled else { return }
-        performImageConversion(.automatic(capturedSource, outputFormat: outputFormat))
+        switch capture {
+        case let .source(capturedSource):
+            performImageConversion(.automatic(capturedSource, outputFormat: outputFormat))
+        case .unavailable, .failed:
+            clipboardImageConversionController?.reportCaptureFailure(capture)
+        case .alreadyOutputFormat, .noImage, .stale:
+            break
+        }
     }
 
     private func performImageConversion(_ request: ImageConversionRequest) {

@@ -6,7 +6,7 @@ final class ClipboardAutoImageConversionController: NSObject {
 
     private let settings: AppSettings
     private let pasteboard: NSPasteboard
-    private let onImageDetected: (ClipboardImageConversionCapturedSource, ClipboardImageFormat) -> Void
+    private let onCaptureResult: (ClipboardImageConversionCapture, ClipboardImageFormat) -> Void
     private let fileURLReader: any PasteboardFileURLReading
     private let payloadReader: any PasteboardPayloadReading
 
@@ -14,6 +14,7 @@ final class ClipboardAutoImageConversionController: NSObject {
     private var changeObservation = ClipboardChangeObservationState()
     private var detectionTask: Task<ClipboardImageConversionCapture, Never>?
     private var detectionGeneration: UInt64?
+    private var observedOutputFormat: ClipboardImageFormat?
     private var enabled = false
     private var started = false
 
@@ -22,13 +23,13 @@ final class ClipboardAutoImageConversionController: NSObject {
         pasteboard: NSPasteboard = .general,
         fileURLReader: any PasteboardFileURLReading = SystemPasteboardFileURLReader(),
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader(),
-        onImageDetected: @escaping (ClipboardImageConversionCapturedSource, ClipboardImageFormat) -> Void
+        onCaptureResult: @escaping (ClipboardImageConversionCapture, ClipboardImageFormat) -> Void
     ) {
         self.settings = settings
         self.pasteboard = pasteboard
         self.fileURLReader = fileURLReader
         self.payloadReader = payloadReader
-        self.onImageDetected = onImageDetected
+        self.onCaptureResult = onCaptureResult
         super.init()
     }
 
@@ -36,6 +37,7 @@ final class ClipboardAutoImageConversionController: NSObject {
         guard !started else { return }
         started = true
         enabled = settings.automaticImageConversionEnabled
+        observedOutputFormat = settings.imageOutputFormat
         changeObservation.seed(changeCount: pasteboard.changeCount)
         if enabled {
             startPollTimer()
@@ -104,8 +106,13 @@ final class ClipboardAutoImageConversionController: NSObject {
             && changeObservation.isCurrentGeneration(generation)
         detectionTask = nil
         detectionGeneration = nil
-        guard shouldDeliver, case let .source(captured) = capture else { return }
-        onImageDetected(captured, outputFormat)
+        guard shouldDeliver else { return }
+        switch capture {
+        case .source, .unavailable, .failed:
+            onCaptureResult(capture, outputFormat)
+        case .alreadyOutputFormat, .noImage, .stale:
+            break
+        }
     }
     func acknowledgeConvertedChange(changeCount: Int) {
         guard pasteboard.changeCount == changeCount else { return }
@@ -120,7 +127,18 @@ final class ClipboardAutoImageConversionController: NSObject {
     }
     private func synchronizeEnabledState() {
         let shouldEnable = settings.automaticImageConversionEnabled
-        guard shouldEnable != enabled else { return }
+        let outputFormat = settings.imageOutputFormat
+        let outputFormatChanged = observedOutputFormat.map { $0 != outputFormat } ?? false
+        observedOutputFormat = outputFormat
+
+        guard shouldEnable != enabled else {
+            guard enabled, outputFormatChanged, detectionTask != nil else { return }
+            detectionTask?.cancel()
+            detectionTask = nil
+            detectionGeneration = nil
+            changeObservation.rearm(changeCount: pasteboard.changeCount)
+            return
+        }
         enabled = shouldEnable
         detectionTask?.cancel()
         detectionTask = nil

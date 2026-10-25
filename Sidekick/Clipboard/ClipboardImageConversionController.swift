@@ -73,6 +73,16 @@ final class ClipboardImageConversionController {
             )
         }
     }
+    func reportCaptureFailure(_ capture: ClipboardImageConversionCapture) {
+        switch capture {
+        case .unavailable:
+            onMessage("Clipboard image unavailable")
+        case .failed:
+            onMessage("Couldn’t convert clipboard image")
+        default:
+            break
+        }
+    }
     func convertCapturedClipboardImage(
         _ captured: ClipboardImageConversionCapturedSource,
         outputFormat: ClipboardImageFormat,
@@ -196,10 +206,10 @@ extension ClipboardImageConversionController {
             onMessage("No image to convert")
             completion(.noImage)
         case .unavailable:
-            onMessage("Clipboard image unavailable")
+            reportCaptureFailure(capture)
             completion(.unavailable)
         case .failed:
-            onMessage("Couldn’t convert clipboard image")
+            reportCaptureFailure(capture)
             completion(.failed)
         case .stale:
             installer.discardLeaseIfGenerationChanged()

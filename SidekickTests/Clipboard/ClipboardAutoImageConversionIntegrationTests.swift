@@ -19,7 +19,7 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
         let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
-            onImageDetected: { _, _ in conversionRequestCount += 1 }
+            onCaptureResult: { _, _ in conversionRequestCount += 1 }
         )
         controller.start()
         defer {
@@ -117,9 +117,8 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
         let controller = ClipboardAutoImageConversionController(
             settings: settings,
             pasteboard: pasteboard,
-            onImageDetected: { capturedSource, outputFormat in
-                conversionRequestCount += 1
-                converter.convertCapturedClipboardImage(capturedSource, outputFormat: outputFormat)
+            onCaptureResult: {
+                enqueueAutomaticCapture($0, format: $1, converter: converter, requestCount: &conversionRequestCount)
             }
         )
         acknowledgeConvertedChange = { [weak controller] changeCount in
@@ -171,4 +170,19 @@ private enum AutomaticClipboardInput {
             pasteboard.setString(url.absoluteString, forType: .fileURL)
         }
     }
+}
+
+@MainActor
+private func enqueueAutomaticCapture(
+    _ capture: ClipboardImageConversionCapture,
+    format: ClipboardImageFormat,
+    converter: ClipboardImageConversionController,
+    requestCount: inout Int
+) {
+    guard case let .source(source) = capture else {
+        XCTFail("Unexpected automatic capture result: \(capture)")
+        return
+    }
+    requestCount += 1
+    converter.convertCapturedClipboardImage(source, outputFormat: format)
 }
