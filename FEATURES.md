@@ -19,7 +19,7 @@ Sidekick runs in the macOS menu bar and requires macOS 15 or later.
 ## Screenshots
 
 - Capture a display, save it as WebP or AVIF, and copy it as PNG or the selected format.
-- Capture an individual window directly to the clipboard, or select a region; use aspect-ratio guides and inspect pixel colors and selection dimensions.
+- Capture an individual window directly to the clipboard, or select a region; use aspect-ratio guides and inspect pixel colors and selection dimensions. Full-display captures omit windows above the normal layer that cover the selected display; color-table and normal-layer effects are unaffected.
 
 ## Audio and volume
 

@@ -9,6 +9,7 @@ User-visible changes are listed here. No public release tag exists yet.
 - Select WebP or AVIF for clipboard conversions and screenshot output.
 - Clipboard image toasts distinguish advertised types from encoded image formats.
 - Window-aware screenshot selection, aspect-ratio guides, and pixel inspection.
+- Exclude elevated, display-covering windows from full-display screenshots to avoid screen-wide overlays.
 - Capture an individual window directly to the clipboard.
 - Exclude fully occluded windows and system UI from window capture, and require Screen Recording access.
 - GitHub Actions CI and a maintainer-dispatched release workflow for ZIP and DMG assets.

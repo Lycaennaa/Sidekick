@@ -23,6 +23,15 @@ extension NSScreen {
 
 @MainActor
 enum ActiveDisplayScreenshotCapture {
+    static func shouldExcludeDisplayOverlay(
+        windowLayer: Int,
+        normalWindowLayer: Int,
+        windowFrame: CGRect,
+        displayFrame: CGRect
+    ) -> Bool {
+        windowLayer > normalWindowLayer && windowFrame.contains(displayFrame)
+    }
+
     static func capture(showsCursor: Bool = false) async throws -> CapturedDisplayScreenshot {
         let mouseLocation = NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) }),
@@ -36,7 +45,17 @@ enum ActiveDisplayScreenshotCapture {
             throw ActiveDisplayScreenshotError.displayUnavailable
         }
 
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let normalWindowLayer = Int(CGWindowLevelForKey(.normalWindow))
+        let displayBounds = CGDisplayBounds(displayID)
+        let excludedOverlayWindows = content.windows.filter { window in
+            Self.shouldExcludeDisplayOverlay(
+                windowLayer: window.windowLayer,
+                normalWindowLayer: normalWindowLayer,
+                windowFrame: window.frame,
+                displayFrame: displayBounds
+            )
+        }
+        let filter = SCContentFilter(display: display, excludingWindows: excludedOverlayWindows)
         let configuration = SCStreamConfiguration()
         configuration.width = display.width
         configuration.height = display.height

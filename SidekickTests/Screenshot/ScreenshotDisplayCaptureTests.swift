@@ -2,6 +2,36 @@ import AppKit
 import XCTest
 
 extension ScreenshotCaptureIntegrationTests {
+    func testOnlyExcludesElevatedWindowsCoveringDisplay() {
+        let displayFrame = CGRect(x: 1920, y: -150, width: 1440, height: 900)
+        let normalWindowLayer = Int(CGWindowLevelForKey(.normalWindow))
+
+        XCTAssertTrue(
+            ActiveDisplayScreenshotCapture.shouldExcludeDisplayOverlay(
+                windowLayer: normalWindowLayer + 1,
+                normalWindowLayer: normalWindowLayer,
+                windowFrame: displayFrame,
+                displayFrame: displayFrame
+            )
+        )
+        XCTAssertFalse(
+            ActiveDisplayScreenshotCapture.shouldExcludeDisplayOverlay(
+                windowLayer: normalWindowLayer,
+                normalWindowLayer: normalWindowLayer,
+                windowFrame: displayFrame,
+                displayFrame: displayFrame
+            )
+        )
+        XCTAssertFalse(
+            ActiveDisplayScreenshotCapture.shouldExcludeDisplayOverlay(
+                windowLayer: normalWindowLayer + 1,
+                normalWindowLayer: normalWindowLayer,
+                windowFrame: CGRect(x: 1920, y: -150, width: 800, height: 600),
+                displayFrame: displayFrame
+            )
+        )
+    }
+
     func testControllerUsesSavedCursorDefaultAndPerCaptureOverride() async throws {
         let suiteName = "ScreenshotCursorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
