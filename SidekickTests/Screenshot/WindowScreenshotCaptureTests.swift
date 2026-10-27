@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 final class WindowScreenshotCaptureTests: XCTestCase {
-    func testDefaultWindowCaptureUsesRealScreenCaptureKitWindow() async throws {
+    func testDefaultWindowCaptureUsesRealScreenCaptureKitWindowWithSelectionOverlay() async throws {
         guard let screen = NSScreen.main else {
             throw XCTSkip("No active display is available")
         }
@@ -27,8 +27,12 @@ final class WindowScreenshotCaptureTests: XCTestCase {
         window.displayIfNeeded()
         defer { window.close() }
 
+        let selection = WindowScreenshotSelection.Session()
+        defer { selection.close() }
+
         let inventory = try await WindowScreenshotCapture.windows()
         let selectedWindow = try XCTUnwrap(inventory.windows.first(where: { $0.title == title }))
+        selection.close()
 
         let image = try await WindowScreenshotCapture.capture(
             windowID: selectedWindow.id,

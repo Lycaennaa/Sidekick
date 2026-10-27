@@ -33,22 +33,20 @@ enum WindowScreenshotCapture {
             true,
             onScreenWindowsOnly: true
         )
+        let displays = displayGeometries()
         let selectableWindows = selectableScreenCaptureWindows(in: content.windows)
         let selectableIDs = Set(selectableWindows.map(\.windowID))
-        let occlusionWindows = occlusionWindowsFromCoreGraphics(
-            content.windows,
-            selectableIDs: selectableIDs
-        )
+        let occlusionWindows = occlusionWindowsFromCoreGraphics(content.windows)
         let visibleRegionsByWindowID = occlusionWindows.map {
             ScreenshotWindowVisibility.visibleRegionsByWindowID(
                 frontToBack: $0,
-                selectableIDs: selectableIDs
+                selectableIDs: selectableIDs,
+                displayBounds: displays.map(\.quartzBounds)
             )
         }
         let visibleWindowOrder: [CGWindowID]? = occlusionWindows.map { windows in
             windows.filter { visibleRegionsByWindowID?[$0.id] != nil }.map(\.id)
         }
-        let displays = displayGeometries()
         let candidates = selectableWindows.flatMap { window in
             let visibleRegions = visibleRegionsByWindowID.map { $0[window.windowID] ?? [] }
             return makeScreenshotWindows(
@@ -137,8 +135,7 @@ enum WindowScreenshotCapture {
     }
 
     private static func occlusionWindowsFromCoreGraphics(
-        _ shareableWindows: [SCWindow],
-        selectableIDs: Set<CGWindowID>
+        _ shareableWindows: [SCWindow]
     ) -> [ScreenshotWindowOcclusion]? {
         var bundleIDs: [CGWindowID: String] = [:]
         var expectedIDs = Set<CGWindowID>()
@@ -158,20 +155,37 @@ enum WindowScreenshotCapture {
         let occlusionWindows = windowInfo.compactMap { info -> ScreenshotWindowOcclusion? in
             guard let number = info[kCGWindowNumber as String] as? NSNumber else { return nil }
             let id = CGWindowID(number.uint32Value)
-            guard expectedIDs.contains(id),
-                  let bounds = info[kCGWindowBounds as String] as? NSDictionary,
-                  let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary),
-                  let alpha = info[kCGWindowAlpha as String] as? NSNumber else {
-                return nil
-            }
-            return ScreenshotWindowOcclusion(
-                id: id,
-                frame: frame,
-                alpha: CGFloat(alpha.doubleValue),
-                bundleIdentifier: bundleIDs[id]
-            )
+            guard expectedIDs.contains(id) else { return nil }
+            return occlusionWindow(from: info, bundleIdentifier: bundleIDs[id])
         }
         return occlusionWindows
+    }
+
+    static func occlusionWindow(
+        from info: [String: Any],
+        bundleIdentifier: String?
+    ) -> ScreenshotWindowOcclusion? {
+        // Transparent picker panels still have a Core Graphics window alpha of 1.
+        // They intercept input, but must never hide the application windows beneath them.
+        let ownerPID = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+        let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue
+        if ownerPID == ProcessInfo.processInfo.processIdentifier,
+           layer == Int(CGWindowLevelForKey(.screenSaverWindow)) {
+            return nil
+        }
+        guard let number = info[kCGWindowNumber as String] as? NSNumber,
+              let bounds = info[kCGWindowBounds as String] as? NSDictionary,
+              let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+              let alpha = info[kCGWindowAlpha as String] as? NSNumber else {
+            return nil
+        }
+        return ScreenshotWindowOcclusion(
+            id: CGWindowID(number.uint32Value),
+            frame: frame,
+            alpha: CGFloat(alpha.doubleValue),
+            bundleIdentifier: bundleIdentifier,
+            windowLayer: layer ?? Int(CGWindowLevelForKey(.normalWindow))
+        )
     }
 
     static func capture(

@@ -23,7 +23,7 @@ extension NSScreen {
 
 @MainActor
 enum ActiveDisplayScreenshotCapture {
-    static func shouldExcludeDisplayOverlay(
+    nonisolated static func shouldExcludeDisplayOverlay(
         windowLayer: Int,
         normalWindowLayer: Int,
         windowFrame: CGRect,

@@ -106,6 +106,21 @@ struct ScreenshotWindowOcclusion {
     let frame: CGRect
     let alpha: CGFloat
     let bundleIdentifier: String?
+    let windowLayer: Int
+
+    init(
+        id: CGWindowID,
+        frame: CGRect,
+        alpha: CGFloat,
+        bundleIdentifier: String?,
+        windowLayer: Int = 0
+    ) {
+        self.id = id
+        self.frame = frame
+        self.alpha = alpha
+        self.bundleIdentifier = bundleIdentifier
+        self.windowLayer = windowLayer
+    }
 }
 
 enum ScreenshotWindowVisibility {
@@ -120,10 +135,12 @@ enum ScreenshotWindowVisibility {
 
     static func visibleRegionsByWindowID(
         frontToBack windows: [ScreenshotWindowOcclusion],
-        selectableIDs: Set<CGWindowID>
+        selectableIDs: Set<CGWindowID>,
+        displayBounds: [CGRect] = []
     ) -> [CGWindowID: [CGRect]] {
         var visibleRegions: [CGWindowID: [CGRect]] = [:]
         var opaqueFrames: [CGRect] = []
+        let normalWindowLayer = Int(CGWindowLevelForKey(.normalWindow))
         for window in windows where !window.frame.isEmpty {
             if let bundleIdentifier = window.bundleIdentifier,
                ignoredOccluderBundleIDs.contains(bundleIdentifier) {
@@ -136,7 +153,20 @@ enum ScreenshotWindowVisibility {
                 }
             }
             if window.alpha >= 1 {
-                opaqueFrames.append(window.frame)
+                if window.windowLayer <= normalWindowLayer || displayBounds.isEmpty {
+                    opaqueFrames.append(window.frame)
+                } else {
+                    let overlayDisplays = displayBounds.filter { display in
+                        ActiveDisplayScreenshotCapture.shouldExcludeDisplayOverlay(
+                            windowLayer: window.windowLayer,
+                            normalWindowLayer: normalWindowLayer,
+                            windowFrame: window.frame,
+                            displayFrame: display
+                        )
+                    }
+                    // Preserve occlusion on another display that this window only partly covers.
+                    opaqueFrames.append(contentsOf: uncoveredRegions(window.frame, coveredBy: overlayDisplays))
+                }
             }
         }
         return visibleRegions
