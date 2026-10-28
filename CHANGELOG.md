@@ -17,6 +17,8 @@ User-visible changes are listed here. No public release tag exists yet.
 - Add a Finder context-menu command that opens Sidekick to create a zero-byte file after the user enters a name, without replacing existing items.
 - Copying folders no longer triggers automatic conversion; pending captures retry after output-format changes, and unreadable images report an error.
 
+- Added recursive macOS metadata cleanup for enrolled folders and external drives, binding folder roots to their original volume and offering preview, configurable removal modes, and local cleanup history.
+
 ### Fixed
 
 - Prevent selection panels and elevated display-covering overlays from hiding all window-capture candidates, while preserving ordinary window occlusion and partial coverage on adjacent displays.
@@ -28,3 +30,4 @@ User-visible changes are listed here. No public release tag exists yet.
 - Reuse enumerated window objects and display geometry during window capture to avoid redundant system queries.
 
 - Keep window capture active while retrying empty window inventories twice.
+- Harden macOS cleanup against symlink-swapped paths, enforce stability for manual actions, preserve companion-file events, and correct cleanup settings feedback.

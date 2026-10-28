@@ -9,6 +9,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
     case outputVolume
     case appearance
     case permissions
+    case macCleanup
 
     var title: String {
         switch self {
@@ -20,6 +21,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         case .outputVolume: "Output Volume"
         case .appearance: "Appearance"
         case .permissions: "Permissions"
+        case .macCleanup: "Mac Cleanup"
         }
     }
 
@@ -33,6 +35,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         case .outputVolume: "speaker.wave.2"
         case .appearance: "paintpalette"
         case .permissions: "lock.shield"
+        case .macCleanup: "trash"
         }
     }
 }

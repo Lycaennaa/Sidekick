@@ -3,7 +3,9 @@ import AppKit
 extension AppDelegate {
     func showTools() {
         guard let twitchNotificationController else { return }
-        guard let statusMenuController, let temporaryVolumeFeature else {
+        guard let statusMenuController,
+              let temporaryVolumeFeature,
+              let macArtifactCleanupCoordinator else {
             preconditionFailure("Tools dependencies must be installed before presenting the tools window")
         }
         NSApp.setActivationPolicy(.regular)
@@ -20,6 +22,8 @@ extension AppDelegate {
             clearURLsClipboardAvailable: clipboardClearURLsController != nil,
             microphoneToastOptionsMenu: statusMenuController.microphoneToastOptionsMenu,
             outputVolumeMenu: temporaryVolumeFeature.menu.menu,
+            macArtifactCleanupStore: macArtifactCleanupStore,
+            macArtifactCleanupCoordinator: macArtifactCleanupCoordinator,
             onCaptureScreenshot: { [weak self] in
                 guard let self else { return }
                 self.captureScreenshotToClipboard()

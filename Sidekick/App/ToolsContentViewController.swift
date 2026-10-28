@@ -11,6 +11,7 @@ final class ToolsContentViewController: NSViewController {
     private let outputVolumeView: OutputVolumeSettingsView
     private let appearanceView: AppearanceSettingsView
     private let permissionsView = PermissionsSettingsView()
+    private let macCleanupView: MacArtifactCleanupSettingsView
     private var pageHost: ToolsSettingsPageHost?
     private(set) var selectedPage = ToolsSettingsPage.clipboard
 
@@ -23,6 +24,8 @@ final class ToolsContentViewController: NSViewController {
         discordInstallerView: DiscordInstallerView,
         microphoneToastOptionsMenu: NSMenu,
         outputVolumeMenu: NSMenu,
+        macArtifactCleanupStore: MacArtifactCleanupStore,
+        macArtifactCleanupCoordinator: MacArtifactCleanupCoordinator,
         onCaptureScreenshot: @escaping () -> Void
     ) {
         clipboardView = ClipboardSettingsView(
@@ -40,6 +43,12 @@ final class ToolsContentViewController: NSViewController {
         )
         outputVolumeView = OutputVolumeSettingsView(menu: outputVolumeMenu)
         appearanceView = AppearanceSettingsView(settings: settings)
+        let cleanupView = MacArtifactCleanupSettingsView(
+            store: macArtifactCleanupStore,
+            coordinator: macArtifactCleanupCoordinator
+        )
+        macCleanupView = cleanupView
+        macArtifactCleanupCoordinator.onChange = { [weak cleanupView] in cleanupView?.refresh() }
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -66,6 +75,8 @@ final class ToolsContentViewController: NSViewController {
             discordInstallerView.refresh()
         case .permissions:
             permissionsView.refresh()
+        case .macCleanup:
+            macCleanupView.refresh()
         case .clipboard, .screenshots, .audio, .outputVolume, .appearance:
             break
         }
@@ -89,6 +100,9 @@ final class ToolsContentViewController: NSViewController {
         if selectedPage == .permissions {
             permissionsView.refresh()
         }
+        if selectedPage == .macCleanup {
+            macCleanupView.refresh()
+        }
     }
 
     func refreshAppearance() {
@@ -111,6 +125,7 @@ final class ToolsContentViewController: NSViewController {
         case .outputVolume: outputVolumeView
         case .appearance: appearanceView
         case .permissions: permissionsView
+        case .macCleanup: macCleanupView
         }
     }
 

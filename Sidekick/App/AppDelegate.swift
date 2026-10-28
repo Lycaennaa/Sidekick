@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusMenuController: StatusMenuController?
     var twitchNotificationController: TwitchNotificationController?
     var toolsWindowController: ToolsWindowController?
+    var macArtifactCleanupStore = MacArtifactCleanupStore()
+    var macArtifactCleanupCoordinator: MacArtifactCleanupCoordinator?
     private var systemAppearanceObservation: NSKeyValueObservation?
     var utilityToastGeneration: UInt64 = UInt64.max / 2
     var clipboardImageConversionOwnership = ClipboardImageConversionOwnership()
@@ -51,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installScreenshotCapture()
         installTwitchController()
         installTemporaryVolumeFeature()
+        installMacArtifactCleanup()
         installStatusMenu()
         installSettingsChangeHandler()
         startServices()
@@ -114,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         DistributedNotificationCenter.default().removeObserver(self)
         temporaryVolumeFeature?.stop()
+        macArtifactCleanupCoordinator?.stop()
         microphoneToastController?.stop()
         clipboardUtilityImageWorker.cancelAll()
         if let clipboardTokenizer {

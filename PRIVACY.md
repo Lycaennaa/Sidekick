@@ -46,6 +46,10 @@ Sidekick’s main app runs without App Sandbox and has the signed-in user’s or
 
 Finder file creation is user initiated. The Finder Sync extension sends the target folder to Sidekick through a local URL request. After the user confirms a filename, the app creates that zero-byte file with coordinated exclusive creation; an existing item is never replaced. Cancel creates no file. Sidekick does not send file contents or names to its own or third-party services. If the user chooses a network-mounted folder, the remote filesystem receives the requested filename as part of creating the file.
 
+### macOS metadata cleanup
+
+Cleanup configuration is stored in `UserDefaults` and includes enrolled folder paths, their volume identifiers, external-volume identifiers, and removal modes. Local history retains up to 50 summaries, each with counts and up to 20 item details that may include file paths and cleanup outcomes. Completion notifications include the selected folder name and counts; macOS Notification Center may retain or display notification content according to system settings. Scanning and cleanup run locally; file contents are not transmitted by this feature.
+
 ## Deletion
 
 To remove Sidekick data:

@@ -17,6 +17,8 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
         clearURLsClipboardAvailable: Bool,
         microphoneToastOptionsMenu: NSMenu,
         outputVolumeMenu: NSMenu,
+        macArtifactCleanupStore: MacArtifactCleanupStore,
+        macArtifactCleanupCoordinator: MacArtifactCleanupCoordinator,
         onCaptureScreenshot: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
@@ -40,6 +42,8 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
             discordInstallerView: discordInstallerView,
             microphoneToastOptionsMenu: microphoneToastOptionsMenu,
             outputVolumeMenu: outputVolumeMenu,
+            macArtifactCleanupStore: macArtifactCleanupStore,
+            macArtifactCleanupCoordinator: macArtifactCleanupCoordinator,
             onCaptureScreenshot: onCaptureScreenshot
         )
         self.contentController = contentController

@@ -137,6 +137,7 @@ targets:
         excludes:
           - .kilo-tmp
           - App/PermissionsSettingsLiveIntegrationTests.swift
+          - App/MacArtifactCleanupNotifierTests.swift
           - main.swift
       - path: SidekickFinderShared
       - path: Sidekick/App/FinderNewFileRequestHandler.swift
@@ -173,6 +174,19 @@ targets:
       - path: Sidekick/Twitch/TwitchNotificationView.swift
       - path: Sidekick/App/SettingsPageStackLayout.swift
       - path: Sidekick/App/ToastPresentationCoordinator.swift
+      - path: Sidekick/MacCleanup/MacArtifactScanner.swift
+      - path: Sidekick/MacCleanup/MacArtifactSafeFileSystem.swift
+      - path: Sidekick/MacCleanup/MacArtifactSafeDirectoryTraversal.swift
+      - path: Sidekick/MacCleanup/MacArtifactSafeLocation.swift
+      - path: Sidekick/MacCleanup/MacArtifactSafeTrash.swift
+      - path: Sidekick/MacCleanup/MacArtifactCleanupStore.swift
+      - path: Sidekick/MacCleanup/MacArtifactFileWatcher.swift
+      - path: Sidekick/MacCleanup/MacArtifactCleanupScanEngine.swift
+      - path: Sidekick/MacCleanup/MacArtifactCleanupNotifier.swift
+      - path: Sidekick/MacCleanup/MacArtifactVolumeMonitor.swift
+      - path: Sidekick/MacCleanup/MacArtifactCleanupProcessor.swift
+      - path: Sidekick/MacCleanup/MacArtifactCleanupCoordinator.swift
+      - path: Sidekick/App/MacArtifactCleanupSettingsView.swift
       - path: Sidekick/Screenshot/ScreenCaptureService.swift
       - path: Sidekick/Screenshot/WindowScreenshotCapture.swift
       - path: Sidekick/Screenshot/ScreenshotWindowGeometry.swift
@@ -233,6 +247,8 @@ targets:
     type: bundle.unit-test
     platform: macOS
     sources:
+      - path: SidekickTests/App/MacArtifactCleanupNotifierTests.swift
+      - path: Sidekick/MacCleanup/MacArtifactCleanupNotifier.swift
       - path: SidekickTests/App/PermissionsSettingsLiveIntegrationTests.swift
       - path: Sidekick/App/PermissionsSettingsView.swift
       - path: Sidekick/App/SettingsPageStackLayout.swift
