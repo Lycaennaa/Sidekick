@@ -314,10 +314,15 @@ extension AppDelegate {
         clipboardClearURLsController?.endClipboardMutation(generation)
     }
 
-    func beginUtilityOperation() -> UInt64 {
+    func beginUtilityOperation(
+        detectionCancellationReason:
+            ClipboardAutoImageConversionController.DetectionCancellationReason = .utilityOperation
+    ) -> UInt64 {
         utilityToastGeneration &+= 1
         clipboardImageConversionOwnership.invalidate()
-        clipboardAutoImageConversionController?.cancelPendingDetection()
+        clipboardAutoImageConversionController?.cancelPendingDetection(
+            reason: detectionCancellationReason
+        )
         clipboardUtilityImageWorker.cancelAll()
         clipboardToastController?.cancelPendingAcknowledgment()
         clipboardToastController?.cancelPendingPayloadOperation()
@@ -329,6 +334,10 @@ extension AppDelegate {
     }
 
     func cancelPendingUtilityToast() {
-        _ = beginUtilityOperation()
+        clipboardImageConversionOwnership.cancelPendingUtilityOperationIfNotAutomatic(
+            utilityGeneration: utilityToastGeneration
+        ) {
+            _ = beginUtilityOperation(detectionCancellationReason: .clipboardToast)
+        }
     }
 }

@@ -45,6 +45,25 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
     }
 
     @MainActor
+    func testAutomaticConvertsCopiedNSImageToWebP() async throws {
+        let image = try XCTUnwrap(NSImage(data: pngData(width: 4, height: 3)))
+        try await assertAutomaticReencode(
+            input: .image(image),
+            outputFormat: .webP
+        )
+    }
+
+    @MainActor
+    func testAutomaticConvertsLazilyProvidedPNGToWebPOnce() async throws {
+        let provider = LazyImagePasteboardProvider(data: try pngData(width: 4, height: 3))
+        try await assertAutomaticReencode(
+            input: .lazyImage(provider),
+            outputFormat: .webP
+        )
+        XCTAssertEqual(provider.requestCount, 1)
+    }
+
+    @MainActor
     func testAutomaticReencodesWebPBytesAdvertisedAsPNG() async throws {
         let sourcePNG = try pngData(width: 4, height: 3)
         let sourceWebP = try ClipboardImageEncoder.encode(
@@ -138,15 +157,11 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
 
         XCTAssertEqual(conversionRequestCount, 1)
         let outputURL = try XCTUnwrap(convertedURL)
-        XCTAssertEqual(outputURL.pathExtension, outputFormat.fileExtension)
-        let outputData = try Data(contentsOf: outputURL)
-        let outputSource = try XCTUnwrap(CGImageSourceCreateWithData(outputData as CFData, nil))
-        XCTAssertEqual(CGImageSourceGetType(outputSource) as String?, outputFormat.typeIdentifier)
-        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
+        try await assertAutomaticOutput(
             outputURL,
+            expectedFormat: outputFormat,
             pasteboard: pasteboard
         )
-        XCTAssertTrue(isReferenced)
 
         await controller.poll()
         await controller.poll()
@@ -155,19 +170,61 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
         converter.terminate()
         await converter.waitForTerminationCleanup()
     }
+
+    @MainActor
+    private func assertAutomaticOutput(
+        _ outputURL: URL,
+        expectedFormat: ClipboardImageFormat,
+        pasteboard: NSPasteboard
+    ) async throws {
+        XCTAssertEqual(outputURL.pathExtension, expectedFormat.fileExtension)
+        let outputData = try Data(contentsOf: outputURL)
+        let outputSource = try XCTUnwrap(CGImageSourceCreateWithData(outputData as CFData, nil))
+        XCTAssertEqual(
+            CGImageSourceGetType(outputSource) as String?,
+            expectedFormat.typeIdentifier
+        )
+        XCTAssertNotNil(CGImageSourceCreateImageAtIndex(outputSource, 0, nil))
+        let clipboardData = try XCTUnwrap(
+            pasteboard.data(
+                forType: NSPasteboard.PasteboardType(expectedFormat.typeIdentifier)
+            )
+        )
+        XCTAssertEqual(clipboardData, outputData)
+        let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
+            outputURL,
+            pasteboard: pasteboard
+        )
+        XCTAssertTrue(isReferenced)
+        let exactFileURL = await PasteboardSnapshot.exactFileURL(
+            from: pasteboard,
+            maximumItems: PasteboardSnapshotPolicy.maximumItems,
+            maximumTypesPerItem: PasteboardSnapshotPolicy.maximumTypesPerItem,
+            expectedChangeCount: pasteboard.changeCount
+        )
+        XCTAssertEqual(exactFileURL, outputURL.standardizedFileURL)
+    }
 }
 
 private enum AutomaticClipboardInput {
     case data(Data, type: NSPasteboard.PasteboardType)
     case fileURL(URL)
+    case image(NSImage)
+    case lazyImage(LazyImagePasteboardProvider)
 
     @MainActor
     func write(to pasteboard: NSPasteboard) -> Bool {
         switch self {
         case let .data(data, type):
-            pasteboard.setData(data, forType: type)
+            return pasteboard.setData(data, forType: type)
         case let .fileURL(url):
-            pasteboard.setString(url.absoluteString, forType: .fileURL)
+            return pasteboard.setString(url.absoluteString, forType: .fileURL)
+        case let .image(image):
+            return pasteboard.writeObjects([image])
+        case let .lazyImage(provider):
+            let item = NSPasteboardItem()
+            item.setDataProvider(provider, forTypes: [.png])
+            return pasteboard.writeObjects([item])
         }
     }
 }
@@ -185,4 +242,31 @@ private func enqueueAutomaticCapture(
     }
     requestCount += 1
     converter.convertCapturedClipboardImage(source, outputFormat: format)
+}
+
+private final class LazyImagePasteboardProvider: NSObject, NSPasteboardItemDataProvider {
+    let data: Data
+    private let lock = NSLock()
+    private var requests = 0
+
+    var requestCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests
+    }
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    func pasteboard(
+        _ pasteboard: NSPasteboard?,
+        item: NSPasteboardItem,
+        provideDataForType type: NSPasteboard.PasteboardType
+    ) {
+        lock.lock()
+        requests += 1
+        lock.unlock()
+        item.setData(data, forType: type)
+    }
 }

@@ -228,7 +228,8 @@ final class ScreenshotCaptureController {
             startedAt: Date(),
             saveDirectory: settings.screenshotSaveDirectoryURL,
             filenameTemplate: settings.screenshotFilenameTemplate,
-            screenshotCopyAsOutputFormat: settings.screenshotCopyAsOutputFormat,
+            screenshotCopyAsOutputFormat:
+                settings.screenshotCopyAsOutputFormat && !settings.automaticImageConversionEnabled,
             imageFormat: settings.imageOutputFormat,
             showsCursor: showsCursor
         )

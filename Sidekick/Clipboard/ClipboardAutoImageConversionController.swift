@@ -2,6 +2,10 @@ import AppKit
 
 @MainActor
 final class ClipboardAutoImageConversionController: NSObject {
+    enum DetectionCancellationReason {
+        case utilityOperation
+        case clipboardToast
+    }
     static let pollInterval: TimeInterval = 0.25
 
     private let settings: AppSettings
@@ -49,6 +53,11 @@ final class ClipboardAutoImageConversionController: NSObject {
         synchronizeEnabledState()
     }
     func cancelPendingDetection() {
+        cancelPendingDetection(reason: .utilityOperation)
+    }
+
+    func cancelPendingDetection(reason: DetectionCancellationReason) {
+        guard case .utilityOperation = reason else { return }
         detectionTask?.cancel()
         detectionTask = nil
         detectionGeneration = nil

@@ -93,8 +93,7 @@ extension PasteboardSnapshot {
         let types = item.types
         guard maximumTypesPerItem >= 1,
               types.count <= maximumTypesPerItem,
-              types.count == 1,
-              types.first == .fileURL,
+              types.contains(.fileURL),
               let url = await fileURL(
                   from: item,
                   maximumReadDuration: maximumReadDuration,
@@ -103,6 +102,12 @@ extension PasteboardSnapshot {
               !Task.isCancelled else {
             return nil
         }
+        let isFileURLOnly = types.count == 1 && types.first == .fileURL
+        let isConvertedImageFile = types.count == 2
+            && ClipboardImageFormat(fileExtension: url.pathExtension).map {
+                types.contains(NSPasteboard.PasteboardType($0.typeIdentifier))
+            } == true
+        guard isFileURLOnly || isConvertedImageFile else { return nil }
         if let expectedChangeCount,
            pasteboard.changeCount != expectedChangeCount {
             return nil

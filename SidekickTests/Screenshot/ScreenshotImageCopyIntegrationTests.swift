@@ -43,6 +43,111 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
         XCTAssertEqual(decodedImage.height, image.height)
     }
 
+    @MainActor
+    func testAutomaticConversionKeepsScreenshotOutputFileBacked() async throws {
+        let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
+        let suiteName = "ScreenshotAutoImageCopy-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettings(defaults: defaults)
+        settings.automaticImageConversionEnabled = true
+        settings.screenshotCopyAsOutputFormat = false
+        settings.imageOutputFormat = .webP
+
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("ScreenshotAutoImageCopy-\(UUID().uuidString)"))
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setString("prior clipboard value", forType: .string))
+        let outputDirectory = try temporaryDirectory()
+        defer {
+            pasteboard.clearContents()
+            pasteboard.releaseGlobally()
+            try? FileManager.default.removeItem(at: outputDirectory)
+        }
+
+        let converted = expectation(description: "Screenshot clipboard converted")
+        var outputURL: URL?
+        let controllers = makeAutomaticScreenshotConversionControllers(
+            settings: settings,
+            pasteboard: pasteboard,
+            outputDirectory: outputDirectory,
+            onConverted: { url in
+                outputURL = url
+                converted.fulfill()
+            }
+        )
+        controllers.automatic.start()
+        defer {
+            controllers.automatic.terminate()
+            controllers.conversion.terminate()
+        }
+
+        var copied = false
+        var failure: ScreenshotCaptureController.Failure?
+        let screenshotController = ScreenshotCaptureController(
+            pasteboard: pasteboard,
+            settings: settings,
+            capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
+            select: { _, _ in .selected(image) },
+            onCopied: { copied = true },
+            onFailure: { failure = $0 }
+        )
+        await screenshotController.copyActiveDisplayToClipboard()
+        await controllers.automatic.poll()
+        await fulfillment(of: [converted], timeout: 10)
+
+        XCTAssertTrue(copied)
+        XCTAssertNil(failure)
+        let convertedURL = try XCTUnwrap(outputURL)
+        try assertFileBackedWebP(on: pasteboard, outputURL: convertedURL)
+        controllers.automatic.terminate()
+        controllers.conversion.terminate()
+        await controllers.conversion.waitForTerminationCleanup()
+    }
+
+    private func makeAutomaticScreenshotConversionControllers(
+        settings: AppSettings,
+        pasteboard: NSPasteboard,
+        outputDirectory: URL,
+        onConverted: @escaping (URL) -> Void
+    ) -> (
+        automatic: ClipboardAutoImageConversionController,
+        conversion: ClipboardImageConversionController
+    ) {
+        let conversion = ClipboardImageConversionController(
+            pasteboard: pasteboard,
+            outputDirectory: outputDirectory,
+            outputFormat: { settings.imageOutputFormat },
+            onConverted: { url, _ in onConverted(url) },
+            onMessage: { message in XCTFail("Unexpected conversion message: \(message)") }
+        )
+        let automatic = ClipboardAutoImageConversionController(
+            settings: settings,
+            pasteboard: pasteboard,
+            onCaptureResult: { capture, format in
+                guard case let .source(source) = capture else {
+                    XCTFail("Expected screenshot PNG capture, got \(capture)")
+                    conversion.reportCaptureFailure(capture)
+                    return
+                }
+                conversion.convertCapturedClipboardImage(source, outputFormat: format)
+            }
+        )
+        return (automatic, conversion)
+    }
+
+    private func assertFileBackedWebP(on pasteboard: NSPasteboard, outputURL: URL) throws {
+        XCTAssertNil(pasteboard.data(forType: .png))
+        let webPData = try XCTUnwrap(
+            pasteboard.data(forType: NSPasteboard.PasteboardType(ClipboardImageFormat.webP.typeIdentifier))
+        )
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(webPData as CFData, nil))
+        XCTAssertEqual(CGImageSourceGetType(source) as String?, ClipboardImageFormat.webP.typeIdentifier)
+        XCTAssertNotNil(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        XCTAssertEqual(try Data(contentsOf: outputURL), webPData)
+        XCTAssertEqual(outputURL.pathExtension, ClipboardImageFormat.webP.fileExtension)
+        XCTAssertEqual(pasteboard.string(forType: .fileURL), outputURL.absoluteString)
+    }
+
     func testSaveAndCopyReusesStagedSelectedFormatEncoding() async throws {
         let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
         let directory = try temporaryDirectory()

@@ -141,7 +141,12 @@ private extension ClipboardImagePasteboardInstaller {
             completeStale(url: url, completion: completion)
             return
         }
-        guard let item = makePasteboardItem(url: url, completion: completion) else { return }
+        guard let item = await makePasteboardItem(
+            url: url,
+            token: token,
+            sourceChangeCount: sourceChangeCount,
+            completion: completion
+        ) else { return }
 
         let replacement = await replaceSnapshot(
             snapshot: snapshot,
@@ -230,12 +235,40 @@ private extension ClipboardImagePasteboardInstaller {
     }
     func makePasteboardItem(
         url: URL,
+        token: UInt64,
+        sourceChangeCount: Int,
         completion: @escaping (Result) -> Void
-    ) -> NSPasteboardItem? {
+    ) async -> NSPasteboardItem? {
         let item = NSPasteboardItem()
+        guard let format = ClipboardImageFormat(fileExtension: url.pathExtension) else {
+            artifactOwner.removeGeneratedFile(at: url)
+            onMessage("Couldn’t identify converted clipboard image format")
+            completion(.failed)
+            return nil
+        }
+        let outputData = await Self.readOutputData(from: url)
+        guard isCurrent(token: token, sourceChangeCount: sourceChangeCount) else {
+            completeStale(url: url, completion: completion)
+            return nil
+        }
+        guard let outputData else {
+            artifactOwner.removeGeneratedFile(at: url)
+            onMessage("Couldn’t read converted clipboard image")
+            completion(.failed)
+            return nil
+        }
+        guard item.setData(
+            outputData,
+            forType: NSPasteboard.PasteboardType(format.typeIdentifier)
+        ) else {
+            artifactOwner.removeGeneratedFile(at: url)
+            onMessage("Couldn’t set converted image representation")
+            completion(.failed)
+            return nil
+        }
         guard item.setString(url.absoluteString, forType: .fileURL) else {
             artifactOwner.removeGeneratedFile(at: url)
-            onMessage("Couldn’t convert clipboard image")
+            onMessage("Couldn’t set converted file reference")
             completion(.failed)
             return nil
         }
@@ -378,5 +411,15 @@ private extension ClipboardImagePasteboardInstaller {
         }
         onMessage("Couldn’t copy converted clipboard image")
         completion(.failed)
+    }
+    nonisolated static func readOutputData(from url: URL) async -> Data? {
+        let maximumBytes = ClipboardImageConversionPolicy.maximumOutputBytes
+        guard let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              fileSize <= maximumBytes,
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+              data.count <= maximumBytes else {
+            return nil
+        }
+        return data
     }
 }

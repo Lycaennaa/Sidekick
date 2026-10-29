@@ -332,6 +332,89 @@ final class ClipboardAutoImageConversionControllerTests: XCTestCase {
 
 }
 
+final class ClipboardAutoImageConversionToastInterruptionTests: XCTestCase {
+
+    @MainActor
+    func testClipboardToastDoesNotCancelPendingAutomaticConversion() async throws {
+        let suiteName = "ClipboardToastAutomaticDetection.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettings(defaults: defaults)
+        settings.automaticImageConversionEnabled = true
+
+        let pasteboard = makePasteboard()
+        let imageData = try pngData(width: 3, height: 2)
+        let reader = BlockingAutoWebPPayloadReader()
+        let outputDirectory = try temporaryDirectory()
+        let converted = expectation(description: "Automatic PNG conversion completed")
+        var convertedURL: URL?
+        let converter = ClipboardImageConversionController(
+            pasteboard: pasteboard,
+            outputDirectory: outputDirectory,
+            outputFormat: { .webP },
+            onConverted: { url, _ in
+                convertedURL = url
+                converted.fulfill()
+            },
+            onMessage: { message in XCTFail("Unexpected conversion message: \(message)") }
+        )
+        let controller = ClipboardAutoImageConversionController(
+            settings: settings,
+            pasteboard: pasteboard,
+            payloadReader: reader,
+            onCaptureResult: { capture, format in
+                guard case let .source(source) = capture else {
+                    XCTFail("Expected PNG capture to reach automatic conversion")
+                    return
+                }
+                converter.convertCapturedClipboardImage(source, outputFormat: format)
+            }
+        )
+        controller.start()
+        defer {
+            controller.terminate()
+            converter.terminate()
+            pasteboard.clearContents()
+            try? FileManager.default.removeItem(at: outputDirectory)
+        }
+
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setData(imageData, forType: .png))
+        await controller.poll()
+        let pendingPoll = Task { @MainActor in await controller.poll() }
+        await fulfillment(of: [reader.readStarted], timeout: 5)
+
+        controller.cancelPendingDetection(reason: .clipboardToast)
+        reader.release(with: imageData)
+        await pendingPoll.value
+        await fulfillment(of: [converted], timeout: 10)
+
+        try await assertClipboardImageOutput(
+            XCTUnwrap(convertedURL),
+            format: .webP,
+            pasteboard: pasteboard
+        )
+        converter.terminate()
+        await converter.waitForTerminationCleanup()
+    }
+}
+
+@MainActor
+private func assertClipboardImageOutput(
+    _ url: URL,
+    format: ClipboardImageFormat,
+    pasteboard: NSPasteboard
+) async throws {
+    XCTAssertEqual(url.pathExtension, format.fileExtension)
+    let data = try Data(contentsOf: url)
+    let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
+    XCTAssertEqual(CGImageSourceGetType(source) as String?, format.typeIdentifier)
+    let isReferenced = await ClipboardImageConversionPasteboardCapture.referencesFile(
+        url,
+        pasteboard: pasteboard
+    )
+    XCTAssertTrue(isReferenced)
+}
 @MainActor
 private final class BlockingAutoWebPPayloadReader: PasteboardPayloadReading {
     let readStarted = XCTestExpectation(description: "Automatic WebP payload read started")

@@ -21,6 +21,10 @@ User-visible changes are listed here. No public release tag exists yet.
 
 ### Fixed
 
+- Keep automatic clipboard image conversion running when its clipboard-content toast appears.
+- Put converted WebP and AVIF image data on the clipboard alongside the output file reference.
+- Keep automatically converted Sidekick screenshots file-backed on the clipboard.
+
 - Prevent selection panels and elevated display-covering overlays from hiding all window-capture candidates, while preserving ordinary window occlusion and partial coverage on adjacent displays.
 - Reuse captured clipboard representations for rollback and preserve newer artifact ownership during async restoration.
 - Focus the filename field when the Finder prompt opens.

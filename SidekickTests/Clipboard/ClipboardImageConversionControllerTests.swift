@@ -156,7 +156,7 @@ final class ClipboardImageConversionControllerTests: XCTestCase {
 
         let result = await convert(with: controller)
         guard case let .converted(url) = result else {
-            return XCTFail("Expected default AVIF conversion, got \(result)")
+            return XCTFail("Expected default AVIF conversion, got \(result), messages: \(messages)")
         }
 
         XCTAssertEqual(url.pathExtension, "avif")
