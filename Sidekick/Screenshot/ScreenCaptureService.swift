@@ -40,6 +40,21 @@ enum ActiveDisplayScreenshotCapture {
         }
         let screenFrame = screen.frame
 
+        let image = try await captureImage(
+            displayID: displayID,
+            showsCursor: showsCursor
+        )
+        return CapturedDisplayScreenshot(
+            image: image,
+            displayID: displayID,
+            screenFrame: screenFrame
+        )
+    }
+
+    nonisolated private static func captureImage(
+        displayID: CGDirectDisplayID,
+        showsCursor: Bool
+    ) async throws -> CGImage {
         let content = try await SCShareableContent.current
         guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
             throw ActiveDisplayScreenshotError.displayUnavailable
@@ -62,14 +77,9 @@ enum ActiveDisplayScreenshotCapture {
         configuration.captureDynamicRange = .SDR
         configuration.showsCursor = showsCursor
 
-        let image = try await SCScreenshotManager.captureImage(
+        return try await SCScreenshotManager.captureImage(
             contentFilter: filter,
             configuration: configuration
-        )
-        return CapturedDisplayScreenshot(
-            image: image,
-            displayID: displayID,
-            screenFrame: screenFrame
         )
     }
 }
