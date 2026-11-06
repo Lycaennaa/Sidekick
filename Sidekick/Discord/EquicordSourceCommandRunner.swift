@@ -89,8 +89,8 @@ actor EquicordSourceCommandRunner {
         }
         guard directoryResult == 0, outputResult == 0, errorResult == 0 else {
             let code = [directoryResult, outputResult, errorResult]
-                .compactMap { $0 }
-                .first { $0 != 0 } ?? EIO
+                .compactMap(\.self)
+                .first { $0 != 0 } ?? POSIXErrorCode.EIO.rawValue
             throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
         }
 
