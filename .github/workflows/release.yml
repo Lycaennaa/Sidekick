@@ -57,8 +57,11 @@ jobs:
               r"(?m)^\s*MARKETING_VERSION:\s*([0-9]+\.[0-9]+\.[0-9]+)\s*$",
               Path("project.yml").read_text(),
           )
-          if len(matches) != 1:
-              raise SystemExit("project.yml must define one numeric MARKETING_VERSION")
+          if len(matches) != 2 or len(set(matches)) != 1:
+              raise SystemExit(
+                  "project.yml must define matching MARKETING_VERSION values "
+                  "for the app and Finder extension"
+              )
           print(matches[0])
           PY
           )"
@@ -276,12 +279,37 @@ jobs:
           test -f "$dmg"
           unzip -t "$zip"
 
-      - name: Generate release notes
+      - name: Check out release source for changelog
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.validate-and-tag.outputs.sha }}
+          persist-credentials: false
+      - name: Load release notes from changelog
+        id: release_notes
         shell: bash
         run: |
           set -euo pipefail
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f "tag_name=$RELEASE_TAG" --jq .body > "$RUNNER_TEMP/release-notes.md"
+          python3 - "$RUNNER_TEMP/release-notes.md" "$GITHUB_OUTPUT" <<'PY'
+          import hashlib
+          import re
+          import sys
+          from pathlib import Path
+
+          changelog = Path("CHANGELOG.md").read_text()
+          match = re.search(
+              r"(?ms)^## Unreleased[ \t]*\r?\n(.*?)(?=^## |\Z)",
+              changelog,
+          )
+          if match is None:
+              raise SystemExit("CHANGELOG.md is missing a level-two Unreleased section")
+
+          notes = match.group(1).strip()
+          if not notes:
+              raise SystemExit("CHANGELOG.md Unreleased section is empty")
+          Path(sys.argv[1]).write_text(notes + "\n")
+          with open(sys.argv[2], "a", encoding="utf-8") as output:
+              output.write(f"notes_sha={hashlib.sha256(notes.encode('utf-8')).hexdigest()}\n")
+          PY
           printf '\nThe ZIP and DMG contain an ad-hoc-signed app. They are not Developer ID signed or notarized. GitHub displays a SHA-256 digest for each asset.\n' >> "$RUNNER_TEMP/release-notes.md"
           if [[ "${{ github.event.repository.visibility }}" == public ]]; then
             printf 'Verify public release provenance with gh attestation verify <asset> --repo %s.\n' "$GITHUB_REPOSITORY" >> "$RUNNER_TEMP/release-notes.md"
@@ -354,3 +382,85 @@ jobs:
           verify_asset "$RUNNER_TEMP/verify-release/$dmg_name"
           verify_tag
           gh release edit "$RELEASE_TAG" --draft=false
+      - name: Check out default branch for changelog update
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ github.token }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Record the release in the changelog
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CHANGELOG_NOTES_SHA: ${{ steps.release_notes.outputs.notes_sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("CHANGELOG.md")
+          changelog = path.read_text()
+          version = os.environ["RELEASE_VERSION"]
+          expected_sha = os.environ["CHANGELOG_NOTES_SHA"]
+          if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+              raise SystemExit(f"Invalid release version: {version!r}")
+          if not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+              raise SystemExit("Missing or invalid changelog notes digest")
+
+          unreleased_pattern = re.compile(
+              r"(?ms)^## Unreleased[ \t]*\r?\n(.*?)(?=^## |\Z)"
+          )
+          version_pattern = re.compile(
+              rf"(?ms)^## {re.escape(version)}[ \t]*\r?\n(.*?)(?=^## |\Z)"
+          )
+          unreleased_matches = list(unreleased_pattern.finditer(changelog))
+          version_matches = list(version_pattern.finditer(changelog))
+          if len(unreleased_matches) > 1 or len(version_matches) > 1:
+              raise SystemExit("CHANGELOG.md has duplicate release headings")
+
+          def digest(notes):
+              return hashlib.sha256(notes.encode("utf-8")).hexdigest()
+
+          if version_matches:
+              if digest(version_matches[0].group(1).strip()) != expected_sha:
+                  raise SystemExit(
+                      f"CHANGELOG.md already has a different {version} section"
+                  )
+              print(f"CHANGELOG.md already records {version}; skipping update")
+              raise SystemExit(0)
+
+          if len(unreleased_matches) != 1:
+              raise SystemExit("CHANGELOG.md must contain exactly one Unreleased section")
+          section = unreleased_matches[0]
+          notes = section.group(1).strip()
+          if not notes or digest(notes) != expected_sha:
+              raise SystemExit(
+                  "CHANGELOG.md Unreleased notes changed since release notes were generated"
+              )
+
+          suffix = changelog[section.end():]
+          separator = "\n\n" if suffix else "\n"
+          replacement = f"## Unreleased\n\n## {version}\n\n{notes}{separator}"
+          updated = changelog[:section.start()] + replacement + suffix
+          updated = re.sub(
+              r"(?m)^User-visible changes are listed here\. "
+              r"No public release tag exists yet\.$",
+              "User-visible changes are listed here.",
+              updated,
+              count=1,
+          )
+          temporary_path = path.with_name(f".{path.name}.tmp")
+          temporary_path.write_text(updated)
+          temporary_path.replace(path)
+          PY
+          if ! git diff --quiet -- CHANGELOG.md; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -- CHANGELOG.md
+            git commit -m "chore(release): record v${RELEASE_VERSION} in changelog"
+            git push origin "HEAD:${DEFAULT_BRANCH}"
+          fi
