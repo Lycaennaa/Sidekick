@@ -18,7 +18,7 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         let image = directory.appendingPathComponent("volume.sparseimage")
         let volumeName = "SidekickCleanup-\(UUID().uuidString.prefix(8))"
         let volumeURL = URL(fileURLWithPath: "/Volumes/\(volumeName)", isDirectory: true)
-        try Self.runHdiutil([
+        try runHdiutil([
             "create", "-quiet", "-size", "32m", "-fs", "HFS+",
             "-volname", volumeName,
             "-type", "SPARSE", "-o", image.path
@@ -34,13 +34,11 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         defer {
             monitor.stop()
             if isMounted {
-                try? Self.runHdiutil(["detach", "-quiet", "-force", volumeURL.path])
+                try? runHdiutil(["detach", "-quiet", "-force", volumeURL.path])
             }
         }
 
-        try await Task.detached {
-            try Self.runHdiutil(["attach", "-quiet", "-nobrowse", image.path])
-        }.value
+        try await runHdiutilDetached(["attach", "-quiet", "-nobrowse", image.path])
         isMounted = true
         let volume = try XCTUnwrap(
             monitor.mountedExternalVolumes().first { $0.url.path == volumeURL.path }
@@ -58,9 +56,7 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
 
         await fulfillment(of: [didMount], timeout: 10)
         monitor.stop()
-        try await Task.detached {
-            try Self.runHdiutil(["detach", "-quiet", "-force", volumeURL.path])
-        }.value
+        try await runHdiutilDetached(["detach", "-quiet", "-force", volumeURL.path])
         isMounted = false
     }
 
@@ -82,13 +78,13 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         defer {
             coordinator?.stop()
             if isMounted {
-                try? Self.runHdiutil(["detach", "-quiet", "-force", mountPoint.path])
+                try? runHdiutil(["detach", "-quiet", "-force", mountPoint.path])
             }
         }
 
         try Self.createDiskImage(at: originalImage, volumeName: originalName)
         try Self.createDiskImage(at: replacementImage, volumeName: replacementName)
-        try Self.runHdiutil([
+        try runHdiutil([
             "attach", "-quiet", "-nobrowse", "-mountpoint", mountPoint.path, originalImage.path
         ])
         isMounted = true
@@ -98,9 +94,9 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         let folderRoot = try XCTUnwrap(store.configuration.roots.first)
         let originalIdentifier = try XCTUnwrap(folderRoot.volumeIdentifier)
 
-        try Self.runHdiutil(["detach", "-quiet", "-force", mountPoint.path])
+        try runHdiutil(["detach", "-quiet", "-force", mountPoint.path])
         isMounted = false
-        try Self.runHdiutil([
+        try runHdiutil([
             "attach", "-quiet", "-nobrowse", "-mountpoint", mountPoint.path, replacementImage.path
         ])
         isMounted = true
@@ -180,12 +176,10 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         var isMounted = false
         defer {
             if isMounted {
-                try? Self.runHdiutil(["detach", "-quiet", "-force", volumeURL.path])
+                try? runHdiutil(["detach", "-quiet", "-force", volumeURL.path])
             }
         }
-        try await Task.detached {
-            try Self.runHdiutil(["attach", "-quiet", "-nobrowse", image.path])
-        }.value
+        try await runHdiutilDetached(["attach", "-quiet", "-nobrowse", image.path])
         isMounted = true
 
         let volumeTrash = volumeURL.appendingPathComponent(".Trashes", isDirectory: true)
@@ -276,12 +270,10 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         var isMounted = false
         defer {
             if isMounted {
-                try? Self.runHdiutil(["detach", "-quiet", "-force", volumeURL.path])
+                try? runHdiutil(["detach", "-quiet", "-force", volumeURL.path])
             }
         }
-        try await Task.detached {
-            try Self.runHdiutil(["attach", "-quiet", "-nobrowse", image.path])
-        }.value
+        try await runHdiutilDetached(["attach", "-quiet", "-nobrowse", image.path])
         isMounted = true
         let volumeTrash = volumeURL.appendingPathComponent(".Trashes", isDirectory: true)
         try FileManager.default.createDirectory(at: volumeTrash, withIntermediateDirectories: true)
@@ -427,23 +419,36 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
             "-type", "SPARSE", "-o", image.path
         ])
     }
-    private nonisolated static func runHdiutil(_ arguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-        process.arguments = arguments
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = output
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            let details = String(data: data, encoding: .utf8) ?? "hdiutil failed."
-            throw NSError(
-                domain: "MacArtifactVolumeMonitorTests",
-                code: Int(process.terminationStatus),
-                userInfo: [NSLocalizedDescriptionKey: details]
-            )
-        }
+}
+private func runHdiutilDetached(_ arguments: [String]) async throws {
+    // hdiutil blocks; keep it off XCTest's actor and await before updating mount state.
+    let operation = Task.detached {
+        try Task.checkCancellation()
+        try runHdiutil(arguments)
+    }
+    try await withTaskCancellationHandler {
+        try await operation.value
+    } onCancel: {
+        operation.cancel()
+    }
+}
+
+private func runHdiutil(_ arguments: [String]) throws {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+    process.arguments = arguments
+    let output = Pipe()
+    process.standardOutput = output
+    process.standardError = output
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let details = String(data: data, encoding: .utf8) ?? "hdiutil failed."
+        throw NSError(
+            domain: "MacArtifactVolumeMonitorTests",
+            code: Int(process.terminationStatus),
+            userInfo: [NSLocalizedDescriptionKey: details]
+        )
     }
 }
