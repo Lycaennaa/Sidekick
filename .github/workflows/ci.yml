@@ -103,7 +103,6 @@ jobs:
             -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            SDKROOT=auto \
             test
 
       - name: Build Release configuration
@@ -118,5 +117,4 @@ jobs:
             -clonedSourcePackagesDirPath "$RUNNER_TEMP/source-packages" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            SDKROOT=auto \
             build
