@@ -262,8 +262,8 @@ final class ScreenshotCaptureIntegrationTests: XCTestCase {
         let maxY = min(lhs.height, centerY + 48)
         guard minX < maxX, minY < maxY else { return 0 }
 
-        return lhsData.withUnsafeBytes { lhsBytes in
-            rhsData.withUnsafeBytes { rhsBytes in
+        return lhsData.withUnsafeBytes { (lhsBytes: UnsafeRawBufferPointer) in
+            rhsData.withUnsafeBytes { (rhsBytes: UnsafeRawBufferPointer) in
                 var differences = 0
                 for pixelRow in minY..<maxY {
                     for pixelColumn in minX..<maxX {
