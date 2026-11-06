@@ -37,7 +37,11 @@ final class MacArtifactCleanupNotifier {
             defer { self.finishTask(id) }
             guard !Task.isCancelled, isCurrent() else { return nil }
 
-            let status = await center.notificationSettings().authorizationStatus
+            let status: UNAuthorizationStatus = await withCheckedContinuation { continuation in
+                center.getNotificationSettings { settings in
+                    continuation.resume(returning: settings.authorizationStatus)
+                }
+            }
             guard self.tasks[id] != nil, !Task.isCancelled, isCurrent() else { return nil }
 
             let allowed: Bool
