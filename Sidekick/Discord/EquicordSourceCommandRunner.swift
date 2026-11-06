@@ -88,7 +88,9 @@ actor EquicordSourceCommandRunner {
             posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, $0, O_WRONLY, 0)
         }
         guard directoryResult == 0, outputResult == 0, errorResult == 0 else {
-            let code = [directoryResult, outputResult, errorResult].first { $0 != 0 } ?? EIO
+            let code = [directoryResult, outputResult, errorResult]
+                .compactMap { $0 }
+                .first { $0 != 0 } ?? EIO
             throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
         }
 
