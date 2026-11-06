@@ -27,10 +27,21 @@ fileprivate final class WindowScreenshotCaptureSession {
         configuration.captureResolution = .best
         configuration.showsCursor = showsCursor
         configuration.ignoreShadowsSingleWindow = true
-        return try await SCScreenshotManager.captureImage(
-            contentFilter: filter,
-            configuration: configuration
-        )
+        return try await withCheckedThrowingContinuation { continuation in
+            SCScreenshotManager.captureImage(
+                contentFilter: filter,
+                configuration: configuration,
+                completionHandler: { image, error in
+                    if let image {
+                        continuation.resume(returning: image)
+                    } else if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(throwing: WindowCaptureError.captureFailed)
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -253,6 +264,7 @@ enum WindowScreenshotCapture {
 
 enum WindowCaptureError: Error {
     case windowUnavailable
+    case captureFailed
 }
 
 @MainActor
