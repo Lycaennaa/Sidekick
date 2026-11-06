@@ -261,7 +261,11 @@ final class WindowScreenshotCaptureTests: XCTestCase {
             id: 1,
             title: "Spanning",
             applicationName: "Example",
-            frame: CGRect(x: 50, y: 20, width: 100, height: 40)
+            frame: CGRect(x: 50, y: 20, width: 100, height: 40),
+            bundleIdentifier: nil,
+            isOnScreen: true,
+            hasOwningApplication: true,
+            windowLayer: 0
         )
         let firstScreen = CGRect(x: 0, y: 0, width: 100, height: 100)
         let secondScreen = CGRect(x: 100, y: 0, width: 100, height: 100)

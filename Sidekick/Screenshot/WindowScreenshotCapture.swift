@@ -3,21 +3,53 @@ import CoreGraphics
 import ScreenCaptureKit
 
 @MainActor
+fileprivate final class WindowScreenshotCaptureSession {
+    private var captureWindowsByID: [CGWindowID: SCWindow]
+
+    init() {
+        captureWindowsByID = [:]
+    }
+
+    init(captureWindowsByID: sending [CGWindowID: SCWindow]) {
+        self.captureWindowsByID = captureWindowsByID
+    }
+
+    func retainWindows(withIDs windowIDs: Set<CGWindowID>) {
+        captureWindowsByID = captureWindowsByID.filter { windowIDs.contains($0.key) }
+    }
+
+    func capture(windowID: CGWindowID, showsCursor: Bool) async throws -> CGImage {
+        guard let window = captureWindowsByID[windowID] else {
+            throw WindowCaptureError.windowUnavailable
+        }
+        let filter = SCContentFilter(desktopIndependentWindow: window)
+        let configuration = SCStreamConfiguration()
+        configuration.captureResolution = .best
+        configuration.showsCursor = showsCursor
+        configuration.ignoreShadowsSingleWindow = true
+        return try await SCScreenshotManager.captureImage(
+            contentFilter: filter,
+            configuration: configuration
+        )
+    }
+}
+
+@MainActor
 struct WindowScreenshotInventory {
     let windows: [ScreenshotWindow]
-    fileprivate let captureWindowsByID: [CGWindowID: SCWindow]
+    fileprivate let captureSession: WindowScreenshotCaptureSession
 
     init() {
         windows = []
-        captureWindowsByID = [:]
+        captureSession = WindowScreenshotCaptureSession()
     }
 
     fileprivate init(
         windows: [ScreenshotWindow],
-        captureWindowsByID: [CGWindowID: SCWindow]
+        captureSession: WindowScreenshotCaptureSession
     ) {
         self.windows = windows
-        self.captureWindowsByID = captureWindowsByID
+        self.captureSession = captureSession
     }
 }
 
@@ -31,14 +63,11 @@ enum WindowScreenshotCapture {
 
     @MainActor
     static func windows() async throws -> WindowScreenshotInventory {
-        let content = try await SCShareableContent.excludingDesktopWindows(
-            true,
-            onScreenWindowsOnly: true
-        )
+        let snapshot = try await captureSnapshot()
         let displays = displayGeometries()
-        let selectableWindows = selectableScreenCaptureWindows(in: content.windows)
-        let selectableIDs = Set(selectableWindows.map(\.windowID))
-        let occlusionWindows = occlusionWindowsFromCoreGraphics(content.windows)
+        let selectableWindows = selectableScreenCaptureWindows(in: snapshot.windows)
+        let selectableIDs = Set(selectableWindows.map(\.id))
+        let occlusionWindows = occlusionWindowsFromCoreGraphics(snapshot.windows)
         let visibleRegionsByWindowID = occlusionWindows.map {
             ScreenshotWindowVisibility.visibleRegionsByWindowID(
                 frontToBack: $0,
@@ -50,7 +79,7 @@ enum WindowScreenshotCapture {
             windows.filter { visibleRegionsByWindowID?[$0.id] != nil }.map(\.id)
         }
         let candidates = selectableWindows.flatMap { window in
-            let visibleRegions = visibleRegionsByWindowID.map { $0[window.windowID] ?? [] }
+            let visibleRegions = visibleRegionsByWindowID.map { $0[window.id] ?? [] }
             return makeScreenshotWindows(
                 from: window,
                 visibleQuartzRegions: visibleRegions,
@@ -58,7 +87,7 @@ enum WindowScreenshotCapture {
             )
         }
         let candidateOrder = ScreenshotWindowVisibility.orderedCandidateIDs(
-            candidateIDs: selectableWindows.map(\.windowID),
+            candidateIDs: selectableWindows.map(\.id),
             frontToBackWindowIDs: visibleWindowOrder
         )
         let visibleCandidateIDs = Set(candidateOrder)
@@ -70,29 +99,56 @@ enum WindowScreenshotCapture {
             .sorted {
                 rankByWindowID[$0.id, default: .max] < rankByWindowID[$1.id, default: .max]
             }
-        let captureWindowsByID = Dictionary(
-            uniqueKeysWithValues: selectableWindows
-                .filter { visibleCandidateIDs.contains($0.windowID) }
-                .map { ($0.windowID, $0) }
-        )
+        snapshot.captureSession.retainWindows(withIDs: visibleCandidateIDs)
         return WindowScreenshotInventory(
             windows: visibleWindows,
-            captureWindowsByID: captureWindowsByID
+            captureSession: snapshot.captureSession
         )
     }
 
-    private static func selectableScreenCaptureWindows(in windows: [SCWindow]) -> [SCWindow] {
+    private nonisolated static func captureSnapshot() async throws -> (
+        windows: [ScreenshotWindowDescriptor],
+        captureSession: WindowScreenshotCaptureSession
+    ) {
+        let content = try await SCShareableContent.excludingDesktopWindows(
+            true,
+            onScreenWindowsOnly: true
+        )
+        let shareableWindows = content.windows
+        let descriptors = shareableWindows.map { window in
+            let owningApplication = window.owningApplication
+            return ScreenshotWindowDescriptor(
+                id: window.windowID,
+                title: window.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                applicationName: owningApplication?.applicationName ?? "",
+                frame: window.frame,
+                bundleIdentifier: owningApplication?.bundleIdentifier,
+                isOnScreen: window.isOnScreen,
+                hasOwningApplication: owningApplication != nil,
+                windowLayer: window.windowLayer
+            )
+        }
+        let captureWindowsByID = Dictionary(
+            uniqueKeysWithValues: shareableWindows.map { ($0.windowID, $0) }
+        )
+        let captureSession = await WindowScreenshotCaptureSession(
+            captureWindowsByID: captureWindowsByID
+        )
+        return (descriptors, captureSession)
+    }
+
+    private static func selectableScreenCaptureWindows(
+        in windows: [ScreenshotWindowDescriptor]
+    ) -> [ScreenshotWindowDescriptor] {
         windows.filter { window in
-            let appName = window.owningApplication?.applicationName ?? ""
-            let bundleID = window.owningApplication?.bundleIdentifier
-            let title = window.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let bundleID = window.bundleIdentifier
             return ScreenshotWindowCandidate(
                 frame: window.frame,
                 isOnScreen: window.isOnScreen,
-                title: title,
-                appName: appName,
+                title: window.title,
+                appName: window.applicationName,
                 bundleID: bundleID,
-                hasOwningApplication: window.owningApplication != nil,
+                hasOwningApplication: window.hasOwningApplication,
                 windowLayer: window.windowLayer,
                 isOwnAppWindow: bundleID == Bundle.main.bundleIdentifier
             ).isSelectable
@@ -114,21 +170,13 @@ enum WindowScreenshotCapture {
     }
 
     private static func makeScreenshotWindows(
-        from window: SCWindow,
+        from window: ScreenshotWindowDescriptor,
         visibleQuartzRegions: [CGRect]?,
         displays: [DisplayGeometry]
     ) -> [ScreenshotWindow] {
-        let appName = window.owningApplication?.applicationName ?? ""
-        let title = window.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let descriptor = ScreenshotWindowDescriptor(
-            id: window.windowID,
-            title: title.isEmpty ? appName : title,
-            applicationName: appName,
-            frame: window.frame
-        )
-        return displays.compactMap { display in
+        displays.compactMap { display in
             ScreenshotWindow.onDisplay(
-                descriptor,
+                window,
                 displayBounds: display.quartzBounds,
                 screenFrame: display.screenFrame,
                 visibleQuartzRegions: visibleQuartzRegions
@@ -137,17 +185,17 @@ enum WindowScreenshotCapture {
     }
 
     private static func occlusionWindowsFromCoreGraphics(
-        _ shareableWindows: [SCWindow]
+        _ shareableWindows: [ScreenshotWindowDescriptor]
     ) -> [ScreenshotWindowOcclusion]? {
         var bundleIDs: [CGWindowID: String] = [:]
         var expectedIDs = Set<CGWindowID>()
         bundleIDs.reserveCapacity(shareableWindows.count)
         expectedIDs.reserveCapacity(shareableWindows.count)
         for window in shareableWindows {
-            let bundleID = window.owningApplication?.bundleIdentifier
+            let bundleID = window.bundleIdentifier
             if let bundleID, ignoredSystemBundleIDs.contains(bundleID) { continue }
-            expectedIDs.insert(window.windowID)
-            if let bundleID { bundleIDs[window.windowID] = bundleID }
+            expectedIDs.insert(window.id)
+            if let bundleID { bundleIDs[window.id] = bundleID }
         }
         let windowInfo = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
@@ -196,17 +244,9 @@ enum WindowScreenshotCapture {
         from inventory: WindowScreenshotInventory,
         showsCursor: Bool
     ) async throws -> CGImage {
-        guard let window = inventory.captureWindowsByID[windowID] else {
-            throw WindowCaptureError.windowUnavailable
-        }
-        let filter = SCContentFilter(desktopIndependentWindow: window)
-        let configuration = SCStreamConfiguration()
-        configuration.captureResolution = .best
-        configuration.showsCursor = showsCursor
-        configuration.ignoreShadowsSingleWindow = true
-        return try await SCScreenshotManager.captureImage(
-            contentFilter: filter,
-            configuration: configuration
+        try await inventory.captureSession.capture(
+            windowID: windowID,
+            showsCursor: showsCursor
         )
     }
 }

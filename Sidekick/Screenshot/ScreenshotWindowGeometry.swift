@@ -72,7 +72,7 @@ struct ScreenshotWindow: Identifiable {
         guard !selectionRegions.isEmpty else { return nil }
         return ScreenshotWindow(
             id: window.id,
-            title: window.title,
+            title: window.title.isEmpty ? window.applicationName : window.title,
             applicationName: window.applicationName,
             frame: CGRect(
                 x: displayFrame.minX - displayBounds.minX,
@@ -86,11 +86,35 @@ struct ScreenshotWindow: Identifiable {
     }
 }
 
-struct ScreenshotWindowDescriptor {
+struct ScreenshotWindowDescriptor: Sendable {
     let id: CGWindowID
     let title: String
     let applicationName: String
     let frame: CGRect
+    let bundleIdentifier: String?
+    let isOnScreen: Bool
+    let hasOwningApplication: Bool
+    let windowLayer: Int
+
+    nonisolated init(
+        id: CGWindowID,
+        title: String,
+        applicationName: String,
+        frame: CGRect,
+        bundleIdentifier: String?,
+        isOnScreen: Bool,
+        hasOwningApplication: Bool,
+        windowLayer: Int
+    ) {
+        self.id = id
+        self.title = title
+        self.applicationName = applicationName
+        self.frame = frame
+        self.bundleIdentifier = bundleIdentifier
+        self.isOnScreen = isOnScreen
+        self.hasOwningApplication = hasOwningApplication
+        self.windowLayer = windowLayer
+    }
 }
 
 enum ScreenshotWindowHitTesting {
