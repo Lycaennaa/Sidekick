@@ -417,12 +417,17 @@ extension AppSettings {
 
     var imageOutputFormat: ClipboardImageFormat {
         get {
-            defaults.string(forKey: Key.imageOutputFormat)
+            let storedFormat = defaults.string(forKey: Key.imageOutputFormat)
                 .flatMap(ClipboardImageFormat.init(rawValue:)) ?? .webP
+            return storedFormat.isAvailableForEncoding ? storedFormat : .webP
         }
         set {
-            guard newValue != imageOutputFormat else { return }
+            let storedFormat = defaults.string(forKey: Key.imageOutputFormat)
+                .flatMap(ClipboardImageFormat.init(rawValue:)) ?? .webP
+            guard newValue != storedFormat else { return }
+            let previousFormat = imageOutputFormat
             defaults.set(newValue.rawValue, forKey: Key.imageOutputFormat)
+            guard imageOutputFormat != previousFormat else { return }
             onChange?()
         }
     }

@@ -164,7 +164,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 followedChannels: { _ in [] },
                 notifications: makeTwitchNotificationClient(authorizationStatus: .authorized),
                 sleeper: .init(sleep: { _ in
-                    try await Task.sleep(nanoseconds: UInt64.max)
+                    try await twitchSuspendUntilCancelled()
                 }),
                 pollInterval: 1
             )
@@ -195,7 +195,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 followedChannels: { _ in [] },
                 notifications: makeTwitchNotificationClient(authorizationStatus: .authorized),
                 sleeper: .init(sleep: { _ in
-                    try await Task.sleep(nanoseconds: UInt64.max)
+                    try await twitchSuspendUntilCancelled()
                 }),
                 pollInterval: 1
             )
@@ -303,7 +303,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 followedChannels: { _ in [] },
                 notifications: notifications.client,
                 sleeper: .init(sleep: { _ in
-                    try await Task.sleep(nanoseconds: UInt64.max)
+                    try await twitchSuspendUntilCancelled()
                 }),
                 pollInterval: 1
             )

@@ -41,7 +41,8 @@ final class ClipboardSettingsView: NSView {
         clipboardToastSwitch.state = settings.clipboardToastEnabled ? .on : .off
         let selectedDuration = AppSettings.allowedToastDurations.firstIndex(of: settings.toastDuration) ?? 0
         toastDurationPopup.selectItem(at: selectedDuration)
-        let selectedFormat = ClipboardImageFormat.allCases.firstIndex(of: settings.imageOutputFormat) ?? 0
+        let selectedFormat = ClipboardImageFormat.availableForEncoding
+            .firstIndex(of: settings.imageOutputFormat) ?? 0
         imageOutputFormatPopup.selectItem(at: selectedFormat)
         imageOpeningApplicationPicker.refresh()
     }
@@ -130,7 +131,7 @@ final class ClipboardSettingsView: NSView {
         imageOutputFormatPopup.target = self
         imageOutputFormatPopup.action = #selector(selectImageOutputFormat)
         imageOutputFormatPopup.setAccessibilityLabel("Image output format")
-        for format in ClipboardImageFormat.allCases {
+        for format in ClipboardImageFormat.availableForEncoding {
             imageOutputFormatPopup.addItem(withTitle: format.displayName)
             imageOutputFormatPopup.lastItem?.representedObject = format.rawValue
         }

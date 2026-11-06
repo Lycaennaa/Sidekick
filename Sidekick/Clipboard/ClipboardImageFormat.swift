@@ -4,6 +4,17 @@ nonisolated enum ClipboardImageFormat: String, CaseIterable, Sendable {
     case webP = "webp"
     case avif
 
+    static var availableForEncoding: [Self] {
+        allCases.filter(\.isAvailableForEncoding)
+    }
+
+    var isAvailableForEncoding: Bool {
+        switch self {
+        case .webP: true
+        case .avif: ClipboardAVIFEncoder.isAvailable
+        }
+    }
+
     var displayName: String {
         switch self {
         case .webP: "WebP"

@@ -125,6 +125,9 @@ final class ClipboardImageConversionControllerTests: XCTestCase {
 
     @MainActor
     func testDefaultProductionDependenciesConvertNamedPasteboardImageToAVIF() async throws {
+        guard ClipboardAVIFEncoder.isAvailable else {
+            throw XCTSkip("ImageIO does not provide an AVIF writer on this macOS version.")
+        }
         let pasteboard = makePasteboard()
         let directory = try temporaryDirectory()
         var messages: [String] = []

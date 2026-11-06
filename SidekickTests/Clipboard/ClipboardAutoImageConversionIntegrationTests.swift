@@ -88,6 +88,9 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
 
     @MainActor
     func testAutomaticConvertsRealPasteboardPNGToAVIF() async throws {
+        guard ClipboardAVIFEncoder.isAvailable else {
+            throw XCTSkip("ImageIO does not provide an AVIF writer on this macOS version.")
+        }
         try await assertAutomaticReencode(
             input: .data(try pngData(width: 4, height: 3), type: .png),
             outputFormat: .avif

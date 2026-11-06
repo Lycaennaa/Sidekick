@@ -4,6 +4,10 @@ import ImageIO
 
 nonisolated enum ClipboardAVIFEncoder {
     typealias CancellationCheck = ClipboardImageConversionPolicy.CancellationCheck
+    static let isAvailable = {
+        let destinationTypes = CGImageDestinationCopyTypeIdentifiers() as? [String] ?? []
+        return destinationTypes.contains(ClipboardImageFormat.avif.typeIdentifier)
+    }()
 
     static func encode(
         _ image: CGImage,

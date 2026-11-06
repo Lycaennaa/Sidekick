@@ -6,7 +6,7 @@ User-visible changes are listed here. No public release tag exists yet.
 
 ### Added
 
-- Select WebP or AVIF for clipboard conversions and screenshot output.
+- Select WebP or AVIF for clipboard conversions and screenshot output when the OS provides an AVIF encoder.
 - Clipboard image toasts distinguish advertised types from encoded image formats.
 - Window-aware screenshot selection, aspect-ratio guides, and pixel inspection.
 - Exclude elevated, display-covering windows from full-display screenshots to avoid screen-wide overlays.
@@ -20,6 +20,8 @@ User-visible changes are listed here. No public release tag exists yet.
 - Added recursive macOS metadata cleanup for enrolled folders and external drives, binding folder roots to their original volume and offering preview, configurable removal modes, and local cleanup history.
 
 ### Fixed
+
+- Hide AVIF output on macOS versions without an ImageIO AVIF encoder and use WebP as the effective output format.
 
 - Keep automatic clipboard image conversion running when its clipboard-content toast appears.
 - Put converted WebP and AVIF image data on the clipboard alongside the output file reference.

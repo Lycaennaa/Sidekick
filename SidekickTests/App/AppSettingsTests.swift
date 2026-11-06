@@ -94,7 +94,11 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.imageOutputFormat, .webP)
         settings.imageOutputFormat = .avif
 
-        XCTAssertEqual(AppSettings(defaults: defaults).imageOutputFormat, .avif)
+        XCTAssertEqual(defaults.string(forKey: "imageOutputFormat"), ClipboardImageFormat.avif.rawValue)
+        XCTAssertEqual(
+            AppSettings(defaults: defaults).imageOutputFormat,
+            ClipboardAVIFEncoder.isAvailable ? .avif : .webP
+        )
     }
 
     func testImageSettingsMigrationPreservesExistingValues() {

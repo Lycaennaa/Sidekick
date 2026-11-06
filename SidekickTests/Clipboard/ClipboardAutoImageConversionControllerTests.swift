@@ -51,6 +51,9 @@ final class ClipboardAutoImageConversionControllerTests: XCTestCase {
     @MainActor
     func testOutputFormatChangeRetriesPendingCaptureOnSameClipboard() async throws {
         let suiteName = "ClipboardAutoFormatRace.\(UUID().uuidString)"
+        guard ClipboardAVIFEncoder.isAvailable else {
+            throw XCTSkip("AVIF needs a second supported output format for this race test.")
+        }
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)

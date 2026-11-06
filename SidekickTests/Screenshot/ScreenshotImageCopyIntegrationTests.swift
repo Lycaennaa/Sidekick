@@ -157,7 +157,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
         settings.screenshotCopyAsOutputFormat = true
-        settings.imageOutputFormat = .avif
+        settings.imageOutputFormat = .webP
         settings.screenshotSaveDirectoryURL = directory
         settings.screenshotFilenameTemplate = "Screenshot"
         let pasteboard = NSPasteboard(name: NSPasteboard.Name("ScreenshotImageCopySaveCopy-\(UUID().uuidString)"))
@@ -189,14 +189,14 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
         let outputURL = try XCTUnwrap(savedURL)
         XCTAssertNil(failure)
         XCTAssertEqual(clipboardImagePreparations, 0)
-        XCTAssertEqual(outputURL.pathExtension, "avif")
-        let avifData = try XCTUnwrap(
-            pasteboard.data(forType: NSPasteboard.PasteboardType(ClipboardImageFormat.avif.typeIdentifier))
+        XCTAssertEqual(outputURL.pathExtension, ClipboardImageFormat.webP.fileExtension)
+        let webPData = try XCTUnwrap(
+            pasteboard.data(forType: NSPasteboard.PasteboardType(ClipboardImageFormat.webP.typeIdentifier))
         )
         XCTAssertNil(pasteboard.data(forType: .png))
-        XCTAssertEqual(try Data(contentsOf: outputURL), avifData)
-        let source = try XCTUnwrap(CGImageSourceCreateWithData(avifData as CFData, nil))
-        XCTAssertEqual(CGImageSourceGetType(source) as String?, ClipboardImageFormat.avif.typeIdentifier)
+        XCTAssertEqual(try Data(contentsOf: outputURL), webPData)
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(webPData as CFData, nil))
+        XCTAssertEqual(CGImageSourceGetType(source) as String?, ClipboardImageFormat.webP.typeIdentifier)
     }
 
     func testImageCopyPreservesClipboardChangedDuringEncoding() async throws {

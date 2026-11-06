@@ -19,7 +19,7 @@ final class TwitchNotificationDeliveryTests: XCTestCase {
                 }
             }
         }
-        await twitchEventually { source.hasSubscriber }
+        await source.waitForSubscriber()
 
         source.yield(.init(userID: second.userID, data: nil))
         await twitchEventually { notifications.requestIdentifiers == ["twitch-stream-7-second"] }
@@ -78,7 +78,7 @@ final class TwitchNotificationDeliveryTests: XCTestCase {
                     await gate.wait()
                 }),
                 sleeper: .init(sleep: { _ in
-                    try await Task.sleep(nanoseconds: UInt64.max)
+                    try await twitchSuspendUntilCancelled()
                 }),
                 cleanupInterval: 2
             )
@@ -137,7 +137,7 @@ final class TwitchNotificationDeliveryTests: XCTestCase {
         let scheduler = TwitchNotificationScheduler(
             notifications: notifications,
             sleeper: .init(sleep: { _ in
-                try await Task.sleep(nanoseconds: UInt64.max)
+                try await twitchSuspendUntilCancelled()
             })
         )
         scheduler.activate(generation: 1)
@@ -178,7 +178,7 @@ final class TwitchNotificationDeliveryTests: XCTestCase {
         let delivery = Task {
             await owner.deliver(streams: streams, session: twitchTestSession(), generation: 1) { _ in }
         }
-        await twitchEventually { source.hasSubscriber }
+        await source.waitForSubscriber()
         source.yield(.init(userID: "one", data: nil))
         source.yield(.init(userID: "two", data: nil))
         source.finish()
@@ -212,7 +212,7 @@ final class TwitchNotificationDeliveryTests: XCTestCase {
                 if case .streamDelivered = event { delivered = true }
             }
         }
-        await twitchEventually { source.hasSubscriber }
+        await source.waitForSubscriber()
 
         owner.cancel()
         source.yield(.init(userID: "late-user", data: nil))
@@ -239,7 +239,7 @@ final class TwitchNotificationDeliveryTests: XCTestCase {
                 profileImages: { _, _ in source.makeStream() },
                 notifications: notifications.client,
                 sleeper: .init(sleep: { _ in
-                    try await Task.sleep(nanoseconds: UInt64.max)
+                    try await twitchSuspendUntilCancelled()
                 }),
                 cleanupInterval: 2
             ),
@@ -264,17 +264,13 @@ final class TwitchNotificationDeliveryTests: XCTestCase {
                 generation: 1
             ) { _ in }
         }
-        await twitchEventually { source.hasSubscriber }
+        await source.waitForSubscriber()
         source.yield(.init(userID: "delivery-user", data: nil))
         source.finish()
         _ = await delivery.value
-        await twitchEventuallyAsync { await sleeper.sleepCount == 1 }
+        await sleeper.waitUntilSleeping()
 
-        testOwner.send(username: nil, tokenSaveInProgress: false) { _ in }
-        await twitchEventually {
-            !testOwner.isSending
-                && notifications.requestIdentifiers.contains("twitch-test-notification-1")
-        }
+        await sendTestNotification(using: testOwner, notifications: notifications)
         let sleepCount = await sleeper.sleepCount
         XCTAssertEqual(sleepCount, 1)
         XCTAssertTrue(scheduler.isCleanupMonitorRunning)
@@ -284,21 +280,54 @@ final class TwitchNotificationDeliveryTests: XCTestCase {
         XCTAssertTrue(scheduler.isCleanupMonitorRunning)
         testOwner.cancel()
         XCTAssertTrue(notifications.systemPendingIdentifiers.isEmpty)
-        await twitchEventuallyAsync { await sleeper.wasCancelled }
+        await sleeper.waitUntilCancelled()
+        let wasCancelled = await sleeper.wasCancelled
+        XCTAssertTrue(wasCancelled)
     }
+    private func sendTestNotification(
+        using owner: TwitchTestNotificationOwner,
+        notifications: NotificationRecorder
+    ) async {
+        let completed = expectation(description: "test notification send completed")
+        owner.send(username: nil, tokenSaveInProgress: false) { event in
+            if case .finished = event {
+                completed.fulfill()
+            }
+        }
+        await fulfillment(of: [completed], timeout: 5)
+        XCTAssertFalse(owner.isSending)
+        XCTAssertTrue(notifications.requestIdentifiers.contains("twitch-test-notification-1"))
+    }
+
 }
 
 private actor TwitchCleanupMonitorProbe {
+    private let sleepGate = AsyncGate()
+    private let cancellationGate = AsyncGate()
     private(set) var sleepCount = 0
     private(set) var wasCancelled = false
 
     func sleep(_: TimeInterval) async throws {
         sleepCount += 1
         do {
-            try await Task.sleep(nanoseconds: UInt64.max)
+            try await withTaskCancellationHandler {
+                await sleepGate.wait()
+                try Task.checkCancellation()
+            } onCancel: {
+                Task { await sleepGate.open() }
+            }
         } catch {
             wasCancelled = true
+            await cancellationGate.open()
             throw error
         }
+    }
+
+    func waitUntilSleeping() async {
+        await sleepGate.waitUntilWaiterAttached()
+    }
+
+    func waitUntilCancelled() async {
+        await cancellationGate.wait()
     }
 }

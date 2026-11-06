@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 class TwitchNotificationControllerTestSupport: XCTestCase {
     let sleepForever = TwitchSleepClient(sleep: { _ in
-        try await Task.sleep(nanoseconds: UInt64.max)
+        try await twitchSuspendUntilCancelled()
     })
     let defaultsSuiteName = "TwitchNotificationControllerTests.\(UUID().uuidString)"
 

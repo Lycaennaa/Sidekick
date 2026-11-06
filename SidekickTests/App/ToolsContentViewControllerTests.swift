@@ -58,7 +58,7 @@ final class ToolsContentViewControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testClipboardFormatSelectorChangesConversionFormat() throws {
+    func testClipboardFormatSelectorOffersAvailableEncoders() throws {
         let suiteName = "ClipboardFormatSelector.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -70,15 +70,18 @@ final class ToolsContentViewControllerTests: XCTestCase {
             imageOpeningApplicationPicker: picker,
             clearURLsAvailable: false
         )
-        let formatPopup = try XCTUnwrap(findPopup(withTitles: ["WebP", "AVIF"], in: clipboardView))
+        let formats = ClipboardImageFormat.availableForEncoding
+        let expectedTitles = formats.map(\.displayName)
+        let formatPopup = try XCTUnwrap(findPopup(withTitles: expectedTitles, in: clipboardView))
 
-        XCTAssertEqual(formatPopup.itemTitles, ["WebP", "AVIF"])
-        formatPopup.selectItem(at: 1)
+        XCTAssertEqual(formatPopup.itemTitles, expectedTitles)
+        let selectedFormat = try XCTUnwrap(formats.last)
+        formatPopup.selectItem(at: try XCTUnwrap(formats.firstIndex(of: selectedFormat)))
         guard let action = formatPopup.action else {
             return XCTFail("Image output format selector has no action")
         }
         XCTAssertTrue(NSApplication.shared.sendAction(action, to: formatPopup.target, from: formatPopup))
-        XCTAssertEqual(settings.imageOutputFormat, .avif)
+        XCTAssertEqual(settings.imageOutputFormat, selectedFormat)
     }
 
     private func findPopup(withTitles titles: [String], in view: NSView) -> NSPopUpButton? {

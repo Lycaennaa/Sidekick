@@ -29,11 +29,21 @@ func makeTwitchDeliveryOwner(
             profileImages: { _, _ in source.makeStream() },
             notifications: notifications.client,
             sleeper: .init(sleep: { _ in
-                try await Task.sleep(nanoseconds: UInt64.max)
+                try await twitchSuspendUntilCancelled()
             }),
             cleanupInterval: 2
         )
     )
+}
+
+func twitchSuspendUntilCancelled() async throws {
+    let gate = AsyncGate()
+    try await withTaskCancellationHandler {
+        await gate.wait()
+        try Task.checkCancellation()
+    } onCancel: {
+        Task { await gate.open() }
+    }
 }
 
 @MainActor
@@ -61,18 +71,26 @@ func twitchEventuallyAsync(
     XCTFail("Condition was not met", file: file, line: line)
 }
 
+// Lock protects the stream continuation; the actor gate signals readiness for one test-scoped source.
 final class ProfileResultSource: @unchecked Sendable {
     private let lock = NSLock()
+    private let subscriberGate = AsyncGate()
     private var continuation: AsyncThrowingStream<TwitchAPIClient.ProfileImageResult, Error>.Continuation?
 
     var hasSubscriber: Bool {
         lock.withLock { continuation != nil }
     }
 
+    func waitForSubscriber() async {
+        await subscriberGate.wait()
+    }
+
     func makeStream() -> AsyncThrowingStream<TwitchAPIClient.ProfileImageResult, Error> {
-        AsyncThrowingStream { continuation in
+        let stream = AsyncThrowingStream<TwitchAPIClient.ProfileImageResult, Error> { continuation in
             lock.withLock { self.continuation = continuation }
         }
+        Task { await subscriberGate.open() }
+        return stream
     }
 
     func yield(_ result: TwitchAPIClient.ProfileImageResult) {
