@@ -29,7 +29,10 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
         }
 
         pasteboard.clearContents()
-        XCTAssertTrue(AutomaticClipboardInput.fileURL(folderURL).write(to: pasteboard))
+        let folderItem = NSPasteboardItem()
+        XCTAssertTrue(folderItem.setString(folderURL.absoluteString, forType: .fileURL))
+        XCTAssertTrue(folderItem.setData(try pngData(width: 4, height: 3), forType: .png))
+        XCTAssertTrue(pasteboard.writeObjects([folderItem]))
         await controller.poll()
         await controller.poll()
 

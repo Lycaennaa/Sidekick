@@ -78,6 +78,7 @@ extension ClipboardImageConversionPasteboardCapture {
         let image: [URL]
         let ambiguous: [URL]
         let materializedRepresentations: [PasteboardSnapshot.MaterializedRepresentation]
+        let directoryItemIndexes: Set<Int>
     }
 
     private enum FileScanResult {
@@ -117,7 +118,10 @@ extension ClipboardImageConversionPasteboardCapture {
         outputFormat: ClipboardImageFormat,
         skipAlreadyOutputFormatFiles: Bool
     ) async -> ClipboardImageConversionCapture {
-        let match = firstImageRepresentation(in: request.items)
+        let match = firstImageRepresentation(
+            in: request.items,
+            excluding: scannedFiles.directoryItemIndexes
+        )
         let convertibleFileURLs = skipAlreadyOutputFormatFiles
             ? scannedFiles.image.filter {
                 PasteboardTypePolicy.imageType(for: $0)?.conforms(to: outputFormat.uniformType) != true
@@ -142,9 +146,13 @@ extension ClipboardImageConversionPasteboardCapture {
         )
     }
 
-    private static func firstImageRepresentation(in items: [NSPasteboardItem]) -> TypedItem? {
-        let typedItems = items.enumerated().flatMap { itemIndex, item in
-            item.types.map { type in
+    private static func firstImageRepresentation(
+        in items: [NSPasteboardItem],
+        excluding directoryItemIndexes: Set<Int>
+    ) -> TypedItem? {
+        let typedItems = items.enumerated().flatMap { itemIndex, item -> [TypedItem] in
+            guard !directoryItemIndexes.contains(itemIndex) else { return [] }
+            return item.types.map { type in
                 TypedItem(itemIndex: itemIndex, item: item, type: type)
             }
         }
@@ -160,6 +168,7 @@ extension ClipboardImageConversionPasteboardCapture {
         var imageFileURLs: [URL] = []
         var ambiguousFileURLs: [URL] = []
         var materializedRepresentations: [PasteboardSnapshot.MaterializedRepresentation] = []
+        var directoryItemIndexes = Set<Int>()
 
         for (itemIndex, item) in request.items.enumerated() {
             guard PasteboardTypePolicy.containsFileURL(
@@ -186,7 +195,10 @@ extension ClipboardImageConversionPasteboardCapture {
                       request.pasteboard.changeCount == request.sourceChangeCount else {
                     return .terminal(.stale)
                 }
-                if isDirectory { continue }
+                if isDirectory {
+                    directoryItemIndexes.insert(itemIndex)
+                    continue
+                }
                 appendFileURL(
                     from: data,
                     imageFileURLs: &imageFileURLs,
@@ -206,7 +218,8 @@ extension ClipboardImageConversionPasteboardCapture {
             ScannedFiles(
                 image: imageFileURLs,
                 ambiguous: ambiguousFileURLs,
-                materializedRepresentations: materializedRepresentations
+                materializedRepresentations: materializedRepresentations,
+                directoryItemIndexes: directoryItemIndexes
             )
         )
     }
