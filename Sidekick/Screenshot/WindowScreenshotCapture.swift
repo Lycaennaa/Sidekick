@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import ScreenCaptureKit
 
+@MainActor
 struct WindowScreenshotInventory {
     let windows: [ScreenshotWindow]
     fileprivate let captureWindowsByID: [CGWindowID: SCWindow]
@@ -28,6 +29,7 @@ enum WindowScreenshotCapture {
         let screenFrame: CGRect
     }
 
+    @MainActor
     static func windows() async throws -> WindowScreenshotInventory {
         let content = try await SCShareableContent.excludingDesktopWindows(
             true,
@@ -188,6 +190,7 @@ enum WindowScreenshotCapture {
         )
     }
 
+    @MainActor
     static func capture(
         windowID: CGWindowID,
         from inventory: WindowScreenshotInventory,
