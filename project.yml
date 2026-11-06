@@ -17,6 +17,12 @@ settings:
   base:
     SDKROOT: macosx
     SWIFT_VERSION: "6.0"
+  configs:
+    Debug:
+      SWIFT_COMPILATION_MODE: incremental
+    Release:
+      SWIFT_COMPILATION_MODE: incremental
+
 targets:
   sidekick:
     type: application
@@ -94,8 +100,9 @@ targets:
           ENABLE_TESTABILITY: YES
           SWIFT_OPTIMIZATION_LEVEL: "-Onone"
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG $(inherited)"
+          SWIFT_COMPILATION_MODE: incremental
         Release:
-          SWIFT_COMPILATION_MODE: wholemodule
+          SWIFT_COMPILATION_MODE: incremental
   sidekickFinderSyncExtension:
     type: app-extension
     platform: macOS
