@@ -30,7 +30,12 @@ final class BlockingTokenizerLoader: ClipboardTokenizerLoading, @unchecked Senda
     func load() async throws -> O200kBase {
         await state.recordStart()
         do {
-            try await Task.sleep(nanoseconds: UInt64.max)
+            try await withTaskCancellationHandler {
+                await state.waitForRelease()
+                try Task.checkCancellation()
+            } onCancel: {
+                Task { await state.release() }
+            }
         } catch {
             await state.recordCancellation()
             throw error
