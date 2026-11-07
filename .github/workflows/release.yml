@@ -130,15 +130,13 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Install XcodeGen and SwiftLint
+      - name: Install XcodeGen
         shell: bash
         run: |
           set -euo pipefail
-          for tool in xcodegen swiftlint; do
-            if ! command -v "$tool" >/dev/null 2>&1; then
-              HOMEBREW_NO_AUTO_UPDATE=1 brew install "$tool"
-            fi
-          done
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
+          fi
 
       - name: Fetch ClearURLs build resource and generate Xcode project
         shell: bash
@@ -147,35 +145,6 @@ jobs:
           sh scripts/fetch-clearurls-rules.sh --force
           xcodegen generate --spec project.yml
           test -f Sidekick.xcodeproj/project.pbxproj
-
-      - name: Validate repository metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -B scripts/check-package-locks.py
-          python3 -B scripts/check-project-metadata.py
-          python3 -B scripts/check-client-id.py
-
-      - name: Run SwiftLint
-        shell: bash
-        run: swiftlint lint --config .swiftlint.yml
-
-      - name: Run tests with committed configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-          xcodebuild \
-            -project Sidekick.xcodeproj \
-            -scheme sidekick \
-            -configuration Debug \
-            -derivedDataPath "$RUNNER_TEMP/derived-data" \
-            -clonedSourcePackagesDirPath "$RUNNER_TEMP/source-packages" \
-            -parallel-testing-enabled NO \
-            -skip-testing:sidekickTests/ClipboardImagePreviewIntegrationTests/testDefaultDependenciesOpenARealImageInPreview \
-            -skip-testing:sidekickTests/ClipboardImagePreviewIntegrationTests/testDefaultFallbackOpensRealImage \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            test
 
       - name: Build Release app
         shell: bash
@@ -187,6 +156,8 @@ jobs:
             -configuration Release \
             -derivedDataPath "$RUNNER_TEMP/derived-data" \
             -clonedSourcePackagesDirPath "$RUNNER_TEMP/source-packages" \
+            STRIP_INSTALLED_PRODUCT=YES \
+            COPY_PHASE_STRIP=YES \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             build

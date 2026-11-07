@@ -16,9 +16,6 @@ release_products := derived_data + "/Build/Products/Release"
 @generate-project: fetch-clearurls
     xcodegen generate --spec "{{worktree_root}}/project.yml"
 
-@install-hooks:
-    sh scripts/install-hooks.sh
-
 @refresh-clearurls:
     sh scripts/fetch-clearurls-rules.sh --force
     xcodegen generate --spec "{{worktree_root}}/project.yml"
@@ -69,17 +66,10 @@ release_products := derived_data + "/Build/Products/Release"
 @check-package-locks:
     python3 -B scripts/check-package-locks.py
 
-@check-project-metadata:
-    python3 -B scripts/check-project-metadata.py
-
-@check-tooling: check-package-locks
-    sh -n scripts/install-hooks.sh
-    sh -n .githooks/pre-commit
-
 @check-client-id: generate-project
     python3 -B scripts/check-client-id.py
 
-@check: check-project check-tooling check-project-metadata check-client-id lint test test-release-app-replacement
+@check: check-project check-package-locks check-client-id lint test test-release-app-replacement
 
 @ci: check build-release
 

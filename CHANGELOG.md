@@ -37,3 +37,4 @@ User-visible changes are listed here. No public release tag exists yet.
 
 - Keep window capture active while retrying empty window inventories twice.
 - Harden macOS cleanup against symlink-swapped paths, enforce stability for manual actions, preserve companion-file events, and correct cleanup settings feedback.
+- Exclude the known macOS Cryptex mount literal from release privacy checks without relaxing other path checks.

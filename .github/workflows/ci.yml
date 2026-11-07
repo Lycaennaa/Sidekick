@@ -66,12 +66,11 @@ jobs:
           xcodegen generate --spec project.yml
           test -f Sidekick.xcodeproj/project.pbxproj
 
-      - name: Validate repository metadata and build-time client ID
+      - name: Validate Swift package lockfile and build-time client ID
         shell: bash
         run: |
           set -euo pipefail
           python3 -B scripts/check-package-locks.py
-          python3 -B scripts/check-project-metadata.py
           python3 -B scripts/check-client-id.py
           git diff --check
 

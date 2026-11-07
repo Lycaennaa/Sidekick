@@ -6,7 +6,10 @@ from pathlib import Path
 
 
 FLAGGED_DATA = {
-    "machine path": re.compile(rb"/Users/|/private/var/|/Volumes/"),
+    # The cryptex mount is an intentional OS path used by the volume monitor.
+    "machine path": re.compile(
+        rb"/Users/|/private/var/(?!run/com\.apple\.security\.cryptexd/mnt/)|/Volumes/"
+    ),
     "private key": re.compile(rb"-----BEGIN (?:RSA|EC|OPENSSH|PRIVATE) KEY-----"),
     "GitHub token": re.compile(rb"(?:ghp_|github_pat_)[A-Za-z0-9_]+"),
     "AWS access key": re.compile(rb"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),

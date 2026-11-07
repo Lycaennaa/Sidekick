@@ -10,7 +10,6 @@
 
 `project.yml` is the Xcode project source of truth. Generated `Sidekick.xcodeproj` data is ignored except for the checked-in SwiftPM `Package.resolved` lockfile; run `just generate-project` before opening or building locally. Do not hand-edit generated project data.
 
-Run `just install-hooks` to enable a local pre-commit check for staged Xcode project metadata.
 
 ## AI-use disclosure
 
