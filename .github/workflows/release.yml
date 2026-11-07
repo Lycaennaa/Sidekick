@@ -171,6 +171,8 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/derived-data" \
             -clonedSourcePackagesDirPath "$RUNNER_TEMP/source-packages" \
             -parallel-testing-enabled NO \
+            -skip-testing:sidekickTests/ClipboardImagePreviewIntegrationTests/testDefaultDependenciesOpenARealImageInPreview \
+            -skip-testing:sidekickTests/ClipboardImagePreviewIntegrationTests/testDefaultFallbackOpensRealImage \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             test

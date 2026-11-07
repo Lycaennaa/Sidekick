@@ -5,9 +5,6 @@ import XCTest
 @MainActor
 final class ClipboardImagePreviewIntegrationTests: XCTestCase {
     func testDefaultDependenciesOpenARealImageInPreview() async throws {
-        guard ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != "true" else {
-            throw XCTSkip("Launching Preview.app is unsupported in GitHub Actions.")
-        }
         guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Preview") != nil
         else {
             throw XCTSkip("Preview.app is unavailable")
