@@ -5,8 +5,8 @@ import XCTest
 @MainActor
 final class ClipboardImagePreviewIntegrationTests: XCTestCase {
     func testDefaultDependenciesOpenARealImageInPreview() async throws {
-        guard !NSScreen.screens.isEmpty else {
-            throw XCTSkip("An active display is required to launch Preview.app")
+        guard ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != "true" else {
+            throw XCTSkip("Launching Preview.app is unsupported in GitHub Actions.")
         }
         guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Preview") != nil
         else {
@@ -64,9 +64,6 @@ final class ClipboardImagePreviewIntegrationTests: XCTestCase {
         await fulfillment(of: [opened, applicationOpened], timeout: 5)
     }
     func testDefaultFallbackOpensRealImage() async throws {
-        guard !NSScreen.screens.isEmpty else {
-            throw XCTSkip("An active display is required to launch the default image app")
-        }
         let candidates = [
             "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericDocumentIcon.icns",
             "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ToolbarCustomizeIcon.icns"
