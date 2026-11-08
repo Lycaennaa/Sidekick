@@ -29,6 +29,7 @@ final class ClipboardImagePasteboardInstaller {
         fileURLReader: any PasteboardFileURLReading,
         payloadReader: any PasteboardPayloadReading,
         onConverted: @escaping (URL, Int) -> Void,
+        onArtifactCleanupComplete: @escaping ClipboardImageConversionArtifactOwner.CleanupCompletion,
         onMessage: @escaping (String) -> Void
     ) {
         self.pasteboard = pasteboard
@@ -43,6 +44,7 @@ final class ClipboardImagePasteboardInstaller {
             pasteboard: pasteboard,
             fileURLReader: fileURLReader,
             onMessage: onMessage,
+            onCleanupComplete: onArtifactCleanupComplete,
             currentGeneration: { pasteboard.changeCount }
         )
         artifactOwner.onExpired = { [weak self] lease in

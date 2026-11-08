@@ -6,12 +6,23 @@ final class ClipboardImageConversionLifecycleTests: XCTestCase {
     func testExpirationClearsOnlyUnchangedConvertedClipboard() async throws {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
+        var expectedExpiredURL: URL?
+        var completedCleanupURLs = Set<URL>()
+        var cleanupSignaled = false
+        let cleanup = expectation(description: "Expired artifact cleanup completed")
         let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 0.05,
             outputDirectory: directory,
             fileURLReader: InlinePasteboardFileURLReader(),
             payloadReader: InlinePasteboardPayloadReader(),
+            onArtifactCleanupComplete: { url in
+                completedCleanupURLs.insert(url)
+                if url == expectedExpiredURL, !cleanupSignaled {
+                    cleanupSignaled = true
+                    cleanup.fulfill()
+                }
+            },
             onMessage: { _ in }
         )
         defer {
@@ -26,7 +37,12 @@ final class ClipboardImageConversionLifecycleTests: XCTestCase {
             return XCTFail("Expected converted WebP")
         }
 
-        try await Task.sleep(for: .milliseconds(150))
+        expectedExpiredURL = url
+        if completedCleanupURLs.contains(url), !cleanupSignaled {
+            cleanupSignaled = true
+            cleanup.fulfill()
+        }
+        await fulfillment(of: [cleanup], timeout: 5)
 
         XCTAssertTrue(pasteboard.pasteboardItems?.isEmpty ?? true)
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))

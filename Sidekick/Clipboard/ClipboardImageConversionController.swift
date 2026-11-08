@@ -30,6 +30,7 @@ final class ClipboardImageConversionController {
         fileURLReader: any PasteboardFileURLReading = SystemPasteboardFileURLReader(),
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader(),
         onConverted: @escaping (URL, Int) -> Void = { _, _ in },
+        onArtifactCleanupComplete: @escaping ClipboardImageConversionArtifactOwner.CleanupCompletion = { _ in },
         onMessage: @escaping (String) -> Void
     ) {
         self.pasteboard = pasteboard
@@ -45,6 +46,7 @@ final class ClipboardImageConversionController {
             fileURLReader: fileURLReader,
             payloadReader: payloadReader,
             onConverted: onConverted,
+            onArtifactCleanupComplete: onArtifactCleanupComplete,
             onMessage: onMessage
         )
     }
