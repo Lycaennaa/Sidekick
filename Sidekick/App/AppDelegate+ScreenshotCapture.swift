@@ -27,7 +27,7 @@ extension AppDelegate {
         let model = ToastModel(
             generation: utilityToastGeneration,
             presentationStyle: .image,
-            summary: "Copied SDR screenshot; HDR was not preserved.",
+            summary: "Screenshot copied.",
             detail: nil,
             icon: NSImage(systemSymbolName: "camera", accessibilityDescription: "Screenshot"),
             footer: nil
@@ -42,7 +42,7 @@ extension AppDelegate {
         let model = ToastModel(
             generation: utilityToastGeneration,
             presentationStyle: .image,
-            summary: "Saved and copied SDR screenshot; HDR was not preserved.",
+            summary: "Screenshot saved and copied.",
             detail: url.lastPathComponent,
             icon: NSImage(systemSymbolName: "camera", accessibilityDescription: "Screenshot"),
             footer: nil
