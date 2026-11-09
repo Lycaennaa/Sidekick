@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class MacArtifactVolumeMonitorTests: XCTestCase {
-    func testMonitorObservesMountedEjectableDiskImage() async throws {
+    func testMountedDiskImageIsNotEligibleForAutomaticOrFolderCleanup() async throws {
         let directory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -18,21 +18,29 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         let image = directory.appendingPathComponent("volume.sparseimage")
         let volumeName = "SidekickCleanup-\(UUID().uuidString.prefix(8))"
         let volumeURL = URL(fileURLWithPath: "/Volumes/\(volumeName)", isDirectory: true)
+        let selectedFolder = volumeURL.appendingPathComponent("Selected", isDirectory: true)
         try runHdiutil([
             "create", "-quiet", "-size", "32m", "-fs", "HFS+",
             "-volname", volumeName,
             "-type", "SPARSE", "-o", image.path
         ])
 
-        let monitor = MacArtifactVolumeMonitor()
-        let didMount = expectation(description: "Mounted ejectable volume was observed")
-        monitor.onMount = { volume in
-            if volume.url.path == volumeURL.path { didMount.fulfill() }
+        let suiteName = "MacArtifactVolumeMonitorTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = MacArtifactCleanupStore(defaults: defaults)
+        let coordinator = MacArtifactCleanupCoordinator(store: store)
+        let imageEnrollmentRequested = expectation(description: "Disk image enrollment is not requested")
+        imageEnrollmentRequested.isInverted = true
+        coordinator.onRequestEnrollment = { volume in
+            if volume.url.standardizedFileURL.path == volumeURL.standardizedFileURL.path {
+                imageEnrollmentRequested.fulfill()
+            }
         }
-        monitor.start()
+        coordinator.start()
         var isMounted = false
         defer {
-            monitor.stop()
+            coordinator.stop()
             if isMounted {
                 try? runHdiutil(["detach", "-quiet", "-force", volumeURL.path])
             }
@@ -40,91 +48,24 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
 
         try await runHdiutilDetached(["attach", "-quiet", "-nobrowse", image.path])
         isMounted = true
-        let volume = try XCTUnwrap(
-            monitor.mountedExternalVolumes().first { $0.url.path == volumeURL.path }
+        try FileManager.default.createDirectory(at: selectedFolder, withIntermediateDirectories: true)
+
+        XCTAssertFalse(
+            MacArtifactVolumeMonitor().mountedExternalVolumes().contains {
+                $0.url.standardizedFileURL.path == volumeURL.standardizedFileURL.path
+            }
         )
-        XCTAssertFalse(volume.identifier.isEmpty)
-        XCTAssertTrue(monitor.mountedExternalVolumes().allSatisfy {
-            !$0.url.path.hasPrefix("/private/var/run/com.apple.security.cryptexd/mnt/")
-        })
-        XCTAssertTrue(
-            monitor.mountedExternalVolumes().allSatisfy {
-                !$0.url.path.hasPrefix("/private/var/run/com.apple.security.cryptexd/mnt/")
-            },
-            "System cryptex mounts must not prompt for enrollment."
+        XCTAssertFalse(store.addFolder(selectedFolder))
+        XCTAssertTrue(store.configuration.roots.isEmpty)
+        await fulfillment(of: [imageEnrollmentRequested], timeout: 1)
+        coordinator.stop()
+        try await assertPreviouslyEnrolledDiskImageRootIsInactive(
+            at: selectedFolder,
+            defaults: defaults
         )
 
-        await fulfillment(of: [didMount], timeout: 10)
-        monitor.stop()
         try await runHdiutilDetached(["detach", "-quiet", "-force", volumeURL.path])
         isMounted = false
-    }
-
-    func testFolderRootDoesNotReactivateWhenReplacementVolumeUsesSamePath() async throws {
-        let directory = try Self.makeTemporaryDirectory(named: "MacArtifactCleanupCoordinatorTests")
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let mountPoint = directory.appendingPathComponent("mounted-volume", isDirectory: true)
-        try FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
-        let originalImage = directory.appendingPathComponent("original.sparseimage")
-        let replacementImage = directory.appendingPathComponent("replacement.sparseimage")
-        let originalName = "SidekickOriginal-\(UUID().uuidString.prefix(8))"
-        let replacementName = "SidekickReplacement-\(UUID().uuidString.prefix(8))"
-        let defaultsName = "MacArtifactCleanupCoordinatorTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
-        defer { defaults.removePersistentDomain(forName: defaultsName) }
-
-        var isMounted = false
-        var coordinator: MacArtifactCleanupCoordinator?
-        defer {
-            coordinator?.stop()
-            if isMounted {
-                try? runHdiutil(["detach", "-quiet", "-force", mountPoint.path])
-            }
-        }
-
-        try Self.createDiskImage(at: originalImage, volumeName: originalName)
-        try Self.createDiskImage(at: replacementImage, volumeName: replacementName)
-        try runHdiutil([
-            "attach", "-quiet", "-nobrowse", "-mountpoint", mountPoint.path, originalImage.path
-        ])
-        isMounted = true
-
-        let store = MacArtifactCleanupStore(defaults: defaults)
-        XCTAssertTrue(store.addFolder(mountPoint))
-        let folderRoot = try XCTUnwrap(store.configuration.roots.first)
-        let originalIdentifier = try XCTUnwrap(folderRoot.volumeIdentifier)
-
-        try runHdiutil(["detach", "-quiet", "-force", mountPoint.path])
-        isMounted = false
-        try runHdiutil([
-            "attach", "-quiet", "-nobrowse", "-mountpoint", mountPoint.path, replacementImage.path
-        ])
-        isMounted = true
-
-        let replacementIdentifier = try XCTUnwrap(
-            MacArtifactCleanupRoot.currentVolumeIdentifier(at: mountPoint)
-        )
-        XCTAssertNotEqual(replacementIdentifier, originalIdentifier)
-        let candidate = mountPoint.appendingPathComponent(".DS_Store")
-        try Data([1, 2, 3]).write(to: candidate)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: candidate.path))
-        store.setDefaultMode(.deletePermanently)
-        let cleanupCoordinator = MacArtifactCleanupCoordinator(store: store)
-        coordinator = cleanupCoordinator
-        var replacementWasPrompted = false
-        cleanupCoordinator.onRequestEnrollment = { volume in
-            if volume.identifier == replacementIdentifier { replacementWasPrompted = true }
-        }
-        cleanupCoordinator.start()
-        XCTAssertTrue(replacementWasPrompted)
-
-        do {
-            _ = try await cleanupCoordinator.preview(rootID: folderRoot.id)
-            XCTFail("Declining the replacement volume must leave the old folder root inactive.")
-        } catch is CancellationError {
-            // Expected: the old volume identity is no longer mounted at this path.
-        }
-        XCTAssertTrue(FileManager.default.fileExists(atPath: candidate.path))
     }
 
     func testAutomaticBatchProcessesAppleDoubleBeforeCompanion() async throws {
@@ -166,45 +107,20 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: companion.path))
         await processor.waitForBackgroundScans()
     }
-    func testManualTrashFailureRemainsManualOnlyAcrossCompanionRemovalAndFingerprintRefresh() async throws {
-        let directory = try Self.makeTemporaryDirectory(named: "MacArtifactManualTrashRetryTests")
+    func testManualFailureRemainsManualOnlyAcrossCompanionRemovalAndFingerprintRefresh() async throws {
+        let directory = try Self.makeTemporaryDirectory(named: "MacArtifactManualRetryTests")
         defer { try? FileManager.default.removeItem(at: directory) }
-        let image = directory.appendingPathComponent("retry.sparseimage")
-        let volumeName = "SidekickRetry-\(UUID().uuidString.prefix(8))"
-        let volumeURL = URL(fileURLWithPath: "/Volumes/\(volumeName)", isDirectory: true)
-        try Self.createDiskImage(at: image, volumeName: volumeName)
-        var isMounted = false
-        defer {
-            if isMounted {
-                try? runHdiutil(["detach", "-quiet", "-force", volumeURL.path])
-            }
-        }
-        try await runHdiutilDetached(["attach", "-quiet", "-nobrowse", image.path])
-        isMounted = true
-
-        let volumeTrash = volumeURL.appendingPathComponent(".Trashes", isDirectory: true)
-        let userTrash = volumeTrash.appendingPathComponent(String(getuid()), isDirectory: true)
-        try FileManager.default.createDirectory(at: userTrash, withIntermediateDirectories: true)
-        try FileManager.default.setAttributes([.posixPermissions: 0o1777], ofItemAtPath: volumeTrash.path)
-        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: userTrash.path)
-        let collisionNames = (0..<1_000).map { suffix in
-            suffix == 0 ? "._.DS_Store" : "._.DS_Store \(suffix)"
-        }
-        for name in collisionNames {
-            XCTAssertTrue(FileManager.default.createFile(
-                atPath: userTrash.appendingPathComponent(name).path,
-                contents: Data([0])
-            ))
-        }
-
-        let root = volumeURL.appendingPathComponent("Selected", isDirectory: true)
+        let root = directory.appendingPathComponent("Selected", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let sidecar = root.appendingPathComponent("._.DS_Store")
         let companion = root.appendingPathComponent(".DS_Store")
         try Data([0, 5, 0x16, 7, 0, 0, 0, 2]).write(to: sidecar)
         try Data([1, 2, 3]).write(to: companion)
+        let flagResult = sidecar.path.withCString { chflags($0, UInt32(UF_IMMUTABLE)) }
+        XCTAssertEqual(flagResult, 0)
+        defer { _ = sidecar.path.withCString { chflags($0, 0) } }
 
-        let defaultsName = "MacArtifactManualTrashRetry.\(UUID().uuidString)"
+        let defaultsName = "MacArtifactManualRetry.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
         defer { defaults.removePersistentDomain(forName: defaultsName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
@@ -213,51 +129,47 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         let processor = MacArtifactCleanupProcessor(
             store: store,
             notifier: MacArtifactCleanupNotifier(center: nil),
-            quietPeriod: 0.2
+            quietPeriod: 0
         )
         defer { processor.stop() }
         processor.start(roots: store.configuration.roots)
         await processor.waitForBackgroundScans()
-        try await Task.sleep(nanoseconds: 350_000_000)
+        await processor.processMatureCandidates()
         let rootID = store.configuration.roots[0].id
         let preview = try await processor.preview(rootID: rootID)
         XCTAssertEqual(preview.matches.map(\.kind), [.appleDoubleSidecar, .desktopDatabase])
 
-        let failedAttempt = processor.applyManually(preview.matches, rootID: rootID, mode: .moveToTrash)
+        let failedAttempt = processor.applyManually(preview.matches, rootID: rootID, mode: .deletePermanently)
         XCTAssertEqual(failedAttempt?.removedCount, 1, "\(failedAttempt?.details ?? [])")
         XCTAssertEqual(failedAttempt?.skippedCount, 1, "\(failedAttempt?.details ?? [])")
         XCTAssertTrue(FileManager.default.fileExists(atPath: sidecar.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: companion.path))
         XCTAssertEqual(try Data(contentsOf: sidecar), Data([0, 5, 0x16, 7, 0, 0, 0, 2]))
 
-        for name in collisionNames {
-            try FileManager.default.removeItem(at: userTrash.appendingPathComponent(name))
-        }
         let unobservedScan = try MacArtifactScanner.scan(root: root)
         XCTAssertEqual(unobservedScan.matches.map(\.kind), [.appleDoubleSidecar])
         let unobservedAttempt = processor.applyManually(
             unobservedScan.matches,
             rootID: rootID,
-            mode: .moveToTrash
+            mode: .deletePermanently
         )
         XCTAssertEqual(unobservedAttempt?.removedCount, 0, "\(unobservedAttempt?.details ?? [])")
         XCTAssertEqual(unobservedAttempt?.skippedCount, 1, "\(unobservedAttempt?.details ?? [])")
         XCTAssertTrue(FileManager.default.fileExists(atPath: sidecar.path))
         store.setDefaultMode(.deletePermanently)
+        XCTAssertEqual(sidecar.path.withCString { chflags($0, 0) }, 0)
         processor.receive([MacArtifactFileEvent(path: companion.path, flags: 0)])
         await processor.waitForBackgroundScans()
-        try await Task.sleep(nanoseconds: 350_000_000)
         await processor.processMatureCandidates()
         XCTAssertTrue(FileManager.default.fileExists(atPath: sidecar.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: companion.path))
 
         let retryPreview = try await processor.preview(rootID: rootID)
         XCTAssertEqual(retryPreview.matches.map(\.kind), [.appleDoubleSidecar])
-        let retry = processor.applyManually(retryPreview.matches, rootID: rootID, mode: .moveToTrash)
+        let retry = processor.applyManually(retryPreview.matches, rootID: rootID, mode: .deletePermanently)
         XCTAssertEqual(retry?.removedCount, 1, "\(retry?.details ?? [])")
         XCTAssertEqual(retry?.skippedCount, 0, "\(retry?.details ?? [])")
         XCTAssertFalse(FileManager.default.fileExists(atPath: sidecar.path))
-        try FileManager.default.removeItem(at: volumeTrash)
         await processor.waitForBackgroundScans()
     }
     func testTrashAndSymlinkBoundaryOnMountedVolume() async throws {
@@ -451,4 +363,42 @@ private func runHdiutil(_ arguments: [String]) throws {
             userInfo: [NSLocalizedDescriptionKey: details]
         )
     }
+}
+@MainActor
+private func assertPreviouslyEnrolledDiskImageRootIsInactive(
+    at folder: URL,
+    defaults: UserDefaults
+) async throws {
+    let imageIdentifier = try XCTUnwrap(
+        MacArtifactCleanupRoot.currentVolumeIdentifier(at: folder)
+    )
+    let legacyRoot = MacArtifactCleanupRoot(
+        id: UUID(),
+        path: folder.path,
+        kind: .folder,
+        volumeIdentifier: imageIdentifier,
+        modeOverride: nil
+    )
+    let legacyConfiguration = MacArtifactCleanupConfiguration(
+        defaultMode: .deletePermanently,
+        roots: [legacyRoot]
+    )
+    defaults.set(
+        try JSONEncoder().encode(legacyConfiguration),
+        forKey: "macArtifactCleanupConfiguration"
+    )
+    let store = MacArtifactCleanupStore(defaults: defaults)
+    let coordinator = MacArtifactCleanupCoordinator(store: store)
+    let candidate = folder.appendingPathComponent(".DS_Store")
+    try Data([1, 2, 3]).write(to: candidate)
+    coordinator.start()
+    defer { coordinator.stop() }
+
+    do {
+        _ = try await coordinator.preview(rootID: legacyRoot.id)
+        XCTFail("A previously enrolled disk-image folder must remain inactive.")
+    } catch is CancellationError {
+        // Expected: mounted disk images are not eligible cleanup roots.
+    }
+    XCTAssertTrue(FileManager.default.fileExists(atPath: candidate.path))
 }

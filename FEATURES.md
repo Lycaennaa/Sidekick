@@ -38,7 +38,7 @@ Sidekick runs in the macOS menu bar and requires macOS 15 or later.
 
 ## macOS metadata cleanup
 
-- Enroll folders and external drives for recursive cleanup of `.DS_Store`, verified AppleDouble `._*` sidecars, and exact `.AppleDouble` / `__MACOSX` directories.
+- Enroll folders on local internal or physical external disks, or any FUSE mount including network-backed FUSE, for recursive cleanup of `.DS_Store`, verified AppleDouble `._*` sidecars, and exact `.AppleDouble` / `__MACOSX` directories; mounted disk images and other non-FUSE virtual or network volumes are excluded.
 - Scans and monitors enrolled roots while Sidekick is open, skips symlinks, recognized package folders, and nested volumes, and waits for 30 seconds without observed size or modification-time changes before acting. Confirmed manual removals are skipped unless monitoring has observed the full quiet period.
 - Folder roots remain bound to their original volume; a different volume mounted at the same path stays inactive until explicitly enrolled.
 - Cleanup runs locally; ZIP files are not rewritten. Trash and permanent removal stay anchored to opened directories so symlink swaps cannot redirect actions outside the selected root. Preview and removal modes are configurable, with permanent deletion as the automatic default; Trash failures are reported without permanent fallback.

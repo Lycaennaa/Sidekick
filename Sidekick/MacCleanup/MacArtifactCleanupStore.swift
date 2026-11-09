@@ -1,4 +1,12 @@
+import CryptoKit
+import Darwin
 import Foundation
+
+nonisolated struct MacArtifactVolumeIdentity: Sendable {
+    let identifier: String
+    let isFuse: Bool
+    let legacyIdentifier: String?
+}
 
 nonisolated struct MacArtifactCleanupRoot: Codable, Equatable, Identifiable, Sendable {
     nonisolated enum Kind: String, Codable, Sendable {
@@ -9,7 +17,7 @@ nonisolated struct MacArtifactCleanupRoot: Codable, Equatable, Identifiable, Sen
     let id: UUID
     let path: String
     var kind: Kind
-    let volumeIdentifier: String?
+    var volumeIdentifier: String?
     var modeOverride: MacArtifactRemovalMode?
 
     var url: URL { URL(fileURLWithPath: path, isDirectory: true) }
@@ -38,13 +46,112 @@ nonisolated struct MacArtifactCleanupRoot: Codable, Equatable, Identifiable, Sen
         return Self.currentVolumeIdentifier(at: url) == volumeIdentifier
     }
 
-    static func currentVolumeIdentifier(at url: URL) -> String? {
-        guard let values = try? url.resourceValues(forKeys: [.volumeUUIDStringKey]),
-              let identifier = values.volumeUUIDString,
-              !identifier.isEmpty else {
-            return nil
+    mutating func migrateLegacyFuseVolumeIdentifier(
+        using identity: MacArtifactVolumeIdentity
+    ) -> Bool {
+        guard identity.isFuse,
+              let legacyIdentifier = identity.legacyIdentifier,
+              volumeIdentifier == legacyIdentifier,
+              volumeIdentifier != identity.identifier else {
+            return false
         }
-        return identifier
+        volumeIdentifier = identity.identifier
+        return true
+    }
+
+    static func currentVolumeIdentity(at url: URL) -> MacArtifactVolumeIdentity? {
+        let volumeUUIDString = (try? url.resourceValues(forKeys: [.volumeUUIDStringKey]))?.volumeUUIDString
+        let fileSystem = fileSystemInfo(at: url)
+        return resolveVolumeIdentity(
+            volumeUUIDString: volumeUUIDString,
+            fileSystemType: fileSystem?.type,
+            source: fileSystem?.source,
+            mountPoint: fileSystem?.mountPoint
+        )
+    }
+
+    static func resolveVolumeIdentity(
+        volumeUUIDString: String?,
+        fileSystemType: String?,
+        source: String?,
+        mountPoint: String?
+    ) -> MacArtifactVolumeIdentity? {
+        let volumeUUIDString = volumeUUIDString.flatMap { $0.isEmpty ? nil : $0 }
+        if let fileSystemType {
+            let type = fileSystemType.lowercased()
+            if isFuseFileSystem(type) {
+                guard let identifier = fuseIdentifier(
+                    type: type,
+                    source: source ?? "",
+                    mountPoint: mountPoint ?? ""
+                ) else {
+                    return nil
+                }
+                return MacArtifactVolumeIdentity(
+                    identifier: identifier,
+                    isFuse: true,
+                    legacyIdentifier: volumeUUIDString
+                )
+            }
+        }
+        guard let volumeUUIDString else { return nil }
+        return MacArtifactVolumeIdentity(
+            identifier: volumeUUIDString,
+            isFuse: false,
+            legacyIdentifier: nil
+        )
+    }
+
+    static func currentVolumeIdentifier(at url: URL) -> String? {
+        currentVolumeIdentity(at: url)?.identifier
+    }
+
+    private struct FileSystemInfo {
+        let type: String
+        let source: String
+        let mountPoint: String
+    }
+
+    static func fuseIdentifier(type: String, source: String, mountPoint: String) -> String? {
+        guard !source.isEmpty, !mountPoint.isEmpty else { return nil }
+        var material = Data()
+        material.append(contentsOf: type.utf8)
+        material.append(0)
+        material.append(contentsOf: source.utf8)
+        material.append(0)
+        material.append(contentsOf: mountPoint.utf8)
+        let digest = SHA256.hash(data: material)
+        return "fuse:\(Data(digest).base64EncodedString())"
+    }
+
+    private static func fileSystemInfo(at url: URL) -> FileSystemInfo? {
+        var status = statfs()
+        let result = url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return Int32(-1) }
+            return statfs(path, &status)
+        }
+        guard result == 0 else { return nil }
+        return FileSystemInfo(
+            type: cString(from: &status.f_fstypename).lowercased(),
+            source: cString(from: &status.f_mntfromname),
+            mountPoint: cString(from: &status.f_mntonname)
+        )
+    }
+
+    private static func cString<Field>(from field: inout Field) -> String {
+        let capacity = MemoryLayout<Field>.size
+        return withUnsafePointer(to: &field) { pointer in
+            pointer.withMemoryRebound(to: CChar.self, capacity: capacity) {
+                String(cString: $0)
+            }
+        }
+    }
+
+    static func isFuseFileSystem(_ type: String) -> Bool {
+        type == "macfuse" || type == "osxfuse"
+            || type.hasPrefix("macfuse_")
+            || type.hasPrefix("osxfuse_")
+            || type.hasPrefix("fuse")
     }
 }
 
@@ -107,7 +214,12 @@ final class MacArtifactCleanupStore {
     private(set) var history: [MacArtifactCleanupHistoryEntry]
     var onChange: (() -> Void)?
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        volumeIdentityAt: (URL) -> MacArtifactVolumeIdentity? = {
+            MacArtifactCleanupRoot.currentVolumeIdentity(at: $0)
+        }
+    ) {
         self.defaults = defaults
         configuration = Self.decode(
             MacArtifactCleanupConfiguration.self,
@@ -119,14 +231,19 @@ final class MacArtifactCleanupStore {
             forKey: Key.history,
             in: defaults
         )?.prefix(Self.historyLimit) ?? [])
+        migrateLegacyFuseIdentifiers(volumeIdentityAt: volumeIdentityAt)
     }
 
     @discardableResult
     func addFolder(_ url: URL) -> Bool {
-        guard let volumeIdentifier = MacArtifactCleanupRoot.currentVolumeIdentifier(at: url) else {
+        guard let volumeIdentity = MacArtifactCleanupRoot.currentVolumeIdentity(at: url),
+              MacArtifactVolumeMonitor.supportsFolderEnrollment(
+                at: url,
+                volumeIdentity: volumeIdentity
+              ) else {
             return false
         }
-        return addRoot(url, kind: .folder, volumeIdentifier: volumeIdentifier)
+        return addRoot(url, kind: .folder, volumeIdentifier: volumeIdentity.identifier)
     }
 
     @discardableResult
@@ -195,6 +312,22 @@ final class MacArtifactCleanupStore {
         )
         saveConfiguration()
         return true
+    }
+
+    private func migrateLegacyFuseIdentifiers(
+        volumeIdentityAt: (URL) -> MacArtifactVolumeIdentity?
+    ) {
+        var didMigrate = false
+        for index in configuration.roots.indices {
+            guard let identity = volumeIdentityAt(configuration.roots[index].url),
+                  configuration.roots[index].migrateLegacyFuseVolumeIdentifier(using: identity) else {
+                continue
+            }
+            didMigrate = true
+        }
+        if didMigrate {
+            persist(configuration, forKey: Key.configuration)
+        }
     }
 
     private func saveConfiguration() {

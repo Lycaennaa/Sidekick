@@ -41,6 +41,70 @@ final class MacArtifactCleanupStoreTests: XCTestCase {
         XCTAssertFalse(store.addFolder(firstURL))
     }
 
+    func testStorePersistsLegacyFuseMigrationOnlyWhenMountedUUIDMatches() throws {
+        let (defaults, suiteName) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let folderRootID = UUID()
+        let externalRootID = UUID()
+        let savedConfiguration = MacArtifactCleanupConfiguration(
+            defaultMode: .deletePermanently,
+            roots: [
+                MacArtifactCleanupRoot(
+                    id: folderRootID,
+                    path: "/Volumes/remote/Photos",
+                    kind: .folder,
+                    volumeIdentifier: "mount-uuid-1",
+                    modeOverride: nil
+                ),
+                MacArtifactCleanupRoot(
+                    id: externalRootID,
+                    path: "/Volumes/remote",
+                    kind: .externalVolume,
+                    volumeIdentifier: "mount-uuid-1",
+                    modeOverride: nil
+                )
+            ]
+        )
+        defaults.set(
+            try JSONEncoder().encode(savedConfiguration),
+            forKey: "macArtifactCleanupConfiguration"
+        )
+
+        let stableIdentifier = "fuse:source-based"
+        let volumeIdentityAt: (URL) -> MacArtifactVolumeIdentity? = { url in
+            MacArtifactVolumeIdentity(
+                identifier: stableIdentifier,
+                isFuse: true,
+                legacyIdentifier: url.path == "/Volumes/remote" ? "mount-uuid-2" : "mount-uuid-1"
+            )
+        }
+
+        let store = MacArtifactCleanupStore(
+            defaults: defaults,
+            volumeIdentityAt: volumeIdentityAt
+        )
+        let migratedFolder = try XCTUnwrap(store.configuration.roots.first { $0.id == folderRootID })
+        let unchangedExternalRoot = try XCTUnwrap(
+            store.configuration.roots.first { $0.id == externalRootID }
+        )
+        XCTAssertEqual(migratedFolder.volumeIdentifier, stableIdentifier)
+        XCTAssertEqual(unchangedExternalRoot.volumeIdentifier, "mount-uuid-1")
+
+        let restored = MacArtifactCleanupStore(
+            defaults: defaults,
+            volumeIdentityAt: { _ in nil }
+        )
+        XCTAssertEqual(
+            restored.configuration.roots.first { $0.id == folderRootID }?.volumeIdentifier,
+            stableIdentifier
+        )
+        XCTAssertEqual(
+            restored.configuration.roots.first { $0.id == externalRootID }?.volumeIdentifier,
+            "mount-uuid-1"
+        )
+    }
+
     func testFolderRootDoesNotSuppressExternalVolumeEnrollment() throws {
         let (defaults, suiteName) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

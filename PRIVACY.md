@@ -48,7 +48,7 @@ Finder file creation is user initiated. The Finder Sync extension sends the targ
 
 ### macOS metadata cleanup
 
-Cleanup configuration is stored in `UserDefaults` and includes enrolled folder paths, their volume identifiers, external-volume identifiers, and removal modes. Local history retains up to 50 summaries, each with counts and up to 20 item details that may include file paths and cleanup outcomes. Completion notifications include the selected folder name and counts; macOS Notification Center may retain or display notification content according to system settings. Scanning and cleanup run locally; file contents are not transmitted by this feature.
+Cleanup configuration is stored in `UserDefaults` and includes enrolled folder paths, their volume identifiers, mount-derived filesystem identities for FUSE mounts without a volume UUID, external-volume identifiers, and removal modes. Local history retains up to 50 summaries, each with counts and up to 20 item details that may include file paths and cleanup outcomes. Completion notifications include the selected folder name and counts; macOS Notification Center may retain or display notification content according to system settings. Scanning and cleanup run locally; file contents are not transmitted by this feature.
 
 ## Deletion
 

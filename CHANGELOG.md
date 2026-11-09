@@ -17,10 +17,11 @@ User-visible changes are listed here. No public release tag exists yet.
 - Add a Finder context-menu command that opens Sidekick to create a zero-byte file after the user enters a name, without replacing existing items.
 - Copying folders no longer triggers automatic conversion; pending captures retry after output-format changes, and unreadable images report an error.
 
-- Added recursive macOS metadata cleanup for enrolled folders and external drives, binding folder roots to their original volume and offering preview, configurable removal modes, and local cleanup history.
+- Added recursive macOS metadata cleanup for enrolled folders on local internal or external physical disks and FUSE mounts, including network-backed FUSE; mounted disk images and other non-FUSE virtual or network volumes are rejected.
 
 ### Fixed
 
+- Use remount-stable source identities for FUSE volumes, migrating saved roots only when their UUID still matches the mounted volume.
 - Hide AVIF output on macOS versions without an ImageIO AVIF encoder and use WebP as the effective output format.
 
 - Keep automatic clipboard image conversion running when its clipboard-content toast appears.

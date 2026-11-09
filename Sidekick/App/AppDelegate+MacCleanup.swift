@@ -9,10 +9,10 @@ extension AppDelegate {
             let alert = NSAlert()
             alert.messageText = "Enroll \(volume.url.lastPathComponent) for Mac cleanup?"
             alert.informativeText = [
-                "Sidekick recursively scans and monitors this drive while the app is open.",
+                "Sidekick recursively scans and monitors this volume while the app is open.",
                 "Matching files wait at least 30 seconds without observed changes before the selected action."
             ].joined(separator: " ")
-            alert.addButton(withTitle: "Enroll Drive")
+            alert.addButton(withTitle: "Enroll Volume")
             alert.addButton(withTitle: "Not Now")
             guard alert.runModal() == .alertFirstButtonReturn else { return }
             _ = self.macArtifactCleanupStore.enrollExternalVolume(

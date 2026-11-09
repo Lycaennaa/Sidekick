@@ -79,7 +79,7 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
         )
         XCTAssertEqual(
             error.stringValue,
-            "That folder is already enrolled or its volume identity cannot be verified."
+            "That folder is already enrolled or is on an unsupported volume."
         )
     }
 

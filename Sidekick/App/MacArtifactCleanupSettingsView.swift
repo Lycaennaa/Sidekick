@@ -37,7 +37,9 @@ final class MacArtifactCleanupSettingsView: NSView {
             wrappingLabelWithString:
                 "Recursively remove `.DS_Store`, verified AppleDouble sidecars (`._*`), and exact " +
                 "`.AppleDouble` / `__MACOSX` directories. ZIP files are not rewritten. Package folders and " +
-                "symlinks are skipped; traversal stays on the selected volume."
+                "symlinks are skipped; traversal stays on the selected volume. Folders on local or external " +
+                "disks and FUSE volumes (including network-backed FUSE) are supported; mounted disk images " +
+                "and other virtual or network volumes are not."
         )
         explanation.textColor = .secondaryLabelColor
         explanation.font = .systemFont(ofSize: 12)
@@ -238,7 +240,7 @@ final class MacArtifactCleanupSettingsView: NSView {
         let added = store.addFolder(url)
         refresh()
         if !added {
-            statusLabel.stringValue = "That folder is already enrolled or its volume identity cannot be verified."
+            statusLabel.stringValue = "That folder is already enrolled or is on an unsupported volume."
         }
     }
 

@@ -107,7 +107,12 @@ final class MacArtifactCleanupCoordinator {
             switch root.kind {
             case .folder:
                 guard FileManager.default.fileExists(atPath: root.path),
-                      root.isOnOriginalVolume else {
+                      let identity = MacArtifactCleanupRoot.currentVolumeIdentity(at: root.url),
+                      identity.identifier == root.volumeIdentifier,
+                      MacArtifactVolumeMonitor.supportsFolderEnrollment(
+                        at: root.url,
+                        volumeIdentity: identity
+                      ) else {
                     return nil
                 }
                 return root
