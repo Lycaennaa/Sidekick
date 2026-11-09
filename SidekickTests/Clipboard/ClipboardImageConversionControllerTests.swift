@@ -11,15 +11,17 @@ final class ClipboardImageConversionControllerTests: XCTestCase {
         var messages: [String] = []
         var convertedURL: URL?
         var convertedChangeCount: Int?
+        var convertedSourceChangeCount: Int?
         let controller = ClipboardImageConversionController(
             pasteboard: pasteboard,
             expirationInterval: 10,
             outputDirectory: directory,
             fileURLReader: InlinePasteboardFileURLReader(),
             payloadReader: InlinePasteboardPayloadReader(),
-            onConverted: { url, changeCount in
+            onConverted: { url, changeCount, sourceChangeCount in
                 convertedURL = url
                 convertedChangeCount = changeCount
+                convertedSourceChangeCount = sourceChangeCount
             },
             onMessage: { messages.append($0) }
         )
@@ -30,11 +32,13 @@ final class ClipboardImageConversionControllerTests: XCTestCase {
 
         pasteboard.clearContents()
         pasteboard.setData(try pngData(width: 4, height: 3), forType: .png)
+        let sourceChangeCount = pasteboard.changeCount
 
         let result = await convert(with: controller)
         guard case let .converted(url) = result else {
             return XCTFail("Expected converted WebP, got \(result)")
         }
+        XCTAssertEqual(convertedSourceChangeCount, sourceChangeCount)
 
         XCTAssertTrue(url.lastPathComponent.range(
             of: "^[A-Za-z0-9]{7}\\.webp$",

@@ -84,6 +84,7 @@ final class ToastPresentationCoordinator {
     func presentScreenshot(
         _ model: ToastModel,
         duration: TimeInterval,
+        onDismiss: ((UInt64) -> Void)? = nil,
         visibleFrame: CGRect? = nil
     ) -> ID? {
         pruneIDs()
@@ -92,7 +93,7 @@ final class ToastPresentationCoordinator {
                model,
                for: id,
                duration: duration,
-               onDismiss: nil,
+               onDismiss: onDismiss,
                visibleFrame: visibleFrame
            ) {
             return id
@@ -103,6 +104,7 @@ final class ToastPresentationCoordinator {
             model,
             configuration: Policy.general,
             duration: duration,
+            onDismiss: onDismiss,
             visibleFrame: visibleFrame
         )
         return screenshotID

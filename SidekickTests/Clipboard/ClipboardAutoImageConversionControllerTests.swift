@@ -288,7 +288,7 @@ final class ClipboardAutoImageConversionControllerTests: XCTestCase {
             pasteboard: pasteboard,
             outputDirectory: directory,
             payloadReader: reader,
-            onConverted: { url, _ in
+            onConverted: { url, _, _ in
                 convertedURL = url
                 converted.fulfill()
             },
@@ -355,7 +355,7 @@ final class ClipboardAutoImageConversionToastInterruptionTests: XCTestCase {
             pasteboard: pasteboard,
             outputDirectory: outputDirectory,
             outputFormat: { .webP },
-            onConverted: { url, _ in
+            onConverted: { url, _, _ in
                 convertedURL = url
                 converted.fulfill()
             },

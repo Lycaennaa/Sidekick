@@ -220,6 +220,12 @@ final class ClipboardToastController: NSObject {
     func dismissCurrentToast() {
         clearCurrentToast()
     }
+    func prepareCurrentToastReplacement(forChangeCount changeCount: Int) -> UInt64? {
+        payloadPipeline.prepareCurrentToastReplacement(forChangeCount: changeCount)
+    }
+    func hasCurrentToast(generation: UInt64) -> Bool {
+        payloadPipeline.hasCurrentToast(generation: generation)
+    }
 
     private func seedPasteboardState() {
         let changeCount = pasteboard.changeCount

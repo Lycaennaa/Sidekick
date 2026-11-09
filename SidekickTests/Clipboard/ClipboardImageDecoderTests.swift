@@ -194,7 +194,7 @@ final class ClipboardImageDecoderTests: XCTestCase {
         switch classification {
         case let .files(_, _, _, _, _, _, request):
             return request
-        case let .image(_, _, request, _):
+        case let .image(_, _, request):
             return request
         case .text, .generic, .unavailable:
             return nil

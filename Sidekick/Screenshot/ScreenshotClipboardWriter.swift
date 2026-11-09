@@ -78,7 +78,7 @@ final class ScreenshotClipboardWriter {
             onMutation: { [self] changeCount in
                 pendingMutationIDs.insert(mutationID)
                 if isScreenshot {
-                    metadataRegistry.register(.sdr, forChangeCount: changeCount)
+                    metadataRegistry.registerScreenshot(forChangeCount: changeCount)
                 }
             },
             verify: isCurrentRequest

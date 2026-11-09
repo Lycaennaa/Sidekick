@@ -132,7 +132,7 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
             pasteboard: pasteboard,
             outputDirectory: outputDirectory,
             outputFormat: { settings.imageOutputFormat },
-            onConverted: { url, changeCount in
+            onConverted: { url, changeCount, _ in
                 acknowledgeConvertedChange?(changeCount)
                 convertedURL = url
                 converted.fulfill()

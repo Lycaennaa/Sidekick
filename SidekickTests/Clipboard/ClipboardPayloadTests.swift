@@ -44,40 +44,6 @@ final class ClipboardPayloadTests: XCTestCase {
         )
     }
 
-    func testScreenshotImageToastUsesRegisteredDynamicRange() async {
-        let ranges: [ClipboardScreenshotDynamicRange] = [.sdr, .hdr]
-        for (index, range) in ranges.enumerated() {
-            let item = NSPasteboardItem()
-            item.setData(Data([0x89, 0x50, 0x4E, 0x47]), forType: .png)
-            let analysis = await ClipboardPayloadClassifier.analyze(
-                items: [item],
-                generation: UInt64(index),
-                payloadReader: InlinePasteboardPayloadReader(),
-                screenshotDynamicRange: range
-            )
-            let model = ClipboardPayloadPresentation.toastModel(from: analysis.classification)
-            XCTAssertEqual(model.summary, "Copied image • \(range.toastLabel)")
-        }
-    }
-
-    func testPasteboardMarkerCannotClaimScreenshotDynamicRange() async {
-        let item = NSPasteboardItem()
-        item.setData(Data([0x89, 0x50, 0x4E, 0x47]), forType: .png)
-        item.setString(
-            "hdr",
-            forType: NSPasteboard.PasteboardType("com.sidekick.screenshot.dynamic-range")
-        )
-
-        let analysis = await ClipboardPayloadClassifier.analyze(
-            items: [item],
-            generation: 1,
-            payloadReader: InlinePasteboardPayloadReader()
-        )
-        let model = ClipboardPayloadPresentation.toastModel(from: analysis.classification)
-
-        XCTAssertEqual(model.summary, "Copied image")
-    }
-
     func testNativePayloadUsesDefaultReader() async {
         let item = NSPasteboardItem()
         item.setString("native clipboard text", forType: .string)
@@ -435,7 +401,7 @@ extension ClipboardPayloadTests {
         switch classification {
         case let .files(_, _, _, _, _, _, request):
             return request
-        case let .image(_, _, request, _):
+        case let .image(_, _, request):
             return request
         case .text, .generic, .unavailable:
             return nil

@@ -66,12 +66,14 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
 
         let converted = expectation(description: "Screenshot clipboard converted")
         var outputURL: URL?
+        var sourceChangeCount: Int?
         let controllers = makeAutomaticScreenshotConversionControllers(
             settings: settings,
             pasteboard: pasteboard,
             outputDirectory: outputDirectory,
-            onConverted: { url in
+            onConverted: { url, changeCount in
                 outputURL = url
+                sourceChangeCount = changeCount
                 converted.fulfill()
             }
         )
@@ -82,12 +84,14 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
         }
 
         var copied = false
+        let metadataRegistry = ScreenshotClipboardMetadataRegistry()
         var failure: ScreenshotCaptureController.Failure?
         let screenshotController = ScreenshotCaptureController(
             pasteboard: pasteboard,
             settings: settings,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
             select: { _, _ in .selected(image) },
+            metadataRegistry: metadataRegistry,
             onCopied: { copied = true },
             onFailure: { failure = $0 }
         )
@@ -97,6 +101,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
 
         XCTAssertTrue(copied)
         XCTAssertNil(failure)
+        XCTAssertTrue(metadataRegistry.isScreenshot(forChangeCount: try XCTUnwrap(sourceChangeCount)))
         let convertedURL = try XCTUnwrap(outputURL)
         try assertFileBackedWebP(on: pasteboard, outputURL: convertedURL)
         controllers.automatic.terminate()
@@ -108,7 +113,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
         settings: AppSettings,
         pasteboard: NSPasteboard,
         outputDirectory: URL,
-        onConverted: @escaping (URL) -> Void
+        onConverted: @escaping (URL, Int) -> Void
     ) -> (
         automatic: ClipboardAutoImageConversionController,
         conversion: ClipboardImageConversionController
@@ -117,7 +122,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
             pasteboard: pasteboard,
             outputDirectory: outputDirectory,
             outputFormat: { settings.imageOutputFormat },
-            onConverted: { url, _ in onConverted(url) },
+            onConverted: { url, _, sourceChangeCount in onConverted(url, sourceChangeCount) },
             onMessage: { message in XCTFail("Unexpected conversion message: \(message)") }
         )
         let automatic = ClipboardAutoImageConversionController(

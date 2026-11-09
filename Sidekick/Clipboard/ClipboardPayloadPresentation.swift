@@ -55,16 +55,13 @@ enum ClipboardPayloadPresentation {
     }
 
     private static func imageToast(from classification: ClipboardPayloadClassification) -> ToastModel {
-        guard case let .image(generation, byteCount, _, screenshotDynamicRange) = classification else {
+        guard case let .image(generation, byteCount, _) = classification else {
             preconditionFailure("Expected image classification")
         }
-        let summary = screenshotDynamicRange.map {
-            "Copied image • \($0.toastLabel)"
-        } ?? "Copied image"
         return ToastModel(
             generation: generation,
             presentationStyle: .image,
-            summary: summary,
+            summary: "Copied image",
             detail: nil,
             icon: NSImage(systemSymbolName: "photo", accessibilityDescription: "Image"),
             footer: byteCount.map(byteCountLabel)

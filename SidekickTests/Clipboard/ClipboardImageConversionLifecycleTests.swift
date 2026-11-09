@@ -360,7 +360,7 @@ final class ClipboardImageConversionLifecycleTests: XCTestCase {
             worker: worker,
             fileURLReader: InlinePasteboardFileURLReader(),
             payloadReader: reader,
-            onConverted: { _, _ in converted = true },
+            onConverted: { _, _, _ in converted = true },
             onMessage: { _ in }
         )
         defer {

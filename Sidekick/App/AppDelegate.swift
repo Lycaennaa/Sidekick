@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var screenshotCaptureRequestID: UUID?
     var applicationTerminationPending = false
     var screenshotClipboardMetadataRegistry = ScreenshotClipboardMetadataRegistry()
+    var screenshotCopyToastContext: ScreenshotCopyToastContext?
     var clipboardMarkdownController: ClipboardMarkdownController?
     var clipboardClearURLsController: ClipboardClearURLsController?
     var activeClipboardMutationGeneration: UInt64?
@@ -215,22 +216,34 @@ extension AppDelegate {
     private func installImageConversionController() {
         clipboardImageConversionController = ClipboardImageConversionController(
             outputFormat: { [weak self] in self?.settings.imageOutputFormat ?? .webP },
-            onConverted: { [weak self] url, changeCount in
+            onConverted: { [weak self] url, changeCount, sourceChangeCount in
                 guard let self else { return }
-                self.clipboardAutoImageConversionController?.acknowledgeConvertedChange(changeCount: changeCount)
+                let copyContext = self.convertedImageToastCopyContext(
+                    sourceChangeCount: sourceChangeCount,
+                    automaticGenerationMatches:
+                        self.clipboardImageConversionOwnership.automaticGeneration == self.utilityToastGeneration
+                )
                 let generation = self.utilityToastGeneration
                 Task { @MainActor [weak self] in
-                    guard let self, self.utilityToastGeneration == generation else { return }
-                    self.presentConvertedImageToast(
-                        url,
-                        changeCount: changeCount,
-                        expectedGeneration: generation
-                    )
+                    guard let self,
+                          self.utilityToastGeneration == generation,
+                          NSPasteboard.general.changeCount == changeCount else {
+                        return
+                    }
+                    if let copyContext {
+                        self.presentConvertedImageToast(
+                            url,
+                            changeCount: changeCount,
+                            copyContext: copyContext,
+                            expectedGeneration: generation
+                        )
+                    }
                     await self.clipboardToastController?.acknowledgeClipboardChange(
                         changeCount,
                         matchingFile: url
                     )
                 }
+
             },
             onMessage: { [weak self] message in
                 guard let self else { return }

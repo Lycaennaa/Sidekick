@@ -206,9 +206,7 @@ final class ClipboardToastPayloadPipeline {
 
         let items = Array(sourceItems.prefix(ClipboardPayloadClassifier.maximumFileItems))
         let presentationGeneration = beginPayloadOperation()
-        let screenshotDynamicRange = screenshotMetadataRegistry.dynamicRange(
-            forChangeCount: changeCount
-        )
+        let isScreenshot = screenshotMetadataRegistry.isScreenshot(forChangeCount: changeCount)
         payloadTask = Task { @MainActor [weak self] in
             await self?.processStablePasteboardPayload(
                 PayloadOperation(
@@ -219,10 +217,23 @@ final class ClipboardToastPayloadPipeline {
                     presentationGeneration: presentationGeneration,
                     attribution: attribution,
                     isCurrent: isCurrent,
-                    screenshotDynamicRange: screenshotDynamicRange
+                    isScreenshot: isScreenshot
                 )
             )
         }
+    }
+
+    func prepareCurrentToastReplacement(forChangeCount changeCount: Int) -> UInt64? {
+        guard let currentToast,
+              currentToastChangeCount == changeCount else {
+            return nil
+        }
+        cancelPendingPayloadOperation()
+        imageWorker.cancelAll()
+        return currentToast.generation
+    }
+    func hasCurrentToast(generation: UInt64) -> Bool {
+        currentToast?.generation == generation
     }
 
     func clearCurrentToast() {
@@ -258,7 +269,7 @@ final class ClipboardToastPayloadPipeline {
         switch classification {
         case let .files(_, _, _, _, _, _, request):
             return request
-        case let .image(_, _, request, _):
+        case let .image(_, _, request):
             return request
         case .text, .generic, .unavailable:
             return nil
@@ -322,7 +333,7 @@ extension ClipboardToastPayloadPipeline {
         let presentationGeneration: UInt64
         let attribution: ClipboardToastObservationState.Attribution?
         let isCurrent: PayloadValidity
-        let screenshotDynamicRange: ClipboardScreenshotDynamicRange?
+        let isScreenshot: Bool
     }
 
     private func processStablePasteboardPayload(_ operation: PayloadOperation) async {
@@ -330,6 +341,11 @@ extension ClipboardToastPayloadPipeline {
         let suppressesToast = ClipboardPayloadClassifier.shouldSuppressToast(items: operation.items)
         guard isValid(operation) else { return }
         guard !suppressesToast else {
+            clearCurrentToast()
+            return
+        }
+        guard !operation.isScreenshot else {
+            observationState.completeStableObservation(fingerprint: nil)
             clearCurrentToast()
             return
         }
@@ -370,8 +386,7 @@ extension ClipboardToastPayloadPipeline {
             totalItemCount: operation.totalItemCount,
             fileURLReader: fileURLReader,
             payloadReader: payloadReader,
-            tokenizer: tokenizer,
-            screenshotDynamicRange: operation.screenshotDynamicRange
+            tokenizer: tokenizer
         )
         guard isValid(operation) else { return nil }
         return analysis

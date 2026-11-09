@@ -1,4 +1,8 @@
 import AppKit
+private struct ConvertedImageSource {
+    let outputURL: URL
+    let sourceChangeCount: Int
+}
 
 @MainActor
 final class ClipboardImagePasteboardInstaller {
@@ -10,7 +14,7 @@ final class ClipboardImagePasteboardInstaller {
 
     private let pasteboard: any PasteboardAccess
     private let artifactOwner: ClipboardImageConversionArtifactOwner
-    private let onConverted: (URL, Int) -> Void
+    private let onConverted: (URL, Int, Int) -> Void
     private let onMessage: (String) -> Void
     private let fileURLReader: any PasteboardFileURLReading
     private let payloadReader: any PasteboardPayloadReading
@@ -28,7 +32,7 @@ final class ClipboardImagePasteboardInstaller {
         outputDirectory: URL,
         fileURLReader: any PasteboardFileURLReading,
         payloadReader: any PasteboardPayloadReading,
-        onConverted: @escaping (URL, Int) -> Void,
+        onConverted: @escaping (URL, Int, Int) -> Void,
         onArtifactCleanupComplete: @escaping ClipboardImageConversionArtifactOwner.CleanupCompletion,
         onMessage: @escaping (String) -> Void
     ) {
@@ -166,7 +170,10 @@ private extension ClipboardImagePasteboardInstaller {
         await finishReplacement(
             replacement.result,
             previousLease: replacement.previousLease,
-            url: url,
+            source: ConvertedImageSource(
+                outputURL: url,
+                sourceChangeCount: sourceChangeCount
+            ),
             token: token,
             completion: completion
         )
@@ -350,10 +357,11 @@ private extension ClipboardImagePasteboardInstaller {
     func finishReplacement(
         _ result: PasteboardSnapshot.ReplacementResult,
         previousLease: ClipboardImageConversionArtifactOwner.Lease?,
-        url: URL,
+        source: ConvertedImageSource,
         token: UInt64,
         completion: @escaping (Result) -> Void
     ) async {
+        let url = source.outputURL
         guard replacementIsCurrent(result, token: token) else {
             artifactOwner.removeGeneratedFile(at: url)
             if case .failed = result {
@@ -368,7 +376,7 @@ private extension ClipboardImagePasteboardInstaller {
         switch result {
         case let .installed(changeCount):
             artifactOwner.claim(url: url, changeCount: changeCount, token: token)
-            onConverted(url, changeCount)
+            onConverted(url, changeCount, source.sourceChangeCount)
             completion(.installed(url))
         case let .failed(restoredChangeCount):
             await finishFailedReplacement(

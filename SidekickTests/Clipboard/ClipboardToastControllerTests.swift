@@ -22,6 +22,7 @@ final class ClipboardToastControllerTests: XCTestCase {
         XCTAssertTrue(footer?.contains("Copied from Safari") == true)
         context.controller.terminate()
     }
+
     func testDefaultProductionDependenciesPresentNamedPasteboardToastContext() async {
         let suite = "ClipboardToastIntegration-\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suite) else {
@@ -479,5 +480,68 @@ private final class ControlledPayloadReader: PasteboardPayloadReading {
         let result = blockedResult ?? .missing
         blockedResult = nil
         continuation?.resume(returning: result)
+    }
+}
+@MainActor
+final class ClipboardScreenshotToastSuppressionTests: XCTestCase {
+    func testScreenshotCopyClearsDuplicateClipboardToast() async throws {
+        let suite = "ClipboardScreenshotToastSuppression.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let settings = AppSettings(defaults: defaults)
+        let pasteboard = NSPasteboard(name: .init("ClipboardScreenshotToastSuppression.\(UUID().uuidString)"))
+        let registry = ScreenshotClipboardMetadataRegistry()
+        let ordinaryToastPresented = expectation(description: "Ordinary clipboard toast presented")
+        let screenshotDuplicateDismissed = expectation(description: "Screenshot duplicate suppressed")
+        var toastChanges: [ToastModel?] = []
+        let controller = ClipboardToastController(
+            settings: settings,
+            pasteboard: pasteboard,
+            screenshotMetadataRegistry: registry,
+            sourceApplication: {
+                ClipboardSourceApplication(name: "Screenshot App", bundleIdentifier: "com.example.screenshot")
+            },
+            workspaceNotificationCenter: NotificationCenter(),
+            imageWorker: ControlledImageWorker(),
+            fileURLReader: InlinePasteboardFileURLReader(),
+            payloadReader: InlinePasteboardPayloadReader(),
+            onToastChange: { model in
+                toastChanges.append(model)
+                if model?.summary == "Copied image" {
+                    ordinaryToastPresented.fulfill()
+                }
+                if model == nil {
+                    screenshotDuplicateDismissed.fulfill()
+                }
+            }
+        )
+        defer {
+            controller.terminate()
+            pasteboard.clearContents()
+            pasteboard.releaseGlobally()
+            defaults.removePersistentDomain(forName: suite)
+        }
+
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.setString("baseline", forType: .string))
+        controller.start()
+        pasteboard.clearContents()
+        let ordinaryItem = NSPasteboardItem()
+        ordinaryItem.setData(Data([0x89, 0x50, 0x4E, 0x47]), forType: .png)
+        XCTAssertTrue(pasteboard.writeObjects([ordinaryItem]))
+        controller.poll()
+        controller.poll()
+        await fulfillment(of: [ordinaryToastPresented], timeout: 5)
+
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setData(Data([0x89, 0x50, 0x4E, 0x47]), forType: .png)
+        XCTAssertTrue(pasteboard.writeObjects([item]))
+        registry.registerScreenshot(forChangeCount: pasteboard.changeCount)
+        controller.poll()
+        controller.poll()
+        await fulfillment(of: [screenshotDuplicateDismissed], timeout: 5)
+
+        XCTAssertNil(toastChanges.last??.summary)
+
     }
 }

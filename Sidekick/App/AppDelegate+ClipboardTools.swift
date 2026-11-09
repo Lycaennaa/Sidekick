@@ -7,6 +7,8 @@ private struct ConvertedImageToastContext {
     let generation: UInt64
     let request: ClipboardImageEnrichmentRequest
     let presentationToken: UInt64
+    let copyContext: ConvertedImageToastCopyContext
+    let clipboardToastGenerationToReplace: UInt64?
 }
 @MainActor
 private enum ImageConversionRequest {
@@ -20,6 +22,23 @@ private enum ImageConversionRequest {
 }
 
 extension AppDelegate {
+    func convertedImageToastCopyContext(
+        sourceChangeCount: Int,
+        automaticGenerationMatches: Bool
+    ) -> ConvertedImageToastCopyContext? {
+        guard automaticGenerationMatches else { return .converted }
+        guard screenshotClipboardMetadataRegistry.isScreenshot(forChangeCount: sourceChangeCount) else {
+            return .clipboardImage(sourceChangeCount: sourceChangeCount)
+        }
+        guard let screenshotCopyToastContext,
+              screenshotCopyToastContext.sourceChangeCount == sourceChangeCount else {
+            return .converted
+        }
+        return screenshotCopyToastContext.convertedToastCopyContext(
+            ifCurrent: self.screenshotCopyToastContext
+        )
+    }
+
     func syncClearURLsClipboardCleaner() {
         clipboardClearURLsController?.applySettings()
     }
@@ -189,6 +208,7 @@ extension AppDelegate {
     func presentConvertedImageToast(
         _ url: URL,
         changeCount: Int,
+        copyContext: ConvertedImageToastCopyContext,
         enqueueEnrichment: ((
             ClipboardImageEnrichmentRequest,
             ClipboardOptionalImageEnrichmentCompletion
@@ -199,7 +219,17 @@ extension AppDelegate {
            utilityToastGeneration != expectedGeneration {
             return
         }
-        clipboardToastController?.dismissCurrentToast()
+        let clipboardToastGenerationToReplace: UInt64?
+        if case let .clipboardImage(sourceChangeCount) = copyContext {
+            clipboardToastGenerationToReplace = clipboardToastController?.prepareCurrentToastReplacement(
+                forChangeCount: sourceChangeCount
+            )
+        } else {
+            clipboardToastGenerationToReplace = nil
+        }
+        if clipboardToastGenerationToReplace == nil {
+            clipboardToastController?.dismissCurrentToast()
+        }
         let generation = beginUtilityOperation()
         let presentationToken = nextUtilityToastPresentationToken()
         let request = ClipboardImageEnrichmentRequest(
@@ -213,7 +243,9 @@ extension AppDelegate {
             changeCount: changeCount,
             generation: generation,
             request: request,
-            presentationToken: presentationToken
+            presentationToken: presentationToken,
+            copyContext: copyContext,
+            clipboardToastGenerationToReplace: clipboardToastGenerationToReplace
         )
         let completion: ClipboardOptionalImageEnrichmentCompletion = { [weak self] enrichment in
             Task { @MainActor [weak self] in
@@ -237,7 +269,6 @@ extension AppDelegate {
         let url = context.url
         let changeCount = context.changeCount
         let generation = context.generation
-        let request = context.request
         let presentationToken = context.presentationToken
         guard utilityToastGeneration == generation,
               NSPasteboard.general.changeCount == changeCount,
@@ -256,44 +287,90 @@ extension AppDelegate {
               utilityToastPresentationToken == presentationToken else {
             return
         }
+        guard let copyContext = currentConvertedImageToastCopyContext(for: context) else { return }
         let icon = enrichment.map {
             NSImage(
                 cgImage: $0.thumbnail,
                 size: NSSize(width: $0.thumbnail.width, height: $0.thumbnail.height)
             )
         } ?? NSWorkspace.shared.icon(forFile: url.path)
-        var model = ToastModel(
-            generation: generation,
-            presentationStyle: .image,
-            summary: "Converted image to \(url.lastPathComponent)",
-            detail: nil,
-            icon: icon,
-            showsImagePreview: enrichment != nil,
-            footer: enrichment?.imageFooter
+        let model = makeConvertedImageToastModel(
+            context: context,
+            copyContext: copyContext,
+            enrichment: enrichment,
+            icon: icon
         )
-        if enrichment != nil {
-            model.onUserAction = { [weak self] in
-                guard let self,
-                      self.utilityToastGeneration == generation,
-                      NSPasteboard.general.changeCount == changeCount else {
-                    return
-                }
-                self.clipboardImagePreviewOpener?.open(
-                    request,
-                    isCurrent: { [weak self] in
-                        guard let self else { return false }
-                        return self.utilityToastGeneration == generation
-                            && NSPasteboard.general.changeCount == changeCount
-                            && self.utilityToastPresentationToken == presentationToken
-                    }
-                )
+        if copyContext.isScreenshot {
+            toastPresentationCoordinator?.presentScreenshot(
+                model,
+                duration: settings.toastDuration
+            )
+            if case let .screenshot(screenshotCopyToastContext) = copyContext,
+               self.screenshotCopyToastContext == screenshotCopyToastContext {
+                self.screenshotCopyToastContext = nil
             }
+        } else {
+            presentGeneralToast(
+                model,
+                duration: settings.toastDuration,
+                utilityToastPresentationToken: presentationToken
+            )
         }
-        presentGeneralToast(
-            model,
-            duration: settings.toastDuration,
-            utilityToastPresentationToken: presentationToken
+        if let clipboardToastGenerationToReplace = context.clipboardToastGenerationToReplace {
+            clipboardToastController?.toastDidDismiss(generation: clipboardToastGenerationToReplace)
+        }
+    }
+
+    private func currentConvertedImageToastCopyContext(
+        for context: ConvertedImageToastContext
+    ) -> ConvertedImageToastCopyContext? {
+        switch context.copyContext {
+        case let .clipboardImage(sourceChangeCount):
+            if let sourceToastGeneration = context.clipboardToastGenerationToReplace,
+               clipboardToastController?.hasCurrentToast(generation: sourceToastGeneration) == true {
+                return .clipboardImage(sourceChangeCount: sourceChangeCount)
+            }
+            return .converted
+        case let .screenshot(screenshotCopyToastContext):
+            return screenshotCopyToastContext.convertedToastCopyContext(
+                ifCurrent: self.screenshotCopyToastContext
+            )
+        case .converted:
+            return .converted
+        }
+    }
+
+    private func makeConvertedImageToastModel(
+        context: ConvertedImageToastContext,
+        copyContext: ConvertedImageToastCopyContext,
+        enrichment: ClipboardImageEnrichment?,
+        icon: NSImage
+    ) -> ToastModel {
+        var model = ConvertedImageToastPresentation.model(
+            url: context.url,
+            generation: context.generation,
+            copyContext: copyContext,
+            icon: icon,
+            enrichment: enrichment
         )
+        guard enrichment != nil else { return model }
+        model.onUserAction = { [weak self] in
+            guard let self,
+                  self.utilityToastGeneration == context.generation,
+                  NSPasteboard.general.changeCount == context.changeCount else {
+                return
+            }
+            self.clipboardImagePreviewOpener?.open(
+                context.request,
+                isCurrent: { [weak self] in
+                    guard let self else { return false }
+                    return self.utilityToastGeneration == context.generation
+                        && NSPasteboard.general.changeCount == context.changeCount
+                        && self.utilityToastPresentationToken == context.presentationToken
+                }
+            )
+        }
+        return model
     }
     @discardableResult
     func beginClipboardMutation() -> UInt64 {

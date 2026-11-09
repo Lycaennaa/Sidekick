@@ -23,7 +23,17 @@ extension AppDelegate {
             settings.screenshotSaveAndCopyShortcut
         )
     }
+    private func recordScreenshotCopyToastContext(savedURL: URL?) -> ScreenshotCopyToastContext {
+        let context = ScreenshotCopyToastContext(
+            sourceChangeCount: NSPasteboard.general.changeCount,
+            savedURL: savedURL
+        )
+        screenshotCopyToastContext = context
+        return context
+    }
+
     private func presentScreenshotCopiedToast() {
+        let copyContext = recordScreenshotCopyToastContext(savedURL: nil)
         let model = ToastModel(
             generation: utilityToastGeneration,
             presentationStyle: .image,
@@ -34,11 +44,16 @@ extension AppDelegate {
         )
         toastPresentationCoordinator?.presentScreenshot(
             model,
-            duration: settings.toastDuration
+            duration: settings.toastDuration,
+            onDismiss: { [weak self] _ in
+                guard let self, self.screenshotCopyToastContext == copyContext else { return }
+                self.screenshotCopyToastContext = copyContext.markingDismissed()
+            }
         )
     }
 
     private func presentScreenshotSavedCopiedToast(_ url: URL) {
+        let copyContext = recordScreenshotCopyToastContext(savedURL: url)
         let model = ToastModel(
             generation: utilityToastGeneration,
             presentationStyle: .image,
@@ -47,7 +62,14 @@ extension AppDelegate {
             icon: NSImage(systemSymbolName: "camera", accessibilityDescription: "Screenshot"),
             footer: nil
         )
-        toastPresentationCoordinator?.presentScreenshot(model, duration: settings.toastDuration)
+        toastPresentationCoordinator?.presentScreenshot(
+            model,
+            duration: settings.toastDuration,
+            onDismiss: { [weak self] _ in
+                guard let self, self.screenshotCopyToastContext == copyContext else { return }
+                self.screenshotCopyToastContext = copyContext.markingDismissed()
+            }
+        )
     }
 
     private func presentPixelValueCopiedToast() {

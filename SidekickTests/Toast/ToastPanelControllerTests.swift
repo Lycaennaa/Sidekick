@@ -396,3 +396,75 @@ final class ToastPanelControllerTests: XCTestCase {
         return label
     }
 }
+
+@MainActor
+final class ToastScreenshotDismissalTests: XCTestCase {
+    func testScreenshotDismissalReportsGeneration() throws {
+        let stack = ToastStackController()
+        let coordinator = ToastPresentationCoordinator(stack: stack)
+        var dismissedGenerations: [UInt64] = []
+        let screenshotID = try XCTUnwrap(coordinator.presentScreenshot(
+            ToastModel.generic(generation: 12),
+            duration: .infinity,
+            onDismiss: { dismissedGenerations.append($0) }
+        ))
+
+        stack.hide(screenshotID)
+
+        XCTAssertEqual(dismissedGenerations, [12])
+        coordinator.hideAll()
+    }
+}
+
+@MainActor
+final class ScreenshotToastDismissalDuringEnrichmentTests: XCTestCase {
+    func testScreenshotDismissalDuringEnrichmentSuppressesConvertedToast() async throws {
+        let stack = ToastStackController()
+        let coordinator = ToastPresentationCoordinator(stack: stack)
+        let copyContext = ScreenshotCopyToastContext(sourceChangeCount: 1, savedURL: nil)
+        var currentContext: ScreenshotCopyToastContext? = copyContext
+        let screenshotID = try XCTUnwrap(coordinator.presentScreenshot(
+            ToastModel.generic(generation: 13),
+            duration: .infinity,
+            onDismiss: { _ in currentContext = copyContext.markingDismissed() }
+        ))
+        let gate = ScreenshotToastEnrichmentGate()
+        let delayedCompletion = Task { @MainActor in
+            await gate.wait()
+            return copyContext.convertedToastCopyContext(ifCurrent: currentContext)
+        }
+
+        await gate.waitUntilEntered()
+        stack.hide(screenshotID)
+        await gate.resume()
+
+        let resolvedCopyContext = await delayedCompletion.value
+        XCTAssertNil(resolvedCopyContext)
+        coordinator.hideAll()
+    }
+}
+
+private actor ScreenshotToastEnrichmentGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var enteredContinuation: CheckedContinuation<Void, Never>?
+    private var isWaiting = false
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            isWaiting = true
+            enteredContinuation?.resume()
+            enteredContinuation = nil
+        }
+    }
+
+    func waitUntilEntered() async {
+        guard !isWaiting else { return }
+        await withCheckedContinuation { enteredContinuation = $0 }
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
+    }
+}

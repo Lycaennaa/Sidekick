@@ -45,7 +45,7 @@ final class ScreenshotPixelCopyIntegrationTests: XCTestCase {
         XCTAssertFalse(screenshotCopied)
         XCTAssertNil(failure)
         XCTAssertEqual(pasteboard.string(forType: .string), copiedValues)
-        XCTAssertNil(metadataRegistry.dynamicRange(forChangeCount: pasteboard.changeCount))
+        XCTAssertFalse(metadataRegistry.isScreenshot(forChangeCount: pasteboard.changeCount))
     }
 
     func testPixelValueCopyKeepsSelectionFlowOpenForScreenshotSelection() async throws {

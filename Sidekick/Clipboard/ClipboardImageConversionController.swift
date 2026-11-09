@@ -29,7 +29,7 @@ final class ClipboardImageConversionController {
         worker: ClipboardImageConversionWorker = ClipboardImageConversionWorker(),
         fileURLReader: any PasteboardFileURLReading = SystemPasteboardFileURLReader(),
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader(),
-        onConverted: @escaping (URL, Int) -> Void = { _, _ in },
+        onConverted: @escaping (URL, Int, Int) -> Void = { _, _, _ in },
         onArtifactCleanupComplete: @escaping ClipboardImageConversionArtifactOwner.CleanupCompletion = { _ in },
         onMessage: @escaping (String) -> Void
     ) {

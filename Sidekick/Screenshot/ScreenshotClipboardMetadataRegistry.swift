@@ -1,15 +1,14 @@
+import Foundation
+
 @MainActor
 final class ScreenshotClipboardMetadataRegistry {
-    private var registeredChangeCount: Int?
-    private var registeredDynamicRange: ClipboardScreenshotDynamicRange?
+    private var registeredScreenshotChangeCount: Int?
 
-    func register(_ dynamicRange: ClipboardScreenshotDynamicRange, forChangeCount changeCount: Int) {
-        registeredChangeCount = changeCount
-        registeredDynamicRange = dynamicRange
+    func registerScreenshot(forChangeCount changeCount: Int) {
+        registeredScreenshotChangeCount = changeCount
     }
 
-    func dynamicRange(forChangeCount changeCount: Int) -> ClipboardScreenshotDynamicRange? {
-        guard registeredChangeCount == changeCount else { return nil }
-        return registeredDynamicRange
+    func isScreenshot(forChangeCount changeCount: Int) -> Bool {
+        registeredScreenshotChangeCount == changeCount
     }
 }

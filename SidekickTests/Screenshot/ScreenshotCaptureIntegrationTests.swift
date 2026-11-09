@@ -98,17 +98,46 @@ final class ScreenshotCaptureIntegrationTests: XCTestCase {
         XCTAssertNil(failure)
         let png = try XCTUnwrap(pasteboard.data(forType: .png))
         XCTAssertTrue(png.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
-        let screenshotDynamicRange = metadataRegistry.dynamicRange(forChangeCount: pasteboard.changeCount)
-        XCTAssertEqual(screenshotDynamicRange, .sdr)
-        XCTAssertNil(metadataRegistry.dynamicRange(forChangeCount: pasteboard.changeCount + 1))
-        let analysis = await ClipboardPayloadClassifier.analyze(
-            items: pasteboard.pasteboardItems ?? [],
-            generation: 12,
-            payloadReader: InlinePasteboardPayloadReader(),
-            screenshotDynamicRange: screenshotDynamicRange
+        XCTAssertTrue(metadataRegistry.isScreenshot(forChangeCount: pasteboard.changeCount))
+        XCTAssertFalse(metadataRegistry.isScreenshot(forChangeCount: pasteboard.changeCount + 1))
+    }
+
+    func testScreenshotConversionSummaryCombinesCopyAndConversion() {
+        let convertedURL = URL(fileURLWithPath: "/output/image.webp")
+        let copied = ScreenshotCopyToastContext(sourceChangeCount: 1, savedURL: nil)
+        let savedAndCopied = ScreenshotCopyToastContext(
+            sourceChangeCount: 2,
+            savedURL: URL(fileURLWithPath: "/screenshots/capture.png")
         )
-        let toast = ClipboardPayloadPresentation.toastModel(from: analysis.classification)
-        XCTAssertEqual(toast.summary, "Copied image • SDR (HDR not preserved)")
+
+        XCTAssertEqual(
+            copied.convertedSummary(to: convertedURL),
+            "Screenshot copied and converted to image.webp."
+        )
+        XCTAssertEqual(
+            savedAndCopied.convertedSummary(to: convertedURL),
+            "Screenshot saved, copied, and converted to image.webp."
+        )
+    }
+    func testConvertedImageToastCopyContextsSummarizeCorrectly() {
+        let convertedURL = URL(fileURLWithPath: "/output/image.webp")
+        let regularImage = ConvertedImageToastCopyContext.clipboardImage(sourceChangeCount: 1)
+        XCTAssertEqual(
+            regularImage.summary(to: convertedURL),
+            "Image copied and converted to image.webp."
+        )
+        XCTAssertFalse(regularImage.isScreenshot)
+
+        let manual = ConvertedImageToastCopyContext.converted
+        XCTAssertEqual(manual.summary(to: convertedURL), "Converted image to image.webp")
+
+        let screenshot = ConvertedImageToastCopyContext.screenshot(
+            ScreenshotCopyToastContext(sourceChangeCount: 2, savedURL: nil)
+        )
+        XCTAssertEqual(
+            screenshot.summary(to: convertedURL),
+            "Screenshot copied and converted to image.webp."
+        )
     }
 
     func testLateScreenshotDoesNotOverwriteClipboardChangedDuringCapture() async throws {

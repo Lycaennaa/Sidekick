@@ -60,18 +60,6 @@ struct ClipboardImageEnrichment: @unchecked Sendable {
     let imageFooter: String?
 }
 
-enum ClipboardScreenshotDynamicRange: String, Equatable, Sendable {
-    case sdr
-    case hdr
-
-    var toastLabel: String {
-        switch self {
-        case .sdr: "SDR (HDR not preserved)"
-        case .hdr: "HDR"
-        }
-    }
-}
-
 enum ClipboardPayloadClassification: Equatable, Sendable {
     case files(
         generation: UInt64,
@@ -85,8 +73,7 @@ enum ClipboardPayloadClassification: Equatable, Sendable {
     case image(
         generation: UInt64,
         byteCount: Int?,
-        imageEnrichment: ClipboardImageEnrichmentRequest?,
-        screenshotDynamicRange: ClipboardScreenshotDynamicRange?
+        imageEnrichment: ClipboardImageEnrichmentRequest?
     )
     case text(
         generation: UInt64,
@@ -100,7 +87,7 @@ enum ClipboardPayloadClassification: Equatable, Sendable {
         switch self {
         case let .files(generation, _, _, _, _, _, _):
             return generation
-        case let .image(generation, _, _, _):
+        case let .image(generation, _, _):
             return generation
         case let .text(generation, _, _):
             return generation

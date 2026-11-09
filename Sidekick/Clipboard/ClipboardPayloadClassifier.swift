@@ -70,8 +70,7 @@ enum ClipboardPayloadClassifier {
         totalItemCount: Int? = nil,
         fileURLReader: any PasteboardFileURLReading = SystemPasteboardFileURLReader(),
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader(),
-        tokenizer: ClipboardTokenizer? = nil,
-        screenshotDynamicRange: ClipboardScreenshotDynamicRange? = nil
+        tokenizer: ClipboardTokenizer? = nil
     ) async -> ClipboardPayloadAnalysis {
         let boundedItems = Array(items.prefix(maximumFileItems))
         let types = boundedTypes(in: boundedItems)
@@ -96,8 +95,7 @@ enum ClipboardPayloadClassifier {
             if let image = await classifyImage(
                 types: types,
                 generation: generation,
-                payloadReader: payloadReader,
-                screenshotDynamicRange: screenshotDynamicRange
+                payloadReader: payloadReader
             ) {
                 guard !Task.isCancelled else { return cancelledAnalysis(generation: generation) }
                 classification = image
@@ -200,8 +198,7 @@ extension ClipboardPayloadClassifier {
     private static func classifyImage(
         types: [(NSPasteboardItem, NSPasteboard.PasteboardType)],
         generation: UInt64,
-        payloadReader: any PasteboardPayloadReading,
-        screenshotDynamicRange: ClipboardScreenshotDynamicRange?
+        payloadReader: any PasteboardPayloadReading
     ) async -> ClipboardPayloadClassification? {
         let preferredTypes: [NSPasteboard.PasteboardType] = [.png, .tiff]
         let match = preferredTypes.lazy.compactMap { preferred in
@@ -244,8 +241,7 @@ extension ClipboardPayloadClassifier {
         return .image(
             generation: generation,
             byteCount: byteCount,
-            imageEnrichment: request,
-            screenshotDynamicRange: screenshotDynamicRange
+            imageEnrichment: request
         )
     }
 
