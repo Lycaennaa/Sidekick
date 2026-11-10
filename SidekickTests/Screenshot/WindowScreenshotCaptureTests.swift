@@ -40,8 +40,8 @@ final class WindowScreenshotCaptureTests: XCTestCase {
             showsCursor: false
         )
 
-        XCTAssertGreaterThan(image.width, 0)
-        XCTAssertGreaterThan(image.height, 0)
+        XCTAssertEqual(image.width, Int((window.frame.width * screen.backingScaleFactor).rounded()))
+        XCTAssertEqual(image.height, Int((window.frame.height * screen.backingScaleFactor).rounded()))
         window.close()
         do {
             _ = try await WindowScreenshotCapture.capture(

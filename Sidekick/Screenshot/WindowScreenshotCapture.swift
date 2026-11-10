@@ -27,6 +27,16 @@ fileprivate final class WindowScreenshotCaptureSession {
         configuration.captureResolution = .best
         configuration.showsCursor = showsCursor
         configuration.ignoreShadowsSingleWindow = true
+        let scale = captureScale(for: window.frame)
+        let outputWidth = (window.frame.width * scale).rounded()
+        let outputHeight = (window.frame.height * scale).rounded()
+        guard outputWidth.isFinite, outputHeight.isFinite,
+              outputWidth >= 1, outputHeight >= 1,
+              outputWidth < CGFloat(Int.max), outputHeight < CGFloat(Int.max) else {
+            throw WindowCaptureError.captureFailed
+        }
+        configuration.width = Int(outputWidth)
+        configuration.height = Int(outputHeight)
         return try await withCheckedThrowingContinuation { continuation in
             SCScreenshotManager.captureImage(
                 contentFilter: filter,
@@ -43,6 +53,14 @@ fileprivate final class WindowScreenshotCaptureSession {
             )
         }
     }
+
+    private func captureScale(for windowFrame: CGRect) -> CGFloat {
+        NSScreen.screens.compactMap { screen -> CGFloat? in
+            guard let displayID = screen.screenshotDisplayID else { return nil }
+            let displayBounds = CGDisplayBounds(displayID)
+            return displayBounds.intersects(windowFrame) ? screen.backingScaleFactor : nil
+        }.max() ?? 1
+    }
 }
 
 @MainActor
@@ -55,10 +73,7 @@ struct WindowScreenshotInventory {
         captureSession = WindowScreenshotCaptureSession()
     }
 
-    fileprivate init(
-        windows: [ScreenshotWindow],
-        captureSession: WindowScreenshotCaptureSession
-    ) {
+    fileprivate init(windows: [ScreenshotWindow], captureSession: WindowScreenshotCaptureSession) {
         self.windows = windows
         self.captureSession = captureSession
     }

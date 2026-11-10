@@ -12,6 +12,7 @@ User-visible changes are listed here. No public release tag exists yet.
 - Exclude elevated, display-covering windows from full-display screenshots to avoid screen-wide overlays.
 - Capture an individual window directly to the clipboard.
 - Exclude fully occluded windows and system UI from window capture, and require Screen Recording access.
+- Capture complete window contents, including occluded portions, without surrounding display pixels.
 - GitHub Actions CI and a maintainer-dispatched release workflow for ZIP and DMG assets.
 - Build-time ClearURLs rules fetching with bundled, offline runtime processing.
 - Add a Finder context-menu command that opens Sidekick to create a zero-byte file after the user enters a name, without replacing existing items.
