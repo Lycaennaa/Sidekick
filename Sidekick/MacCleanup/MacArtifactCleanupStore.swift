@@ -210,17 +210,19 @@ final class MacArtifactCleanupStore {
     }
 
     private let defaults: UserDefaults
+    private let volumeIdentityAt: @Sendable (URL) -> MacArtifactVolumeIdentity?
     private(set) var configuration: MacArtifactCleanupConfiguration
     private(set) var history: [MacArtifactCleanupHistoryEntry]
     var onChange: (() -> Void)?
 
     init(
         defaults: UserDefaults = .standard,
-        volumeIdentityAt: (URL) -> MacArtifactVolumeIdentity? = {
+        volumeIdentityAt: @escaping @Sendable (URL) -> MacArtifactVolumeIdentity? = {
             MacArtifactCleanupRoot.currentVolumeIdentity(at: $0)
         }
     ) {
         self.defaults = defaults
+        self.volumeIdentityAt = volumeIdentityAt
         configuration = Self.decode(
             MacArtifactCleanupConfiguration.self,
             forKey: Key.configuration,
@@ -235,15 +237,35 @@ final class MacArtifactCleanupStore {
     }
 
     @discardableResult
-    func addFolder(_ url: URL) -> Bool {
-        guard let volumeIdentity = MacArtifactCleanupRoot.currentVolumeIdentity(at: url),
+    func addFolder(_ url: URL) async -> Bool {
+        let volumeIdentity = await Self.resolveEligibleVolumeIdentity(
+            at: url,
+            using: volumeIdentityAt
+        )
+        guard !Task.isCancelled, let volumeIdentity else { return false }
+        // Re-resolve after the executor hop so a replaced mount cannot be enrolled.
+        let currentVolumeIdentity = volumeIdentityAt(url)
+        guard !Task.isCancelled,
+              let currentVolumeIdentity,
+              currentVolumeIdentity.identifier == volumeIdentity.identifier,
+              currentVolumeIdentity.isFuse == volumeIdentity.isFuse else {
+            return false
+        }
+        return addRoot(url, kind: .folder, volumeIdentifier: volumeIdentity.identifier)
+    }
+
+    private nonisolated static func resolveEligibleVolumeIdentity(
+        at url: URL,
+        using volumeIdentityAt: @Sendable (URL) -> MacArtifactVolumeIdentity?
+    ) async -> MacArtifactVolumeIdentity? {
+        guard let volumeIdentity = volumeIdentityAt(url),
               MacArtifactVolumeMonitor.supportsFolderEnrollment(
                 at: url,
                 volumeIdentity: volumeIdentity
               ) else {
-            return false
+            return nil
         }
-        return addRoot(url, kind: .folder, volumeIdentifier: volumeIdentity.identifier)
+        return volumeIdentity
     }
 
     @discardableResult

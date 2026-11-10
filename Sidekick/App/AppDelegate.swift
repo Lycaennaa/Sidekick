@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var toolsWindowController: ToolsWindowController?
     var macArtifactCleanupStore = MacArtifactCleanupStore()
     var macArtifactCleanupCoordinator: MacArtifactCleanupCoordinator?
+    var macArtifactCleanupEnrollmentPrompts: [String: MacArtifactCleanupPromptPanel] = [:]
     private var systemAppearanceObservation: NSKeyValueObservation?
     var utilityToastGeneration: UInt64 = UInt64.max / 2
     var clipboardImageConversionOwnership = ClipboardImageConversionOwnership()

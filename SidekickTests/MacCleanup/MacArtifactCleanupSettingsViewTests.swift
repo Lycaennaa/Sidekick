@@ -28,7 +28,7 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
         )
     }
 
-    func testRootModeCanReturnToDefault() throws {
+    func testRootModeCanReturnToDefault() async throws {
         let folder = try makeTemporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
         let suiteName = "MacArtifactCleanupSettingsViewTests.\(UUID().uuidString)"
@@ -36,7 +36,8 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let store = MacArtifactCleanupStore(defaults: defaults)
-        XCTAssertTrue(store.addFolder(folder))
+        let addedFolder = await store.addFolder(folder)
+        XCTAssertTrue(addedFolder)
         let root = try XCTUnwrap(store.configuration.roots.first)
         store.setModeOverride(.moveToTrash, forRootID: root.id)
         let view = MacArtifactCleanupSettingsView(
@@ -57,7 +58,7 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
         XCTAssertEqual(store.configuration.mode(for: updatedRoot), .deletePermanently)
     }
 
-    func testFailedFolderEnrollmentRemainsVisibleAfterRefresh() throws {
+    func testFailedFolderEnrollmentRemainsVisibleAfterRefresh() async throws {
         let folder = try makeTemporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
         let suiteName = "MacArtifactCleanupSettingsViewTests.\(UUID().uuidString)"
@@ -65,12 +66,13 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let store = MacArtifactCleanupStore(defaults: defaults)
-        XCTAssertTrue(store.addFolder(folder))
+        let addedFolder = await store.addFolder(folder)
+        XCTAssertTrue(addedFolder)
         let view = MacArtifactCleanupSettingsView(
             store: store,
             coordinator: MacArtifactCleanupCoordinator(store: store)
         )
-        view.enrollFolder(folder)
+        await view.enrollFolder(folder)
 
         let error = try XCTUnwrap(
             descendants(of: view)
@@ -81,6 +83,55 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
             error.stringValue,
             "That folder is already enrolled or is on an unsupported volume."
         )
+    }
+
+    func testCleanupPromptIsNonmodalAndRunsTheSelectedButtonAction() throws {
+        var selectedButton: String?
+        var dismissCount = 0
+        let prompt = MacArtifactCleanupPromptPanel(
+            title: "Enroll Archive for Mac cleanup?",
+            detail: "Sidekick monitors enrolled locations.",
+            buttons: [
+                .init(title: "Not Now"),
+                .init(title: "Enroll Volume", action: { selectedButton = "Enroll Volume" })
+            ]
+        )
+        prompt.onDismiss = { dismissCount += 1 }
+        prompt.show()
+        defer { prompt.close() }
+
+        XCTAssertTrue(prompt.window.isVisible)
+        XCTAssertNil(NSApp.modalWindow)
+        let contentView = try XCTUnwrap(prompt.window.contentView)
+        let enrollButton = try XCTUnwrap(
+            descendants(of: contentView).compactMap { $0 as? NSButton }
+                .first { $0.title == "Enroll Volume" }
+        )
+        enrollButton.performClick(nil)
+
+        XCTAssertEqual(selectedButton, "Enroll Volume")
+        XCTAssertEqual(dismissCount, 1)
+        XCTAssertFalse(prompt.window.isVisible)
+    }
+
+    func testClosingCleanupPromptDismissesWithoutRunningButtonAction() {
+        var selectedButton = false
+        var dismissCount = 0
+        var closeCount = 0
+        let prompt = MacArtifactCleanupPromptPanel(
+            title: "Enroll Archive for Mac cleanup?",
+            detail: "Sidekick monitors enrolled locations.",
+            buttons: [.init(title: "Enroll Volume", action: { selectedButton = true })]
+        )
+        prompt.onDismiss = { dismissCount += 1 }
+        prompt.onClose = { closeCount += 1 }
+        prompt.show()
+        prompt.close()
+
+        XCTAssertFalse(prompt.window.isVisible)
+        XCTAssertFalse(selectedButton)
+        XCTAssertEqual(dismissCount, 1)
+        XCTAssertEqual(closeCount, 1)
     }
 
     private func makeTemporaryFolder() throws -> URL {

@@ -194,6 +194,8 @@ targets:
       - path: Sidekick/MacCleanup/MacArtifactCleanupProcessor.swift
       - path: Sidekick/MacCleanup/MacArtifactCleanupCoordinator.swift
       - path: Sidekick/App/MacArtifactCleanupSettingsView.swift
+      - path: Sidekick/App/MacArtifactCleanupSettingsView+Prompts.swift
+      - path: Sidekick/App/MacArtifactCleanupPromptPanel.swift
       - path: Sidekick/Screenshot/ScreenCaptureService.swift
       - path: Sidekick/Screenshot/WindowScreenshotCapture.swift
       - path: Sidekick/Screenshot/ScreenshotWindowGeometry.swift

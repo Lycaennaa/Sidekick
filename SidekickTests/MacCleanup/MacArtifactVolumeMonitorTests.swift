@@ -55,7 +55,8 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
                 $0.url.standardizedFileURL.path == volumeURL.standardizedFileURL.path
             }
         )
-        XCTAssertFalse(store.addFolder(selectedFolder))
+        let addedSelectedFolder = await store.addFolder(selectedFolder)
+        XCTAssertFalse(addedSelectedFolder)
         XCTAssertTrue(store.configuration.roots.isEmpty)
         await fulfillment(of: [imageEnrollmentRequested], timeout: 1)
         coordinator.stop()
@@ -87,7 +88,8 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: defaultsName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
         store.setDefaultMode(.deletePermanently)
-        XCTAssertTrue(store.addFolder(root))
+        let addedRoot = await store.addFolder(root)
+        XCTAssertTrue(addedRoot)
         let processor = MacArtifactCleanupProcessor(
             store: store,
             notifier: MacArtifactCleanupNotifier(center: nil),
@@ -125,7 +127,8 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: defaultsName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
         store.setDefaultMode(.previewOnly)
-        XCTAssertTrue(store.addFolder(root))
+        let addedRoot = await store.addFolder(root)
+        XCTAssertTrue(addedRoot)
         let processor = MacArtifactCleanupProcessor(
             store: store,
             notifier: MacArtifactCleanupNotifier(center: nil),

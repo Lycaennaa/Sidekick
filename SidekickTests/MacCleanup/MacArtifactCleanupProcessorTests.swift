@@ -38,7 +38,8 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
-        XCTAssertTrue(store.addFolder(root))
+        let addedRoot = await store.addFolder(root)
+        XCTAssertTrue(addedRoot)
         store.setDefaultMode(.deletePermanently)
         let candidateScanned = expectation(description: "Candidate scan completed")
         let validationStarted = expectation(description: "Fingerprint validation started")
@@ -88,7 +89,8 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
-        XCTAssertTrue(store.addFolder(root))
+        let addedRoot = await store.addFolder(root)
+        XCTAssertTrue(addedRoot)
 
         let processor = MacArtifactCleanupProcessor(
             store: store,
@@ -123,7 +125,8 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
         store.setDefaultMode(.previewOnly)
-        XCTAssertTrue(store.addFolder(root))
+        let addedRoot = await store.addFolder(root)
+        XCTAssertTrue(addedRoot)
 
         let processor = MacArtifactCleanupProcessor(
             store: store,
@@ -173,7 +176,8 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
         store.setDefaultMode(.previewOnly)
-        XCTAssertTrue(store.addFolder(root))
+        let addedRoot = await store.addFolder(root)
+        XCTAssertTrue(addedRoot)
 
         let processor = MacArtifactCleanupProcessor(
             store: store,
@@ -219,7 +223,8 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: defaultsName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
         store.setDefaultMode(.previewOnly)
-        XCTAssertTrue(store.addFolder(root))
+        let addedRoot = await store.addFolder(root)
+        XCTAssertTrue(addedRoot)
 
         let processor = MacArtifactCleanupProcessor(
             store: store,
@@ -261,7 +266,8 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
-        XCTAssertTrue(store.addFolder(root))
+        let addedRoot = await store.addFolder(root)
+        XCTAssertTrue(addedRoot)
         store.setDefaultMode(.deletePermanently)
         let quietPeriod: TimeInterval = 0.2
         let processor = MacArtifactCleanupProcessor(

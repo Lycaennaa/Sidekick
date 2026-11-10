@@ -78,7 +78,7 @@ final class MacArtifactVolumeMonitor {
         }
     }
 
-    static func supportsFolderEnrollment(
+    nonisolated static func supportsFolderEnrollment(
         at folderURL: URL,
         volumeIdentity: MacArtifactVolumeIdentity
     ) -> Bool {
@@ -104,14 +104,14 @@ final class MacArtifactVolumeMonitor {
         return hasSupportedBackingDevice(at: volumeURL)
     }
 
-    private static func hasSupportedBackingDevice(at volumeURL: URL) -> Bool {
+    private nonisolated static func hasSupportedBackingDevice(at volumeURL: URL) -> Bool {
         guard let deviceProtocol = backingDeviceProtocol(at: volumeURL) else { return false }
         // Disk images use a virtual interface despite advertising removable/ejectable media.
         return deviceProtocol.caseInsensitiveCompare("Disk Image") != .orderedSame
             && deviceProtocol.caseInsensitiveCompare("Virtual Interface") != .orderedSame
     }
 
-    private static func backingDeviceProtocol(at volumeURL: URL) -> String? {
+    private nonisolated static func backingDeviceProtocol(at volumeURL: URL) -> String? {
         guard let session = DASessionCreate(kCFAllocatorDefault),
               let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, volumeURL as CFURL),
               let description = DADiskCopyDescription(disk) else {

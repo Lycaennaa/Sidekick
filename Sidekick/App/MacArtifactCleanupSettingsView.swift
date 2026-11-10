@@ -2,12 +2,15 @@ import AppKit
 
 @MainActor
 final class MacArtifactCleanupSettingsView: NSView {
-    private let store: MacArtifactCleanupStore
-    private let coordinator: MacArtifactCleanupCoordinator
+    let store: MacArtifactCleanupStore
+    let coordinator: MacArtifactCleanupCoordinator
     private let defaultModePopup = NSPopUpButton()
     private let rootRows = NSStackView()
     private let historyRows = NSStackView()
-    private let statusLabel = NSTextField(wrappingLabelWithString: "")
+    let statusLabel = NSTextField(wrappingLabelWithString: "")
+    private var activeFolderEnrollmentID: UUID?
+    var activePreviewRequestID: UUID?
+    var activeCleanupPrompt: MacArtifactCleanupPromptPanel?
 
     init(store: MacArtifactCleanupStore, coordinator: MacArtifactCleanupCoordinator) {
         self.store = store
@@ -224,20 +227,29 @@ final class MacArtifactCleanupSettingsView: NSView {
     }
 
     @objc private func addFolder() {
+        guard activeFolderEnrollmentID == nil, let window else { return }
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Watch Folder"
         panel.message = "Select a folder to scan and monitor while Sidekick is open."
-        panel.begin { [weak self] response in
-            guard response == .OK, let self, let url = panel.url else { return }
-            self.enrollFolder(url)
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor [weak self] in
+                await self?.enrollFolder(url)
+            }
         }
     }
 
-    func enrollFolder(_ url: URL) {
-        let added = store.addFolder(url)
+    func enrollFolder(_ url: URL) async {
+        guard activeFolderEnrollmentID == nil else { return }
+        let enrollmentID = UUID()
+        activeFolderEnrollmentID = enrollmentID
+        statusLabel.stringValue = "Checking selected location…"
+        let added = await store.addFolder(url)
+        guard activeFolderEnrollmentID == enrollmentID else { return }
+        activeFolderEnrollmentID = nil
         refresh()
         if !added {
             statusLabel.stringValue = "That folder is already enrolled or is on an unsupported volume."
@@ -250,85 +262,4 @@ final class MacArtifactCleanupSettingsView: NSView {
         refresh()
     }
 
-    @objc private func previewCleanup(_ sender: NSButton) {
-        guard let idString = sender.identifier?.rawValue, let id = UUID(uuidString: idString) else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                let scan = try await coordinator.preview(rootID: id)
-                guard store.configuration.roots.contains(where: { $0.id == id }) else { return }
-                showPreview(scan, rootID: id)
-            } catch is CancellationError {
-                return
-            } catch {
-                showMessage("Couldn’t scan folder", detail: error.localizedDescription)
-            }
-        }
-    }
-
-    private func showPreview(_ scan: MacArtifactScanResult, rootID: UUID) {
-        guard !scan.matches.isEmpty else {
-            let detail = scan.issues.prefix(8).map { "\($0.path): \($0.reason)" }.joined(separator: "\n")
-            showMessage(
-                "No cleanup candidates found",
-                detail: detail.isEmpty ? "The selected root was scanned." : detail
-            )
-            return
-        }
-        let alert = NSAlert()
-        alert.messageText = "\(scan.matches.count) cleanup candidates found"
-        let paths = scan.matches.prefix(12).map(\.url.path).joined(separator: "\n")
-        let remainder = scan.matches.count > 12 ? "\n…and \(scan.matches.count - 12) more" : ""
-        alert.informativeText = paths + remainder
-            + "\n\nManual actions require 30 seconds without observed changes; new or active items will be skipped."
-        alert.addButton(withTitle: "Move to Trash")
-        alert.addButton(withTitle: "Delete Permanently…")
-        alert.addButton(withTitle: "Cancel")
-        var manualActionRequested = false
-        var manualResult: MacArtifactCleanupHistoryEntry?
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            manualActionRequested = true
-            manualResult = coordinator.applyManually(scan.matches, rootID: rootID, mode: .moveToTrash)
-        case .alertSecondButtonReturn:
-            let confirmation = NSAlert()
-            confirmation.messageText = "Permanently delete these items?"
-            confirmation.informativeText =
-                "This cannot be undone. Items must remain unchanged for at least 30 seconds; " +
-                "active or changed items will be skipped."
-            confirmation.addButton(withTitle: "Delete Permanently")
-            confirmation.addButton(withTitle: "Cancel")
-            if confirmation.runModal() == .alertFirstButtonReturn {
-                manualActionRequested = true
-                manualResult = coordinator.applyManually(
-                    scan.matches,
-                    rootID: rootID,
-                    mode: .deletePermanently
-                )
-            }
-        default:
-            break
-        }
-        refresh()
-        if manualActionRequested {
-            guard let manualResult else {
-                statusLabel.stringValue =
-                    "Cleanup could not be applied because the watched root changed " +
-                    "or another run is active."
-                return
-            }
-            if manualResult.skippedCount > 0 {
-                let detail = manualResult.details.first ?? "The candidates are not stable yet."
-                statusLabel.stringValue = "\(manualResult.skippedCount) item(s) skipped: \(detail)"
-            }
-        }
-    }
-
-    private func showMessage(_ title: String, detail: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = detail
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
 }

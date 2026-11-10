@@ -2,7 +2,7 @@ import XCTest
 
 @MainActor
 final class MacArtifactCleanupStoreTests: XCTestCase {
-    func testRootModesPersistWithGlobalDefaultAndPerRootOverride() throws {
+    func testRootModesPersistWithGlobalDefaultAndPerRootOverride() async throws {
         let (defaults, suiteName) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = MacArtifactCleanupStore(defaults: defaults)
@@ -20,8 +20,10 @@ final class MacArtifactCleanupStoreTests: XCTestCase {
         try FileManager.default.createDirectory(at: firstURL, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: secondURL, withIntermediateDirectories: true)
 
-        XCTAssertTrue(store.addFolder(firstURL))
-        XCTAssertTrue(store.addFolder(secondURL))
+        let addedFirstFolder = await store.addFolder(firstURL)
+        XCTAssertTrue(addedFirstFolder)
+        let addedSecondFolder = await store.addFolder(secondURL)
+        XCTAssertTrue(addedSecondFolder)
         let firstRoot = try XCTUnwrap(store.configuration.roots.first)
         XCTAssertEqual(
             firstRoot.volumeIdentifier,
@@ -38,7 +40,8 @@ final class MacArtifactCleanupStoreTests: XCTestCase {
         XCTAssertEqual(restored.configuration.defaultMode, .moveToTrash)
         XCTAssertEqual(restored.configuration.mode(for: restoredFirstRoot), .deletePermanently)
         XCTAssertEqual(restored.configuration.mode(for: restoredSecondRoot), .moveToTrash)
-        XCTAssertFalse(store.addFolder(firstURL))
+        let duplicateFolder = await store.addFolder(firstURL)
+        XCTAssertFalse(duplicateFolder)
     }
 
     func testStorePersistsLegacyFuseMigrationOnlyWhenMountedUUIDMatches() throws {
@@ -72,7 +75,7 @@ final class MacArtifactCleanupStoreTests: XCTestCase {
         )
 
         let stableIdentifier = "fuse:source-based"
-        let volumeIdentityAt: (URL) -> MacArtifactVolumeIdentity? = { url in
+        let volumeIdentityAt: @Sendable (URL) -> MacArtifactVolumeIdentity? = { url in
             MacArtifactVolumeIdentity(
                 identifier: stableIdentifier,
                 isFuse: true,
@@ -105,7 +108,7 @@ final class MacArtifactCleanupStoreTests: XCTestCase {
         )
     }
 
-    func testFolderRootDoesNotSuppressExternalVolumeEnrollment() throws {
+    func testFolderRootDoesNotSuppressExternalVolumeEnrollment() async throws {
         let (defaults, suiteName) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let directory = URL(fileURLWithPath: #filePath)
@@ -123,7 +126,8 @@ final class MacArtifactCleanupStoreTests: XCTestCase {
         )
         let store = MacArtifactCleanupStore(defaults: defaults)
 
-        XCTAssertTrue(store.addFolder(folder))
+        let addedFolder = await store.addFolder(folder)
+        XCTAssertTrue(addedFolder)
         XCTAssertTrue(store.enrollExternalVolume(directory, volumeIdentifier: volumeIdentifier))
         XCTAssertEqual(store.configuration.roots.count, 2)
         XCTAssertTrue(store.configuration.roots.contains { $0.kind == .folder })

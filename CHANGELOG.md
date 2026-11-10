@@ -23,6 +23,8 @@ User-visible changes are listed here. No public release tag exists yet.
 
 - Use remount-stable source identities for FUSE volumes, migrating saved roots only when their UUID still matches the mounted volume.
 - Hide AVIF output on macOS versions without an ImageIO AVIF encoder and use WebP as the effective output format.
+- Keep cleanup folder enrollment responsive while revalidating the selected volume before adding it.
+- Keep cleanup enrollment and cleanup decision prompts nonmodal while preserving the permanent-delete confirmation.
 
 - Keep automatic clipboard image conversion running when its clipboard-content toast appears.
 - Put converted WebP and AVIF image data on the clipboard alongside the output file reference.

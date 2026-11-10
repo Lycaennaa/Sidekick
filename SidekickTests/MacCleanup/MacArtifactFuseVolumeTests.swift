@@ -98,7 +98,7 @@ final class MacArtifactFuseVolumeTests: XCTestCase {
     }
 
 
-    func testMountedFuseVolumeSupportsFolderAndAutomaticEnrollment() throws {
+    func testMountedFuseVolumeSupportsFolderAndAutomaticEnrollment() async throws {
         let volumes = FileManager.default.mountedVolumeURLs(
             includingResourceValuesForKeys: [],
             options: []
@@ -123,7 +123,8 @@ final class MacArtifactFuseVolumeTests: XCTestCase {
         coordinator.start()
         defer { coordinator.stop() }
         XCTAssertTrue(enrollmentRequested)
-        XCTAssertTrue(store.addFolder(volume))
+        let addedFolder = await store.addFolder(volume)
+        XCTAssertTrue(addedFolder)
         XCTAssertTrue(
             MacArtifactVolumeMonitor().mountedExternalVolumes().contains {
                 $0.url.standardizedFileURL == volume.standardizedFileURL
