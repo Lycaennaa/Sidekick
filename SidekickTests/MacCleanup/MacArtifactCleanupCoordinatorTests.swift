@@ -12,7 +12,7 @@ final class MacArtifactCleanupCoordinatorTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
         defer { defaults.removePersistentDomain(forName: defaultsName) }
 
-        let enrollmentStore = MacArtifactCleanupStore(defaults: defaults)
+        let enrollmentStore = makeSupportedFolderCleanupTestStore(defaults: defaults)
         let enrolled = await enrollmentStore.addFolder(folder)
         XCTAssertTrue(enrolled)
         let originalRoot = try XCTUnwrap(enrollmentStore.configuration.roots.first)

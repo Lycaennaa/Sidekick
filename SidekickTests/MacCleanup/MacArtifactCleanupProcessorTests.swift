@@ -37,7 +37,7 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let suiteName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         let addedRoot = await store.addFolder(root)
         XCTAssertTrue(addedRoot)
         store.setDefaultMode(.deletePermanently)
@@ -88,7 +88,7 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let suiteName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         let addedRoot = await store.addFolder(root)
         XCTAssertTrue(addedRoot)
 
@@ -121,7 +121,7 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let suiteName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         let addedRoot = await store.addFolder(root)
         XCTAssertTrue(addedRoot)
         store.setDefaultMode(.deletePermanently)
@@ -166,7 +166,7 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let suiteName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         store.setDefaultMode(.previewOnly)
         let outerAdded = await store.addFolder(outerURL)
         let nestedAdded = await store.addFolder(nestedURL)
@@ -224,7 +224,7 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let suiteName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         store.setDefaultMode(.previewOnly)
         let addedRoot = await store.addFolder(root)
         XCTAssertTrue(addedRoot)
@@ -275,7 +275,7 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let suiteName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         store.setDefaultMode(.previewOnly)
         let addedRoot = await store.addFolder(root)
         XCTAssertTrue(addedRoot)
@@ -322,7 +322,7 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let defaultsName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
         defer { defaults.removePersistentDomain(forName: defaultsName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         store.setDefaultMode(.previewOnly)
         let addedRoot = await store.addFolder(root)
         XCTAssertTrue(addedRoot)
@@ -366,7 +366,7 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         let suiteName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         let addedRoot = await store.addFolder(root)
         XCTAssertTrue(addedRoot)
         store.setDefaultMode(.deletePermanently)

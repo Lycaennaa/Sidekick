@@ -1,11 +1,19 @@
 import XCTest
+// Behavior tests inject eligibility without altering the real volume identity.
+@MainActor
+func makeSupportedFolderCleanupTestStore(defaults: UserDefaults) -> MacArtifactCleanupStore {
+    MacArtifactCleanupStore(
+        defaults: defaults,
+        folderEnrollmentSupported: { _, _ in true }
+    )
+}
 
 @MainActor
 final class MacArtifactCleanupStoreTests: XCTestCase {
     func testRootModesPersistWithGlobalDefaultAndPerRootOverride() async throws {
         let (defaults, suiteName) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         XCTAssertEqual(store.configuration.defaultMode, .deletePermanently)
         let directory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -42,6 +50,36 @@ final class MacArtifactCleanupStoreTests: XCTestCase {
         XCTAssertEqual(restored.configuration.mode(for: restoredSecondRoot), .moveToTrash)
         let duplicateFolder = await store.addFolder(firstURL)
         XCTAssertFalse(duplicateFolder)
+    }
+
+    func testDefaultEnrollmentSucceedsOnSupportedPlatformVolume() async throws {
+        let directory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(".test-tmp/MacArtifactCleanupStoreTests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let folder = directory.appendingPathComponent("Supported", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        guard let identity = MacArtifactCleanupRoot.currentVolumeIdentity(at: folder),
+              MacArtifactVolumeMonitor.supportsFolderEnrollment(
+                at: folder,
+                volumeIdentity: identity
+              ) else {
+            throw XCTSkip("The test host has no supported folder-enrollment volume.")
+        }
+
+        let (defaults, suiteName) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = MacArtifactCleanupStore(defaults: defaults)
+
+        let added = await store.addFolder(folder)
+        XCTAssertTrue(added)
+        let root = try XCTUnwrap(store.configuration.roots.first)
+        XCTAssertEqual(root.path, folder.path)
+        XCTAssertEqual(root.volumeIdentifier, identity.identifier)
     }
 
     func testStorePersistsLegacyFuseMigrationOnlyWhenMountedUUIDMatches() throws {
@@ -124,7 +162,7 @@ final class MacArtifactCleanupStoreTests: XCTestCase {
         let volumeIdentifier = try XCTUnwrap(
             MacArtifactCleanupRoot.currentVolumeIdentifier(at: folder)
         )
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
 
         let addedFolder = await store.addFolder(folder)
         XCTAssertTrue(addedFolder)

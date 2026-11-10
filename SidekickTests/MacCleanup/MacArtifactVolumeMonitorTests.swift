@@ -86,7 +86,7 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         let defaultsName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
         defer { defaults.removePersistentDomain(forName: defaultsName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         store.setDefaultMode(.deletePermanently)
         let addedRoot = await store.addFolder(root)
         XCTAssertTrue(addedRoot)
@@ -125,7 +125,7 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         let defaultsName = "MacArtifactManualRetry.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
         defer { defaults.removePersistentDomain(forName: defaultsName) }
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         store.setDefaultMode(.previewOnly)
         let addedRoot = await store.addFolder(root)
         XCTAssertTrue(addedRoot)

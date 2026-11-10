@@ -35,7 +35,7 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         let addedFolder = await store.addFolder(folder)
         XCTAssertTrue(addedFolder)
         let root = try XCTUnwrap(store.configuration.roots.first)
@@ -69,7 +69,7 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         let firstAdded = await store.addFolder(firstFolder)
         let secondAdded = await store.addFolder(secondFolder)
         XCTAssertTrue(firstAdded)
@@ -95,7 +95,7 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         let addedFolder = await store.addFolder(folder)
         XCTAssertTrue(addedFolder)
         let view = MacArtifactCleanupSettingsView(

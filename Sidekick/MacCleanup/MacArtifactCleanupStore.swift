@@ -211,6 +211,7 @@ final class MacArtifactCleanupStore {
 
     private let defaults: UserDefaults
     private let volumeIdentityAt: @Sendable (URL) -> MacArtifactVolumeIdentity?
+    private let folderEnrollmentSupported: @Sendable (URL, MacArtifactVolumeIdentity) -> Bool
     private(set) var configuration: MacArtifactCleanupConfiguration
     private(set) var history: [MacArtifactCleanupHistoryEntry]
     var onChange: (() -> Void)?
@@ -219,10 +220,14 @@ final class MacArtifactCleanupStore {
         defaults: UserDefaults = .standard,
         volumeIdentityAt: @escaping @Sendable (URL) -> MacArtifactVolumeIdentity? = {
             MacArtifactCleanupRoot.currentVolumeIdentity(at: $0)
+        },
+        folderEnrollmentSupported: @escaping @Sendable (URL, MacArtifactVolumeIdentity) -> Bool = {
+            MacArtifactVolumeMonitor.supportsFolderEnrollment(at: $0, volumeIdentity: $1)
         }
     ) {
         self.defaults = defaults
         self.volumeIdentityAt = volumeIdentityAt
+        self.folderEnrollmentSupported = folderEnrollmentSupported
         configuration = Self.decode(
             MacArtifactCleanupConfiguration.self,
             forKey: Key.configuration,
@@ -240,7 +245,8 @@ final class MacArtifactCleanupStore {
     func addFolder(_ url: URL) async -> Bool {
         let volumeIdentity = await Self.resolveEligibleVolumeIdentity(
             at: url,
-            using: volumeIdentityAt
+            using: volumeIdentityAt,
+            folderEnrollmentSupported: folderEnrollmentSupported
         )
         guard !Task.isCancelled, let volumeIdentity else { return false }
         // Re-resolve after the executor hop so a replaced mount cannot be enrolled.
@@ -256,13 +262,11 @@ final class MacArtifactCleanupStore {
 
     private nonisolated static func resolveEligibleVolumeIdentity(
         at url: URL,
-        using volumeIdentityAt: @Sendable (URL) -> MacArtifactVolumeIdentity?
+        using volumeIdentityAt: @Sendable (URL) -> MacArtifactVolumeIdentity?,
+        folderEnrollmentSupported: @Sendable (URL, MacArtifactVolumeIdentity) -> Bool
     ) async -> MacArtifactVolumeIdentity? {
         guard let volumeIdentity = volumeIdentityAt(url),
-              MacArtifactVolumeMonitor.supportsFolderEnrollment(
-                at: url,
-                volumeIdentity: volumeIdentity
-              ) else {
+              folderEnrollmentSupported(url, volumeIdentity) else {
             return nil
         }
         return volumeIdentity
