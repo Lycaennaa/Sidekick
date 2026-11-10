@@ -13,7 +13,8 @@ extension AppDelegate {
                 title: "Enroll \(volume.url.lastPathComponent) for Mac cleanup?",
                 detail: [
                     "Sidekick recursively scans and monitors this volume while the app is open.",
-                    "Matching files wait at least 30 seconds without observed changes before the selected action."
+                    "Matching files wait at least 30 seconds without observed changes before the selected action.",
+                    "Volume path: \(volume.url.path)"
                 ].joined(separator: " "),
                 buttons: [
                     .init(title: "Enroll Volume", action: { [weak self] in
