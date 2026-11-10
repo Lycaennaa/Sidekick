@@ -2,15 +2,27 @@ import AppKit
 
 extension MacArtifactCleanupSettingsView {
     @objc func previewCleanup(_ sender: NSButton) {
-        guard activePreviewRequestID == nil,
+        guard activeCleanupRequestID == nil,
               activeCleanupPrompt == nil,
               let idString = sender.identifier?.rawValue,
               let rootID = UUID(uuidString: idString) else {
             return
         }
         let requestID = UUID()
-        activePreviewRequestID = requestID
+        activeCleanupRequestID = requestID
         startPreview(rootID: rootID, requestID: requestID)
+    }
+
+    @objc func cleanNow(_ sender: NSButton) {
+        guard activeCleanupRequestID == nil,
+              activeCleanupPrompt == nil,
+              let idString = sender.identifier?.rawValue,
+              let rootID = UUID(uuidString: idString) else {
+            return
+        }
+        let requestID = UUID()
+        activeCleanupRequestID = requestID
+        startCleanNow(rootID: rootID, requestID: requestID)
     }
 
     private func startPreview(rootID: UUID, requestID: UUID) {
@@ -27,13 +39,27 @@ extension MacArtifactCleanupSettingsView {
         }
     }
 
+    private func startCleanNow(rootID: UUID, requestID: UUID) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let scan = try await coordinator.scanForCleanNow(rootID: rootID)
+                finishCleanNow(scan, rootID: rootID, requestID: requestID)
+            } catch is CancellationError {
+                finishCancelledPreview(requestID: requestID)
+            } catch {
+                finishPreviewFailure(error, requestID: requestID)
+            }
+        }
+    }
+
     private func finishPreview(
         _ scan: MacArtifactScanResult,
         rootID: UUID,
         requestID: UUID
     ) {
-        guard activePreviewRequestID == requestID else { return }
-        activePreviewRequestID = nil
+        guard activeCleanupRequestID == requestID else { return }
+        activeCleanupRequestID = nil
         guard !Task.isCancelled,
               store.configuration.roots.contains(where: { $0.id == rootID }) else {
             return
@@ -41,14 +67,40 @@ extension MacArtifactCleanupSettingsView {
         showPreview(scan, rootID: rootID)
     }
 
+    private func finishCleanNow(
+        _ scan: MacArtifactScanResult,
+        rootID: UUID,
+        requestID: UUID
+    ) {
+        guard activeCleanupRequestID == requestID else { return }
+        activeCleanupRequestID = nil
+        guard !Task.isCancelled,
+              let root = store.configuration.roots.first(where: { $0.id == rootID }) else {
+            return
+        }
+        refresh()
+        guard !scan.matches.isEmpty else {
+            showPreview(scan, rootID: rootID)
+            return
+        }
+        switch store.configuration.mode(for: root) {
+        case .previewOnly:
+            showCleanNowPreview(scan)
+        case .moveToTrash:
+            applyManualCleanup(scan.matches, rootID: rootID, mode: .moveToTrash)
+        case .deletePermanently:
+            confirmPermanentDeletion(scan.matches, rootID: rootID)
+        }
+    }
+
     private func finishCancelledPreview(requestID: UUID) {
-        guard activePreviewRequestID == requestID else { return }
-        activePreviewRequestID = nil
+        guard activeCleanupRequestID == requestID else { return }
+        activeCleanupRequestID = nil
     }
 
     private func finishPreviewFailure(_ error: Error, requestID: UUID) {
-        guard activePreviewRequestID == requestID else { return }
-        activePreviewRequestID = nil
+        guard activeCleanupRequestID == requestID else { return }
+        activeCleanupRequestID = nil
         guard !Task.isCancelled else { return }
         showMessage("Couldn’t scan folder", detail: error.localizedDescription)
     }
@@ -84,12 +136,28 @@ extension MacArtifactCleanupSettingsView {
         presentCleanupPrompt(prompt, onClose: { [weak self] in self?.refresh() })
     }
 
+    private func showCleanNowPreview(_ scan: MacArtifactScanResult) {
+        let paths = scan.matches.prefix(12).map(\.url.path).joined(separator: "\n")
+        let remainder = scan.matches.count > 12 ? "\n…and \(scan.matches.count - 12) more" : ""
+        let issues = scan.issues.prefix(8).map { "\($0.path): \($0.reason)" }.joined(separator: "\n")
+        let detail = paths + remainder + "\n\nAutomatic action is Preview only; no items were changed."
+            + (issues.isEmpty ? "" : "\n\nScan notes:\n" + issues)
+        let prompt = MacArtifactCleanupPromptPanel(
+            title: "\(scan.matches.count) cleanup candidates found",
+            detail: detail,
+            buttons: [.init(title: "OK")]
+        )
+        presentCleanupPrompt(prompt, onClose: { [weak self] in self?.refresh() })
+    }
+
     private func confirmPermanentDeletion(_ matches: [MacArtifactMatch], rootID: UUID) {
+        let paths = matches.prefix(12).map(\.url.path).joined(separator: "\n")
+        let remainder = matches.count > 12 ? "\n…and \(matches.count - 12) more" : ""
         let prompt = MacArtifactCleanupPromptPanel(
             title: "Permanently delete these items?",
             detail:
-                "This cannot be undone. Items must remain unchanged for at least 30 seconds; " +
-                "active or changed items will be skipped.",
+                paths + remainder + "\n\nThis cannot be undone. Items must remain unchanged for at least " +
+                "30 seconds; active or changed items will be skipped.",
             buttons: [
                 .init(title: "Delete Permanently", action: { [weak self] in
                     guard let self else { return }

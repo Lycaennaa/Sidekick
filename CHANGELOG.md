@@ -18,6 +18,7 @@ User-visible changes are listed here. No public release tag exists yet.
 - Copying folders no longer triggers automatic conversion; pending captures retry after output-format changes, and unreadable images report an error.
 
 - Added recursive macOS metadata cleanup for enrolled folders on local internal or external physical disks and FUSE mounts, including network-backed FUSE; mounted disk images and other non-FUSE virtual or network volumes are rejected.
+- Add a Clean Now action for each enrolled location, using its configured mode and preserving the stability guard and permanent-delete confirmation.
 
 ### Fixed
 
@@ -25,6 +26,7 @@ User-visible changes are listed here. No public release tag exists yet.
 - Hide AVIF output on macOS versions without an ImageIO AVIF encoder and use WebP as the effective output format.
 - Keep cleanup folder enrollment responsive while revalidating the selected volume before adding it.
 - Keep cleanup enrollment and cleanup decision prompts nonmodal while preserving the permanent-delete confirmation.
+- Exclude matches owned by nested enrolled roots from the selected Clean Now run.
 
 - Keep automatic clipboard image conversion running when its clipboard-content toast appears.
 - Put converted WebP and AVIF image data on the clipboard alongside the output file reference.

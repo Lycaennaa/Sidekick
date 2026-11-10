@@ -58,6 +58,36 @@ final class MacArtifactCleanupSettingsViewTests: XCTestCase {
         XCTAssertEqual(store.configuration.mode(for: updatedRoot), .deletePermanently)
     }
 
+    func testEveryEnrolledFolderHasItsOwnCleanNowButton() async throws {
+        let firstFolder = try makeTemporaryFolder()
+        let secondFolder = try makeTemporaryFolder()
+        defer {
+            try? FileManager.default.removeItem(at: firstFolder.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: secondFolder.deletingLastPathComponent())
+        }
+        let suiteName = "MacArtifactCleanupSettingsViewTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = MacArtifactCleanupStore(defaults: defaults)
+        let firstAdded = await store.addFolder(firstFolder)
+        let secondAdded = await store.addFolder(secondFolder)
+        XCTAssertTrue(firstAdded)
+        XCTAssertTrue(secondAdded)
+        let view = MacArtifactCleanupSettingsView(
+            store: store,
+            coordinator: MacArtifactCleanupCoordinator(store: store)
+        )
+        let rootIDs = Set(store.configuration.roots.map(\.id.uuidString))
+        let cleanNowButtons = descendants(of: view)
+            .compactMap { $0 as? NSButton }
+            .filter { $0.title == "Clean Now" }
+
+        XCTAssertEqual(cleanNowButtons.count, rootIDs.count)
+        XCTAssertEqual(Set(cleanNowButtons.compactMap(\.identifier?.rawValue)), rootIDs)
+        XCTAssertTrue(cleanNowButtons.allSatisfy { $0.target === view })
+    }
+
     func testFailedFolderEnrollmentRemainsVisibleAfterRefresh() async throws {
         let folder = try makeTemporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }

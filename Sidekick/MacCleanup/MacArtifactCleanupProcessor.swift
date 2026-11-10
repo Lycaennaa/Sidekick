@@ -125,7 +125,7 @@ final class MacArtifactCleanupProcessor {
         })
     }
 
-    func preview(rootID: UUID) async throws -> MacArtifactScanResult {
+    func preview(rootID: UUID, registerCandidates: Bool = false) async throws -> MacArtifactScanResult {
         guard running, let root = activeRoots[rootID] else { throw CancellationError() }
         let expectedGeneration = generation
         let result = try await scanner.preview(rootID: rootID)
@@ -136,6 +136,14 @@ final class MacArtifactCleanupProcessor {
               root.isOnOriginalVolume,
               store.configuration.roots.contains(where: { $0.id == rootID }) else {
             throw CancellationError()
+        }
+        if registerCandidates {
+            let matches = register(
+                result.matches,
+                foundUnder: root,
+                returnMatchesOwnedByScannedRoot: true
+            ) ?? []
+            return MacArtifactScanResult(matches: matches, issues: result.issues)
         }
         return result
     }
@@ -258,11 +266,20 @@ final class MacArtifactCleanupProcessor {
         notify(entry)
     }
 
-    private func register(_ matches: [MacArtifactMatch], foundUnder scannedRoot: MacArtifactCleanupRoot) {
+    @discardableResult
+    private func register(
+        _ matches: [MacArtifactMatch],
+        foundUnder scannedRoot: MacArtifactCleanupRoot,
+        returnMatchesOwnedByScannedRoot: Bool = false
+    ) -> [MacArtifactMatch]? {
         let now = Date()
+        var matchesOwnedByScannedRoot: [MacArtifactMatch]? = returnMatchesOwnedByScannedRoot ? [] : nil
         for match in matches {
             let owner = MacArtifactCleanupRoot.containing(path: match.url.path, in: activeRoots.values) ?? scannedRoot
             guard match.rootURL.standardizedFileURL == owner.url.standardizedFileURL else { continue }
+            if owner.id == scannedRoot.id {
+                matchesOwnedByScannedRoot?.append(match)
+            }
             if let existing = candidates[match.id], existing.rootID == owner.id {
                 guard existing.match.fingerprint != match.fingerprint else { continue }
                 candidates[match.id] = PendingCandidate(
@@ -277,6 +294,7 @@ final class MacArtifactCleanupProcessor {
             }
         }
         onChange?()
+        return matchesOwnedByScannedRoot
     }
 
     private func markActivity(at path: String) -> Bool {

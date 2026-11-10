@@ -9,7 +9,7 @@ final class MacArtifactCleanupSettingsView: NSView {
     private let historyRows = NSStackView()
     let statusLabel = NSTextField(wrappingLabelWithString: "")
     private var activeFolderEnrollmentID: UUID?
-    var activePreviewRequestID: UUID?
+    var activeCleanupRequestID: UUID?
     var activeCleanupPrompt: MacArtifactCleanupPromptPanel?
 
     init(store: MacArtifactCleanupStore, coordinator: MacArtifactCleanupCoordinator) {
@@ -135,6 +135,9 @@ final class MacArtifactCleanupSettingsView: NSView {
             modePopup.target = self
             modePopup.action = #selector(rootModeChanged(_:))
 
+            let cleanNowButton = NSButton(title: "Clean Now", target: self, action: #selector(cleanNow(_:)))
+            cleanNowButton.identifier = NSUserInterfaceItemIdentifier(root.id.uuidString)
+            cleanNowButton.bezelStyle = .rounded
             let previewButton = NSButton(title: "Preview…", target: self, action: #selector(previewCleanup(_:)))
             previewButton.identifier = NSUserInterfaceItemIdentifier(root.id.uuidString)
             previewButton.bezelStyle = .rounded
@@ -142,7 +145,7 @@ final class MacArtifactCleanupSettingsView: NSView {
             removeButton.identifier = NSUserInterfaceItemIdentifier(root.id.uuidString)
             removeButton.bezelStyle = .rounded
 
-            let row = NSStackView(views: [location, modePopup, previewButton, removeButton])
+            let row = NSStackView(views: [location, modePopup, cleanNowButton, previewButton, removeButton])
             row.orientation = .horizontal
             row.alignment = .centerY
             row.spacing = 8
@@ -150,6 +153,7 @@ final class MacArtifactCleanupSettingsView: NSView {
             location.setContentHuggingPriority(.defaultLow, for: .horizontal)
             location.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             modePopup.setContentHuggingPriority(.required, for: .horizontal)
+            cleanNowButton.setContentHuggingPriority(.required, for: .horizontal)
             previewButton.setContentHuggingPriority(.required, for: .horizontal)
             removeButton.setContentHuggingPriority(.required, for: .horizontal)
             rootRows.addArrangedSubview(row)

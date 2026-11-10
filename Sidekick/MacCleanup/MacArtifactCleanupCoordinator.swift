@@ -66,6 +66,10 @@ final class MacArtifactCleanupCoordinator {
         try await processor.preview(rootID: rootID)
     }
 
+    func scanForCleanNow(rootID: UUID) async throws -> MacArtifactScanResult {
+        try await processor.preview(rootID: rootID, registerCandidates: true)
+    }
+
     @discardableResult
     func applyManually(
         _ matches: [MacArtifactMatch],

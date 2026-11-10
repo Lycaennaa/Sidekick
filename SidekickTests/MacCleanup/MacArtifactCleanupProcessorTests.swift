@@ -108,6 +108,107 @@ final class MacArtifactCleanupProcessorTests: XCTestCase {
         await processor.waitForBackgroundScans()
     }
 
+    func testCleanNowScanWaitsForExplicitPermanentDeletionConfirmation() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(".test-tmp/MacArtifactCleanupProcessorTests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let suiteName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = MacArtifactCleanupStore(defaults: defaults)
+        let addedRoot = await store.addFolder(root)
+        XCTAssertTrue(addedRoot)
+        store.setDefaultMode(.deletePermanently)
+        let enrolledRoot = try XCTUnwrap(store.configuration.roots.first)
+        let processor = MacArtifactCleanupProcessor(
+            store: store,
+            notifier: MacArtifactCleanupNotifier(center: nil),
+            quietPeriod: 0
+        )
+        processor.start(roots: store.configuration.roots)
+        await processor.waitForBackgroundScans()
+        let candidate = root.appendingPathComponent(".DS_Store")
+        try Data([1, 2, 3]).write(to: candidate)
+
+        let scan = try await processor.preview(rootID: enrolledRoot.id, registerCandidates: true)
+        XCTAssertEqual(scan.matches.map(\.url.path), [candidate.path])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: candidate.path))
+        XCTAssertTrue(store.history.isEmpty)
+
+        let result = processor.applyManually(
+            scan.matches,
+            rootID: enrolledRoot.id,
+            mode: store.configuration.mode(for: enrolledRoot)
+        )
+        XCTAssertEqual(result?.removedCount, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: candidate.path))
+        processor.stop()
+        await processor.waitForBackgroundScans()
+    }
+    func testCleanNowScanExcludesMatchesOwnedByNestedRoot() async throws {
+        let testDirectory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(".test-tmp/MacArtifactCleanupProcessorTests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let outerURL = testDirectory.appendingPathComponent("Outer", isDirectory: true)
+        let nestedURL = outerURL.appendingPathComponent("Nested", isDirectory: true)
+        try FileManager.default.createDirectory(at: nestedURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: testDirectory) }
+
+        let suiteName = "MacArtifactCleanupProcessorTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = MacArtifactCleanupStore(defaults: defaults)
+        store.setDefaultMode(.previewOnly)
+        let outerAdded = await store.addFolder(outerURL)
+        let nestedAdded = await store.addFolder(nestedURL)
+        XCTAssertTrue(outerAdded)
+        XCTAssertTrue(nestedAdded)
+        let outerRoot = try XCTUnwrap(store.configuration.roots.first { $0.path == outerURL.path })
+        let processor = MacArtifactCleanupProcessor(
+            store: store,
+            notifier: MacArtifactCleanupNotifier(center: nil),
+            quietPeriod: 0
+        )
+        processor.start(roots: store.configuration.roots)
+        await processor.waitForBackgroundScans()
+
+        let outerCandidate = outerURL.appendingPathComponent(".DS_Store")
+        let nestedCandidate = nestedURL.appendingPathComponent(".DS_Store")
+        try Data([1, 2, 3]).write(to: outerCandidate)
+        try Data([4, 5, 6]).write(to: nestedCandidate)
+
+        let rawScan = try MacArtifactScanner.scan(root: outerURL)
+        XCTAssertEqual(
+            Set(rawScan.matches.map(\.url.path)),
+            Set([outerCandidate.path, nestedCandidate.path])
+        )
+
+        let scan = try await processor.preview(rootID: outerRoot.id, registerCandidates: true)
+        XCTAssertEqual(scan.matches.map(\.url.path), [outerCandidate.path])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: nestedCandidate.path))
+
+        let result = processor.applyManually(
+            scan.matches,
+            rootID: outerRoot.id,
+            mode: .deletePermanently
+        )
+        XCTAssertEqual(result?.removedCount, 1)
+        XCTAssertEqual(result?.skippedCount, 0, "\(result?.details ?? [])")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: outerCandidate.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: nestedCandidate.path))
+        processor.stop()
+        await processor.waitForBackgroundScans()
+    }
+
     func testManualRemovalRequiresQuietPeriodAndCanUseRetainedPreviewCandidate() async throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
