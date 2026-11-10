@@ -31,7 +31,7 @@ final class MacArtifactCleanupCoordinatorTests: XCTestCase {
             forKey: "macArtifactCleanupConfiguration"
         )
 
-        let store = MacArtifactCleanupStore(defaults: defaults)
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
         let candidate = folder.appendingPathComponent(".DS_Store")
         try Data([1, 2, 3]).write(to: candidate)
         let coordinator = MacArtifactCleanupCoordinator(store: store)
@@ -45,6 +45,30 @@ final class MacArtifactCleanupCoordinatorTests: XCTestCase {
             // Expected: the stored volume identity no longer matches this folder.
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: candidate.path))
+    }
+
+    func testCoordinatorUsesStoreEnrollmentEligibilityPolicy() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let folder = directory.appendingPathComponent("watched-folder", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let candidate = folder.appendingPathComponent(".DS_Store")
+        try Data([1, 2, 3]).write(to: candidate)
+        let defaultsName = "MacArtifactCleanupCoordinatorTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+        defer { defaults.removePersistentDomain(forName: defaultsName) }
+
+        let store = makeSupportedFolderCleanupTestStore(defaults: defaults)
+        let enrolled = await store.addFolder(folder)
+        XCTAssertTrue(enrolled)
+        let root = try XCTUnwrap(store.configuration.roots.first)
+        let coordinator = MacArtifactCleanupCoordinator(store: store)
+        coordinator.start()
+        defer { coordinator.stop() }
+
+        let scan = try await coordinator.preview(rootID: root.id)
+
+        XCTAssertEqual(scan.matches.map(\.url.path), [candidate.path])
     }
 
     func testFolderEnrollmentValidationRunsOffMainThread() async throws {

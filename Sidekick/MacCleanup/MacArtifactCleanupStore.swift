@@ -260,6 +260,13 @@ final class MacArtifactCleanupStore {
         return addRoot(url, kind: .folder, volumeIdentifier: volumeIdentity.identifier)
     }
 
+    func isFolderEnrollmentSupported(
+        at url: URL,
+        volumeIdentity: MacArtifactVolumeIdentity
+    ) -> Bool {
+        folderEnrollmentSupported(url, volumeIdentity)
+    }
+
     private nonisolated static func resolveEligibleVolumeIdentity(
         at url: URL,
         using volumeIdentityAt: @Sendable (URL) -> MacArtifactVolumeIdentity?,
