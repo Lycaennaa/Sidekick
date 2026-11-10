@@ -213,7 +213,7 @@ jobs:
       - name: Download release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download "$GITHUB_RUN_ID" --name "sidekick-release-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/sidekick-release"
+        run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "sidekick-release-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/sidekick-release"
       - name: Attest release assets
         uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2.2.3
         with:
@@ -243,7 +243,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/sidekick-release"
-          gh run download "$GITHUB_RUN_ID" --name "sidekick-release-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/sidekick-release"
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "sidekick-release-$GITHUB_RUN_ID" --dir "$RUNNER_TEMP/sidekick-release"
           zip="$RUNNER_TEMP/sidekick-release/Sidekick-$RELEASE_VERSION.zip"
           dmg="$RUNNER_TEMP/sidekick-release/Sidekick-$RELEASE_VERSION.dmg"
           test -f "$zip"
