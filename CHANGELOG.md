@@ -28,6 +28,7 @@ User-visible changes are listed here. No public release tag exists yet.
 - Keep cleanup folder enrollment responsive while revalidating the selected volume before adding it.
 - Keep cleanup enrollment and cleanup decision prompts nonmodal while preserving the permanent-delete confirmation.
 - Exclude matches owned by nested enrolled roots from the selected Clean Now run.
+- Block automatic clipboard conversion when any copied file is unreadable or not recognized as an image.
 
 - Keep automatic clipboard image conversion running when its clipboard-content toast appears.
 - Put converted WebP and AVIF image data on the clipboard alongside the output file reference.

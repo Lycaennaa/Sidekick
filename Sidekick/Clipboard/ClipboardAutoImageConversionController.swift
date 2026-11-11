@@ -97,6 +97,7 @@ final class ClipboardAutoImageConversionController: NSObject {
                 from: self.pasteboard,
                 outputFormat: outputFormat,
                 skipAlreadyOutputFormatFiles: true,
+                requireImageFileContents: true,
                 fileURLReader: self.fileURLReader,
                 payloadReader: self.payloadReader
             )

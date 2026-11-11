@@ -40,6 +40,77 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
     }
 
     @MainActor
+    func testAutomaticBlocksNonImageFilesEvenAlongsideImages() async throws {
+        let sourceDirectory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: sourceDirectory) }
+        let nonImageFileURLs = [
+            sourceDirectory.appendingPathComponent("note"),
+            sourceDirectory.appendingPathComponent("mislabelled.png")
+        ]
+        for fileURL in nonImageFileURLs {
+            try Data("plain text, not an image".utf8).write(to: fileURL)
+        }
+        let imageData = try pngData(width: 4, height: 3)
+
+        for fileURL in nonImageFileURLs {
+            let pasteboard = makePasteboard()
+            defer { pasteboard.clearContents() }
+            let item = NSPasteboardItem()
+            XCTAssertTrue(item.setString(fileURL.absoluteString, forType: .fileURL))
+            XCTAssertTrue(item.setData(imageData, forType: .png))
+            XCTAssertTrue(pasteboard.writeObjects([item]))
+
+            let capture = await ClipboardImageConversionPasteboardCapture.captureImage(
+                from: pasteboard,
+                requireImageFileContents: true
+            )
+            guard case .noImage = capture else {
+                return XCTFail("Expected non-image file content to block automatic conversion")
+            }
+        }
+    }
+
+    @MainActor
+    func testAutomaticBlocksUnmaterializedFileBesideValidImage() async throws {
+        let sourceDirectory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: sourceDirectory) }
+        let nonImageURL = sourceDirectory.appendingPathComponent("unreadable.txt")
+        try Data("text file".utf8).write(to: nonImageURL)
+        let imageData = try pngData(width: 4, height: 3)
+
+        for result in [
+            PasteboardFileURLReadResult.missing,
+            .tooLarge(byteCount: 1)
+        ] {
+            let pasteboard = makePasteboard()
+            defer { pasteboard.clearContents() }
+            let item = NSPasteboardItem()
+            XCTAssertTrue(item.setString(nonImageURL.absoluteString, forType: .fileURL))
+            XCTAssertTrue(item.setData(imageData, forType: .png))
+            XCTAssertTrue(pasteboard.writeObjects([item]))
+            let writtenItem = try XCTUnwrap(pasteboard.pasteboardItems?.first)
+            XCTAssertTrue(writtenItem.types.contains(.fileURL))
+
+            let fileURLReader = FailureForFileURLReader(failure: result)
+            let capture = await ClipboardImageConversionPasteboardCapture.captureImage(
+                from: pasteboard,
+                requireImageFileContents: true,
+                fileURLReader: fileURLReader
+            )
+            if case .missing = result {
+                guard case .unavailable = capture else {
+                    return XCTFail("Expected an unavailable result for an unmaterialized file URL")
+                }
+            } else {
+                guard case .failed = capture else {
+                    return XCTFail("Expected a failed result for an oversized file URL")
+                }
+            }
+            XCTAssertEqual(fileURLReader.injectedFailureCount, 1)
+        }
+    }
+
+    @MainActor
     func testAutomaticConvertsRealPasteboardPNGToWebP() async throws {
         try await assertAutomaticReencode(
             input: .data(try pngData(width: 4, height: 3), type: .png),
@@ -108,6 +179,43 @@ final class ClipboardAutoImageConversionIntegrationTests: XCTestCase {
             input: .fileURL(sourceURL),
             outputFormat: .webP
         )
+    }
+
+    @MainActor
+    func testAutomaticCaptureUsesFileBytesCapturedBeforeSourceChanges() async throws {
+        let sourceDirectory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: sourceDirectory) }
+        let sourceURL = sourceDirectory.appendingPathComponent("image")
+        try pngData(width: 3, height: 2).write(to: sourceURL)
+
+        let pasteboard = makePasteboard()
+        defer { pasteboard.clearContents() }
+        XCTAssertTrue(pasteboard.setString(sourceURL.absoluteString, forType: .fileURL))
+        let capture = await ClipboardImageConversionPasteboardCapture.captureImage(
+            from: pasteboard,
+            requireImageFileContents: true
+        )
+        guard case let .source(capturedSource) = capture else {
+            return XCTFail("Expected automatic capture to retain the image bytes")
+        }
+
+        try Data("source changed after capture".utf8).write(to: sourceURL)
+        let outputDirectory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: outputDirectory) }
+        let outputURL = try ClipboardImageConversionTranscoder.convert(
+            capturedSource.source,
+            outputDirectory: outputDirectory,
+            format: .webP
+        )
+        let outputData = try Data(contentsOf: outputURL)
+        let outputSource = try XCTUnwrap(CGImageSourceCreateWithData(outputData as CFData, nil))
+        XCTAssertEqual(
+            CGImageSourceGetType(outputSource) as String?,
+            ClipboardImageFormat.webP.typeIdentifier
+        )
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(outputSource, 0, nil))
+        XCTAssertEqual(image.width, 3)
+        XCTAssertEqual(image.height, 2)
     }
 
     @MainActor
@@ -276,3 +384,23 @@ private final class LazyImagePasteboardProvider: NSObject, NSPasteboardItemDataP
         item.setData(data, forType: type)
     }
 }
+
+@MainActor
+private final class FailureForFileURLReader: PasteboardFileURLReading {
+    private let failure: PasteboardFileURLReadResult
+    private(set) var injectedFailureCount = 0
+
+    init(failure: PasteboardFileURLReadResult) {
+        self.failure = failure
+    }
+
+    func readFileURLData(
+        from _: NSPasteboardItem,
+        maximumBytes _: Int,
+        timeout _: TimeInterval
+    ) async -> PasteboardFileURLReadResult {
+        injectedFailureCount += 1
+        return failure
+    }
+}
+
