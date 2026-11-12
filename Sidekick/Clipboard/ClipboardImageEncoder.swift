@@ -7,23 +7,25 @@ nonisolated enum ClipboardImageEncoder {
     static func encode(
         _ data: Data,
         format: ClipboardImageFormat,
+        quality: Double = ClipboardImageConversionPolicy.quality,
         isCancelled: CancellationCheck
     ) throws -> Data {
         let image = try makeThumbnail(from: data, isCancelled: isCancelled)
         switch format {
         case .webP:
-            return try ClipboardWebPEncoder.encode(image, isCancelled: isCancelled)
+            return try ClipboardWebPEncoder.encode(image, quality: quality, isCancelled: isCancelled)
         case .avif:
-            return try ClipboardAVIFEncoder.encode(image, isCancelled: isCancelled)
+            return try ClipboardAVIFEncoder.encode(image, quality: quality, isCancelled: isCancelled)
         }
     }
 
     static func encodeInBackground(
         _ data: Data,
-        format: ClipboardImageFormat
+        format: ClipboardImageFormat,
+        quality: Double = ClipboardImageConversionPolicy.quality
     ) async throws -> Data {
         let worker = Task.detached(priority: .userInitiated) {
-            try encode(data, format: format, isCancelled: { Task.isCancelled })
+            try encode(data, format: format, quality: quality, isCancelled: { Task.isCancelled })
         }
         return try await withTaskCancellationHandler {
             try await worker.value

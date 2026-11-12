@@ -35,6 +35,37 @@ final class ScreenshotSaveTests: XCTestCase {
         XCTAssertEqual(decodedImage.height, 4)
     }
 
+    func testScreenshotSavePreservesMoreDetailThanClipboardConversion() throws {
+        let sourcePNG = try highContrastScreenshotPNG()
+        let standardWebP = try ClipboardImageEncoder.encode(
+            sourcePNG,
+            format: .webP,
+            isCancelled: { false }
+        )
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let prepared = try ScreenshotSaveService.prepare(
+            pngData: sourcePNG,
+            directory: directory,
+            baseName: "Quality",
+            isCancelled: { false }
+        )
+        defer { ScreenshotSaveService.discard(prepared) }
+
+        let source = try XCTUnwrap(CGImageSourceCreateWithData(sourcePNG as CFData, nil))
+        let referenceImage = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        let standardSource = try XCTUnwrap(CGImageSourceCreateWithData(standardWebP as CFData, nil))
+        let standardImage = try XCTUnwrap(CGImageSourceCreateImageAtIndex(standardSource, 0, nil))
+        let screenshotSource = try XCTUnwrap(CGImageSourceCreateWithData(prepared.imageData as CFData, nil))
+        let screenshotImage = try XCTUnwrap(CGImageSourceCreateImageAtIndex(screenshotSource, 0, nil))
+
+        XCTAssertLessThan(
+            try meanAbsolutePixelError(screenshotImage, comparedTo: referenceImage),
+            try meanAbsolutePixelError(standardImage, comparedTo: referenceImage)
+        )
+    }
+
+
     func testPartialScreenshotWriteIsRemovedOnCancellation() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -375,6 +406,65 @@ final class ScreenshotSaveTests: XCTestCase {
             preparedContinuation?.resume()
             preparedContinuation = nil
         }
+    }
+    private func highContrastScreenshotPNG() throws -> Data {
+        let width = 256
+        let height = 128
+        let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        for y in 0..<height {
+            for x in 0..<width {
+                let value: CGFloat = ((x / 3 + y / 3) % 2 == 0) ? 1 : 0
+                context.setFillColor(red: value, green: value, blue: value, alpha: 1)
+                context.fill(CGRect(x: x, y: y, width: 1, height: 1))
+            }
+        }
+        return try XCTUnwrap(ScreenshotPNGEncoder.encode(try XCTUnwrap(context.makeImage())))
+    }
+
+    private func meanAbsolutePixelError(_ image: CGImage, comparedTo reference: CGImage) throws -> Double {
+        guard image.width == reference.width, image.height == reference.height else {
+            throw ScreenshotSaveService.Failure.invalidDirectory
+        }
+        let imagePixels = try rgbaPixels(image)
+        let referencePixels = try rgbaPixels(reference)
+        var totalError = 0
+        for pixel in 0..<(image.width * image.height) {
+            for channel in 0..<3 {
+                totalError += abs(Int(imagePixels[pixel * 4 + channel]) - Int(referencePixels[pixel * 4 + channel]))
+            }
+        }
+        return Double(totalError) / Double(image.width * image.height * 3)
+    }
+
+    private func rgbaPixels(_ image: CGImage) throws -> [UInt8] {
+        var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        let rendered = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress,
+                width: image.width,
+                height: image.height,
+                bitsPerComponent: 8,
+                bytesPerRow: image.width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                return false
+            }
+            context.interpolationQuality = .none
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            return true
+        }
+        guard rendered else { throw ScreenshotSaveService.Failure.invalidDirectory }
+        return pixels
     }
 }
 

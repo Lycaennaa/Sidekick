@@ -43,6 +43,8 @@ User-visible changes are listed here. No public release tag exists yet.
 - Avoid offering screenshot windows missing from a partial on-screen enumeration.
 - Exclude Sidekick's fullscreen screenshot overlay from window capture.
 - Reuse enumerated window objects and display geometry during window capture to avoid redundant system queries.
+- Capture full displays at their backing scale so Retina screenshots retain their full pixel resolution.
+- Encode saved and format-copied screenshots at higher quality to preserve fine detail.
 
 - Keep window capture active while retrying empty window inventories twice.
 - Harden macOS cleanup against symlink-swapped paths, enforce stability for manual actions, preserve companion-file events, and correct cleanup settings feedback.

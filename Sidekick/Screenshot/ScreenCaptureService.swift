@@ -42,6 +42,7 @@ enum ActiveDisplayScreenshotCapture {
 
         let image = try await captureImage(
             displayID: displayID,
+            backingScaleFactor: screen.backingScaleFactor,
             showsCursor: showsCursor
         )
         return CapturedDisplayScreenshot(
@@ -53,6 +54,7 @@ enum ActiveDisplayScreenshotCapture {
 
     nonisolated private static func captureImage(
         displayID: CGDirectDisplayID,
+        backingScaleFactor: CGFloat,
         showsCursor: Bool
     ) async throws -> CGImage {
         let content = try await SCShareableContent.current
@@ -72,8 +74,8 @@ enum ActiveDisplayScreenshotCapture {
         }
         let filter = SCContentFilter(display: display, excludingWindows: excludedOverlayWindows)
         let configuration = SCStreamConfiguration()
-        configuration.width = display.width
-        configuration.height = display.height
+        configuration.width = Int((CGFloat(display.width) * backingScaleFactor).rounded())
+        configuration.height = Int((CGFloat(display.height) * backingScaleFactor).rounded())
         configuration.captureDynamicRange = .SDR
         configuration.showsCursor = showsCursor
 

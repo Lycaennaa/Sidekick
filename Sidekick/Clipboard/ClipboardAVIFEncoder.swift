@@ -11,6 +11,7 @@ nonisolated enum ClipboardAVIFEncoder {
 
     static func encode(
         _ image: CGImage,
+        quality: Double = ClipboardImageConversionPolicy.quality,
         isCancelled: CancellationCheck
     ) throws -> Data {
         try checkCancellation(isCancelled)
@@ -26,7 +27,7 @@ nonisolated enum ClipboardAVIFEncoder {
         CGImageDestinationAddImage(
             destination,
             image,
-            [kCGImageDestinationLossyCompressionQuality: ClipboardImageConversionPolicy.quality] as CFDictionary
+            [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary
         )
         guard CGImageDestinationFinalize(destination) else {
             throw ClipboardImageConversionError.cannotEncode

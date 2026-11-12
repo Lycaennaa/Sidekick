@@ -114,8 +114,14 @@ extension ScreenshotCaptureIntegrationTests {
 
         XCTAssertEqual(withoutCursor.displayID, withCursor.displayID)
         XCTAssertEqual(withoutCursor.screenFrame, screen.frame)
-        XCTAssertGreaterThan(withoutCursor.image.width, 0)
-        XCTAssertGreaterThan(withoutCursor.image.height, 0)
+        XCTAssertEqual(
+            withoutCursor.image.width,
+            Int((screen.frame.width * screen.backingScaleFactor).rounded())
+        )
+        XCTAssertEqual(
+            withoutCursor.image.height,
+            Int((screen.frame.height * screen.backingScaleFactor).rounded())
+        )
         XCTAssertGreaterThan(
             differingPixelCount(
                 withoutCursor.image,

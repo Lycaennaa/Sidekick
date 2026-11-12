@@ -9,6 +9,7 @@ nonisolated enum ClipboardWebPEncoder {
 
     static func encode(
         _ image: CGImage,
+        quality: Double = ClipboardImageConversionPolicy.quality,
         isCancelled: CancellationCheck
     ) throws -> Data {
         try checkCancellation(isCancelled)
@@ -21,6 +22,7 @@ nonisolated enum ClipboardWebPEncoder {
             width: rendered.width,
             height: rendered.height,
             bytesPerRow: rendered.bytesPerRow,
+            quality: quality,
             isCancelled: isCancelled
         )
     }
@@ -104,6 +106,7 @@ nonisolated private extension ClipboardWebPEncoder {
         width: Int,
         height: Int,
         bytesPerRow: Int,
+        quality: Double,
         isCancelled: CancellationCheck
     ) throws -> Data {
         try checkCancellation(isCancelled)
@@ -114,7 +117,7 @@ nonisolated private extension ClipboardWebPEncoder {
                 Int32(width),
                 Int32(height),
                 Int32(bytesPerRow),
-                Float(ClipboardImageConversionPolicy.quality * 100),
+                Float(quality * 100),
                 &encodedBytes
             )
         }
@@ -122,6 +125,9 @@ nonisolated private extension ClipboardWebPEncoder {
             throw ClipboardImageConversionError.cannotEncode
         }
         defer { WebPFree(encodedBytes) }
+        guard byteCount <= ClipboardImageConversionPolicy.maximumOutputBytes else {
+            throw ClipboardImageConversionError.tooLarge
+        }
         try checkCancellation(isCancelled)
         let data = Data(bytes: encodedBytes, count: byteCount)
         try checkCancellation(isCancelled)

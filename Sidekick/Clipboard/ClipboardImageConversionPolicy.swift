@@ -4,6 +4,7 @@ nonisolated enum ClipboardImageConversionPolicy {
     typealias CancellationCheck = @Sendable () -> Bool
 
     static let quality = 0.75
+    static let screenshotQuality = 0.90
     static let maximumSourceBytes = 100 * 1_024 * 1_024
     static let maximumOutputBytes = maximumSourceBytes
     static let maximumAggregateSourceBytes = PasteboardSnapshotPolicy.maximumBytes

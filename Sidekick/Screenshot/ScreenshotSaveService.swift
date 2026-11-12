@@ -95,7 +95,12 @@ nonisolated enum ScreenshotSaveService {
               (try? directory.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
             throw Failure.invalidDirectory
         }
-        let imageData = try ClipboardImageEncoder.encode(pngData, format: format, isCancelled: isCancelled)
+        let imageData = try ClipboardImageEncoder.encode(
+            pngData,
+            format: format,
+            quality: ClipboardImageConversionPolicy.screenshotQuality,
+            isCancelled: isCancelled
+        )
         try checkCancellation(isCancelled)
         let normalizedDirectory = directory.standardizedFileURL
         let stagingURL = normalizedDirectory.appendingPathComponent(

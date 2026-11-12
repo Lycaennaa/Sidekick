@@ -203,7 +203,11 @@ final class ScreenshotCaptureController {
         self.onFailure = onFailure
         self.onSavedAndCopied = onSavedAndCopied
         self.prepareClipboardImage = prepareClipboardImage ?? { data, format in
-            try await ClipboardImageEncoder.encodeInBackground(data, format: format)
+            try await ClipboardImageEncoder.encodeInBackground(
+                data,
+                format: format,
+                quality: ClipboardImageConversionPolicy.screenshotQuality
+            )
         }
         self.prepareSave = prepareSave ?? { pngData, directory, baseName, format in
             try await ScreenshotSaveService.prepareInBackground(
