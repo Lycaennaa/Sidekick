@@ -91,7 +91,7 @@ extension ClipboardImageConversionPasteboardCapture {
         let fileURLs: [URL]
         let ambiguous: [URL]
         let materializedRepresentations: [PasteboardSnapshot.MaterializedRepresentation]
-        let directoryItemIndexes: Set<Int>
+        let excludedImageItemIndexes: Set<Int>
     }
 
     private enum FileScanResult {
@@ -133,8 +133,12 @@ extension ClipboardImageConversionPasteboardCapture {
     ) async -> ClipboardImageConversionCapture {
         let match = firstImageRepresentation(
             in: request.items,
-            excluding: scannedFiles.directoryItemIndexes
+            excluding: scannedFiles.excludedImageItemIndexes,
+            preferredFormat: outputFormat
         )
+        let matchIsOutputFormat = match.map {
+            UTType($0.type.rawValue)?.conforms(to: outputFormat.uniformType) == true
+        } ?? !scannedFiles.fileURLs.isEmpty
         if request.requireImageFileContents, !scannedFiles.fileURLs.isEmpty {
             switch await captureImageFiles(
                 scannedFiles.fileURLs,
@@ -149,16 +153,15 @@ extension ClipboardImageConversionPasteboardCapture {
                     request: request
                 )
             case .alreadyOutputFormat:
-                let matchIsOutputFormat = match.map {
-                    UTType($0.type.rawValue)?.conforms(to: outputFormat.uniformType) == true
-                } ?? true
-                guard !matchIsOutputFormat else { return .alreadyOutputFormat }
-                return await capturePayload(
-                    match: match,
-                    fileURLs: [],
-                    materializedRepresentations: scannedFiles.materializedRepresentations,
-                    request: request
-                )
+                if !matchIsOutputFormat {
+                    return await capturePayload(
+                        match: match,
+                        fileURLs: [],
+                        materializedRepresentations: scannedFiles.materializedRepresentations,
+                        request: request
+                    )
+                }
+                return await alreadyOutputFormatRepresentation(match, request: request)
             case .nonImage:
                 return .noImage
             case .tooLarge:
@@ -174,16 +177,12 @@ extension ClipboardImageConversionPasteboardCapture {
                 PasteboardTypePolicy.imageType(for: $0)?.conforms(to: outputFormat.uniformType) != true
             }
             : scannedFiles.fileURLs
-        let matchIsOutputFormat = match.map {
-            UTType($0.type.rawValue)?.conforms(to: outputFormat.uniformType) == true
-        } ?? true
-        let hasOutputFormatRepresentation = match != nil || !scannedFiles.fileURLs.isEmpty
         if skipAlreadyOutputFormatFiles,
-            hasOutputFormatRepresentation,
            convertibleFileURLs.isEmpty,
            scannedFiles.ambiguous.isEmpty,
            matchIsOutputFormat {
-            return .alreadyOutputFormat
+            return await alreadyOutputFormatRepresentation(match, request: request)
+
         }
         return await capturePayload(
             match: match,
@@ -192,30 +191,50 @@ extension ClipboardImageConversionPasteboardCapture {
             request: request
         )
     }
+    private static func alreadyOutputFormatRepresentation(
+        _ match: TypedItem?,
+        request: CaptureRequest
+    ) async -> ClipboardImageConversionCapture {
+        guard let match else { return .alreadyOutputFormat }
+        switch await request.payloadReader.readData(
+            from: match.item,
+            forType: match.type,
+            maximumBytes: PasteboardSnapshotPolicy.maximumBytes
+        ) {
+        case .data: return .alreadyOutputFormat
+        case .cancelled: return .stale
+        case .timedOut, .unavailable: return .unavailable
+        case .missing, .tooLarge, .failed: return .failed
+        }
+    }
 
     private static func firstImageRepresentation(
         in items: [NSPasteboardItem],
-        excluding directoryItemIndexes: Set<Int>
+        excluding excludedImageItemIndexes: Set<Int>,
+        preferredFormat: ClipboardImageFormat
     ) -> TypedItem? {
         let typedItems = items.enumerated().flatMap { itemIndex, item -> [TypedItem] in
-            guard !directoryItemIndexes.contains(itemIndex) else { return [] }
+            guard !excludedImageItemIndexes.contains(itemIndex) else { return [] }
             return item.types.map { type in
                 TypedItem(itemIndex: itemIndex, item: item, type: type)
             }
         }
-        for preferredType in [NSPasteboard.PasteboardType.png, .tiff] {
-            if let match = typedItems.first(where: { $0.type == preferredType }) {
-                return match
-            }
-        }
-        return typedItems.first(where: { PasteboardTypePolicy.isImage($0.type) })
+        let fallbackMatch = typedItems.first(where: { $0.type == .png })
+            ?? typedItems.first(where: { $0.type == .tiff })
+            ?? typedItems.first(where: { PasteboardTypePolicy.isImage($0.type) })
+        guard let fallbackMatch else { return nil }
+        // Multiple types on one item are alternate encodings of the same clipboard image.
+        return typedItems.first(where: { candidate in
+            candidate.itemIndex == fallbackMatch.itemIndex
+                && UTType(candidate.type.rawValue)?.conforms(to: preferredFormat.uniformType) == true
+        }) ?? fallbackMatch
     }
 
     private static func scanFileURLs(_ request: CaptureRequest) async -> FileScanResult {
         var fileURLs: [URL] = []
         var ambiguousFileURLs: [URL] = []
         var materializedRepresentations: [PasteboardSnapshot.MaterializedRepresentation] = []
-        var directoryItemIndexes = Set<Int>()
+        var excludedImageItemIndexes = Set<Int>()
 
         for (itemIndex, item) in request.items.enumerated() {
             guard PasteboardTypePolicy.containsFileURL(
@@ -243,13 +262,14 @@ extension ClipboardImageConversionPasteboardCapture {
                     return .terminal(.stale)
                 }
                 if isDirectory {
-                    directoryItemIndexes.insert(itemIndex)
+                    excludedImageItemIndexes.insert(itemIndex)
                     continue
                 }
                 if request.requireImageFileContents {
                     guard let fileURL = PasteboardTypePolicy.url(from: data, localOnly: true) else {
                         return .terminal(.noImage)
                     }
+                    excludedImageItemIndexes.insert(itemIndex)
                     fileURLs.append(fileURL)
                 } else {
                     appendFileURL(
@@ -283,7 +303,7 @@ extension ClipboardImageConversionPasteboardCapture {
                 fileURLs: fileURLs,
                 ambiguous: ambiguousFileURLs,
                 materializedRepresentations: materializedRepresentations,
-                directoryItemIndexes: directoryItemIndexes
+                excludedImageItemIndexes: excludedImageItemIndexes
             )
         )
     }

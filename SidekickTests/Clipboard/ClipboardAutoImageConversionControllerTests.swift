@@ -245,6 +245,7 @@ final class ClipboardAutoImageConversionControllerTests: XCTestCase {
         )
         XCTAssertTrue(isReferenced)
     }
+
     func testNoImageMessageIsSuppressedOnlyForAutomaticConversion() {
         var ownership = ClipboardImageConversionOwnership()
         let generation: UInt64 = 17
