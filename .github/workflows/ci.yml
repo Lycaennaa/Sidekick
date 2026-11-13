@@ -88,6 +88,10 @@ jobs:
           set -euo pipefail
           test -f .swiftlint.yml
           swiftlint lint --config .swiftlint.yml
+      - name: Test release workflow helpers
+        shell: bash
+        run: bash scripts/test-release-workflow-helpers.sh
+
 
       - name: Run tests
         shell: bash

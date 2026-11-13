@@ -44,6 +44,9 @@ release_products := derived_data + "/Build/Products/Release"
 @test-release-app-replacement:
     sh scripts/test-release-app-replacement.sh
 
+@test-release-workflow-helpers:
+    bash scripts/test-release-workflow-helpers.sh
+
 @test-equicord-release-network:
     buildproj xcode test --scheme sidekick-network -- CODE_SIGNING_ALLOWED=NO -only-testing:sidekickTests/EquicordReleaseDownloaderTests
 
@@ -69,7 +72,7 @@ release_products := derived_data + "/Build/Products/Release"
 @check-client-id: generate-project
     python3 -B scripts/check-client-id.py
 
-@check: check-project check-package-locks check-client-id lint test test-release-app-replacement
+@check: check-project check-package-locks check-client-id lint test test-release-app-replacement test-release-workflow-helpers
 
 @ci: check build-release
 
