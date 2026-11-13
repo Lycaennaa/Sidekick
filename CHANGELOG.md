@@ -8,6 +8,7 @@ User-visible changes are listed here. No public release tag exists yet.
 
 - Select WebP or AVIF for clipboard conversions and screenshot output when the OS provides an AVIF encoder.
 - Add screenshot filename-template tags for individual date/time components, window titles, and the clipboard image-conversion random string.
+- Save screenshot filename templates as they are edited.
 - Add typed numeric Tunables for clipboard and screenshot image quality, utility and Twitch toast durations, and Twitch poll frequency (30-second minimum).
 - Clipboard image toasts distinguish advertised types from encoded image formats.
 - Window-aware screenshot selection, aspect-ratio guides, and pixel inspection.

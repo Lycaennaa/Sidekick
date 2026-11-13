@@ -6,6 +6,7 @@ final class ScreenshotSaveSettingsView: NSView, NSTextFieldDelegate {
     private let folderLabel = NSTextField(wrappingLabelWithString: "")
     private let templateField = NSTextField()
     private let shortcutRecorder: ScreenshotHotKeyRecorderView
+    private var isEditingFilenameTemplate = false
 
     init(
         settings: AppSettings,
@@ -30,14 +31,23 @@ final class ScreenshotSaveSettingsView: NSView, NSTextFieldDelegate {
     func refresh() {
         folderLabel.stringValue = settings.screenshotSaveDirectoryURL.path
         folderLabel.toolTip = folderLabel.stringValue
-        templateField.stringValue = settings.screenshotFilenameTemplate
+        if !isEditingFilenameTemplate {
+            templateField.stringValue = settings.screenshotFilenameTemplate
+        }
         shortcutRecorder.refresh(shortcut: settings.screenshotSaveAndCopyShortcut)
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {
         guard notification.object as? NSTextField === templateField else { return }
+        isEditingFilenameTemplate = false
         settings.screenshotFilenameTemplate = templateField.stringValue
         refresh()
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+        guard notification.object as? NSTextField === templateField else { return }
+        isEditingFilenameTemplate = true
+        settings.screenshotFilenameTemplate = templateField.stringValue
     }
 
     @objc private func chooseFolder() {

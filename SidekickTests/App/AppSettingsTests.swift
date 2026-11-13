@@ -368,6 +368,38 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(restored.screenshotFilenameTemplate, "Shot_{date}_{time}")
         XCTAssertEqual(changeCount, 2)
     }
+    func testScreenshotFilenameTemplatePersistsDuringEditingWithoutReplacingTransientText() throws {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        settings.screenshotFilenameTemplate = "Original_{date}"
+        let view = ScreenshotSaveSettingsView(
+            settings: settings,
+            onShortcutChange: { _ in true },
+            onRecordingChanged: { _ in }
+        )
+        settings.onChange = { [weak view] in view?.refresh() }
+        let field = try XCTUnwrap(
+            textField(in: view, placeholder: AppSettings.defaultScreenshotFilenameTemplate)
+        )
+
+        field.stringValue = ""
+        view.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: field))
+        XCTAssertEqual(field.stringValue, "")
+        XCTAssertEqual(
+            AppSettings(defaults: defaults).screenshotFilenameTemplate,
+            AppSettings.defaultScreenshotFilenameTemplate
+        )
+
+        field.stringValue = "Shot_{date}"
+        view.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: field))
+        XCTAssertEqual(AppSettings(defaults: defaults).screenshotFilenameTemplate, "Shot_{date}")
+
+        view.controlTextDidEndEditing(Notification(name: NSControl.textDidEndEditingNotification, object: field))
+        XCTAssertEqual(field.stringValue, "Shot_{date}")
+    }
+
+
     func testImageConversionQualitiesDefaultAndPersist() {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
@@ -406,6 +438,18 @@ final class AppSettingsTests: XCTestCase {
 
         settings.twitchToastDuration = 3
         XCTAssertEqual(AppSettings(defaults: defaults).twitchToastDuration, 3)
+    }
+
+    private func textField(in view: NSView, placeholder: String) -> NSTextField? {
+        if let field = view as? NSTextField, field.placeholderString == placeholder {
+            return field
+        }
+        for subview in view.subviews {
+            if let field = textField(in: subview, placeholder: placeholder) {
+                return field
+            }
+        }
+        return nil
     }
 
     private var defaultsSuiteName: String {
