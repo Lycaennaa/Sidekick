@@ -53,7 +53,15 @@ final class MacArtifactCleanupNotifier {
                 trigger: nil
             )
             do {
-                try await center.add(request)
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    center.add(request) { error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume()
+                        }
+                    }
+                }
             } catch {
                 return nil
             }
@@ -80,7 +88,11 @@ final class MacArtifactCleanupNotifier {
         case .authorized, .provisional, .ephemeral:
             return true
         case .notDetermined:
-            let allowed = (try? await center.requestAuthorization(options: [.alert, .sound])) == true
+            let allowed = await withCheckedContinuation { continuation in
+                center.requestAuthorization(options: [.alert, .sound]) { allowed, error in
+                    continuation.resume(returning: error == nil && allowed)
+                }
+            }
             guard tasks[taskID] != nil, !Task.isCancelled, isCurrent() else { return false }
             return allowed
         case .denied:
