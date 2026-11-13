@@ -65,7 +65,6 @@ final class ScreenshotSaveTests: XCTestCase {
         )
     }
 
-
     func testPartialScreenshotWriteIsRemovedOnCancellation() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -325,6 +324,36 @@ final class ScreenshotSaveTests: XCTestCase {
         XCTAssertEqual(pasteboard.writeCount, 0)
     }
 
+    @MainActor
+    private final class SavePreparationGate {
+        private var hasStarted = false
+        private var startWaiters: [CheckedContinuation<Void, Never>] = []
+        private var preparedContinuation: CheckedContinuation<Void, Never>?
+
+        func suspend(_ prepared: ScreenshotSaveService.Prepared) async -> ScreenshotSaveService.Prepared {
+            hasStarted = true
+            let waiters = startWaiters
+            startWaiters.removeAll()
+            waiters.forEach { $0.resume() }
+            await withCheckedContinuation { preparedContinuation = $0 }
+            return prepared
+        }
+
+        func waitUntilStarted() async {
+            guard !hasStarted else { return }
+            await withCheckedContinuation { startWaiters.append($0) }
+        }
+
+        func resume() {
+            preparedContinuation?.resume()
+            preparedContinuation = nil
+        }
+    }
+
+}
+
+@MainActor
+extension ScreenshotSaveTests {
     func testClipboardChangeDuringSavePreparationDiscardsStageAndPreservesNewContents() async throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -388,33 +417,11 @@ final class ScreenshotSaveTests: XCTestCase {
         XCTAssertEqual(cancellations, 1)
         XCTAssertEqual(checks.count, 64)
     }
+}
 
-    @MainActor
-    private final class SavePreparationGate {
-        private var hasStarted = false
-        private var startWaiters: [CheckedContinuation<Void, Never>] = []
-        private var preparedContinuation: CheckedContinuation<Void, Never>?
-
-        func suspend(_ prepared: ScreenshotSaveService.Prepared) async -> ScreenshotSaveService.Prepared {
-            hasStarted = true
-            let waiters = startWaiters
-            startWaiters.removeAll()
-            waiters.forEach { $0.resume() }
-            await withCheckedContinuation { preparedContinuation = $0 }
-            return prepared
-        }
-
-        func waitUntilStarted() async {
-            guard !hasStarted else { return }
-            await withCheckedContinuation { startWaiters.append($0) }
-        }
-
-        func resume() {
-            preparedContinuation?.resume()
-            preparedContinuation = nil
-        }
-    }
-    private func highContrastScreenshotPNG() throws -> Data {
+@MainActor
+private extension ScreenshotSaveTests {
+    func highContrastScreenshotPNG() throws -> Data {
         let width = 256
         let height = 128
         let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
@@ -427,17 +434,17 @@ final class ScreenshotSaveTests: XCTestCase {
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ))
-        for y in 0..<height {
-            for x in 0..<width {
-                let value: CGFloat = ((x / 3 + y / 3) % 2 == 0) ? 1 : 0
+        for pixelRow in 0..<height {
+            for pixelColumn in 0..<width {
+                let value: CGFloat = ((pixelColumn / 3 + pixelRow / 3) % 2 == 0) ? 1 : 0
                 context.setFillColor(red: value, green: value, blue: value, alpha: 1)
-                context.fill(CGRect(x: x, y: y, width: 1, height: 1))
+                context.fill(CGRect(x: pixelColumn, y: pixelRow, width: 1, height: 1))
             }
         }
         return try XCTUnwrap(ScreenshotPNGEncoder.encode(try XCTUnwrap(context.makeImage())))
     }
 
-    private func meanAbsolutePixelError(_ image: CGImage, comparedTo reference: CGImage) throws -> Double {
+    func meanAbsolutePixelError(_ image: CGImage, comparedTo reference: CGImage) throws -> Double {
         guard image.width == reference.width, image.height == reference.height else {
             throw ScreenshotSaveService.Failure.invalidDirectory
         }
@@ -452,7 +459,7 @@ final class ScreenshotSaveTests: XCTestCase {
         return Double(totalError) / Double(image.width * image.height * 3)
     }
 
-    private func rgbaPixels(_ image: CGImage) throws -> [UInt8] {
+    func rgbaPixels(_ image: CGImage) throws -> [UInt8] {
         var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
         let rendered = pixels.withUnsafeMutableBytes { buffer -> Bool in
             guard let context = CGContext(

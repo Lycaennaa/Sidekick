@@ -37,26 +37,11 @@ final class MacArtifactCleanupNotifier {
             defer { self.finishTask(id) }
             guard !Task.isCancelled, isCurrent() else { return nil }
 
-            let status: UNAuthorizationStatus = await withCheckedContinuation { continuation in
-                center.getNotificationSettings { settings in
-                    continuation.resume(returning: settings.authorizationStatus)
-                }
-            }
-            guard self.tasks[id] != nil, !Task.isCancelled, isCurrent() else { return nil }
-
-            let allowed: Bool
-            switch status {
-            case .authorized, .provisional, .ephemeral:
-                allowed = true
-            case .notDetermined:
-                allowed = (try? await center.requestAuthorization(options: [.alert, .sound])) == true
-                guard self.tasks[id] != nil, !Task.isCancelled, isCurrent() else { return nil }
-            case .denied:
-                allowed = false
-            @unknown default:
-                allowed = false
-            }
-            guard allowed else { return nil }
+            guard await isNotificationAllowed(
+                from: center,
+                taskID: id,
+                isCurrent: isCurrent
+            ) else { return nil }
 
             let content = UNMutableNotificationContent()
             content.title = title
@@ -77,6 +62,32 @@ final class MacArtifactCleanupNotifier {
         }
         tasks[id] = task
         return task
+    }
+
+    private func isNotificationAllowed(
+        from center: UNUserNotificationCenter,
+        taskID: UUID,
+        isCurrent: @MainActor () -> Bool
+    ) async -> Bool {
+        let status: UNAuthorizationStatus = await withCheckedContinuation { continuation in
+            center.getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus)
+            }
+        }
+        guard tasks[taskID] != nil, !Task.isCancelled, isCurrent() else { return false }
+
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            return true
+        case .notDetermined:
+            let allowed = (try? await center.requestAuthorization(options: [.alert, .sound])) == true
+            guard tasks[taskID] != nil, !Task.isCancelled, isCurrent() else { return false }
+            return allowed
+        case .denied:
+            return false
+        @unknown default:
+            return false
+        }
     }
 
     func stop() {

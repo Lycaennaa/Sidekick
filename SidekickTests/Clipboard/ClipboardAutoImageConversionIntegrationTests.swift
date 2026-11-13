@@ -403,4 +403,3 @@ private final class FailureForFileURLReader: PasteboardFileURLReading {
         return failure
     }
 }
-

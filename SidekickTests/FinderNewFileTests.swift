@@ -45,7 +45,6 @@ private final class ModalPromptClicker: NSObject {
     }
 }
 
-
 final class FinderNewFileTests: XCTestCase {
     @MainActor
     func testCancelCreatesNoFile() async throws {
@@ -96,7 +95,6 @@ final class FinderNewFileTests: XCTestCase {
         XCTAssertFalse(presenter.receivedDeletionRequest)
         XCTAssertEqual(try Data(contentsOf: existingURL), Data("keep".utf8))
     }
-
 
     func testInvalidFilenameCannotEscapeTheDestination() throws {
         let directory = try makeTemporaryDirectory()

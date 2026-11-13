@@ -74,7 +74,6 @@ final class ClipboardImageDecoderTests: XCTestCase {
         XCTAssertEqual(result.imageFooter, "4 × 3 • PNG • \(byteCountLabel(data.count))")
     }
 
-
     func testImageDecoderRejectsMalformedAndCancelledWork() {
         let request = ClipboardImageEnrichmentRequest(
             generation: 1,

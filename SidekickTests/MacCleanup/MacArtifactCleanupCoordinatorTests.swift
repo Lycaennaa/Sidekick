@@ -109,7 +109,6 @@ final class MacArtifactCleanupCoordinatorTests: XCTestCase {
 
     }
 
-
     func testFolderEnrollmentRejectsIdentityReplacedDuringValidation() async throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

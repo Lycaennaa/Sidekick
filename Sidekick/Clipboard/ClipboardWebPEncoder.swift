@@ -13,15 +13,11 @@ nonisolated enum ClipboardWebPEncoder {
         isCancelled: CancellationCheck
     ) throws -> Data {
         try checkCancellation(isCancelled)
-        let rendered = try renderPixels(from: image)
+        var rendered = try renderPixels(from: image)
         try checkCancellation(isCancelled)
-        var pixels = rendered.data
-        try unpremultiply(&pixels, isCancelled: isCancelled)
+        try unpremultiply(&rendered.data, isCancelled: isCancelled)
         return try encodeRGBA(
-            pixels: pixels,
-            width: rendered.width,
-            height: rendered.height,
-            bytesPerRow: rendered.bytesPerRow,
+            rendered: rendered,
             quality: quality,
             isCancelled: isCancelled
         )
@@ -33,7 +29,7 @@ nonisolated enum ClipboardWebPEncoder {
 }
 nonisolated private extension ClipboardWebPEncoder {
     private struct RenderedPixels {
-        let data: Data
+        var data: Data
         let width: Int
         let height: Int
         let bytesPerRow: Int
@@ -101,22 +97,19 @@ nonisolated private extension ClipboardWebPEncoder {
         }
     }
 
-    static func encodeRGBA(
-        pixels: Data,
-        width: Int,
-        height: Int,
-        bytesPerRow: Int,
+    private static func encodeRGBA(
+        rendered: RenderedPixels,
         quality: Double,
         isCancelled: CancellationCheck
     ) throws -> Data {
         try checkCancellation(isCancelled)
         var encodedBytes: UnsafeMutablePointer<UInt8>?
-        let byteCount = pixels.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+        let byteCount = rendered.data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
             WebPEncodeRGBA(
                 bytes.bindMemory(to: UInt8.self).baseAddress,
-                Int32(width),
-                Int32(height),
-                Int32(bytesPerRow),
+                Int32(rendered.width),
+                Int32(rendered.height),
+                Int32(rendered.bytesPerRow),
                 Float(quality * 100),
                 &encodedBytes
             )

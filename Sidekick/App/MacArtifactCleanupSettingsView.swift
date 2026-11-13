@@ -48,7 +48,42 @@ final class MacArtifactCleanupSettingsView: NSView {
         explanation.font = .systemFont(ofSize: 12)
 
         let safety = makeSafetyLabel()
+        let stack = makeContentStack(title: title, explanation: explanation, safety: safety)
+        addSubview(stack)
+        constrainContentStack(stack, explanation: explanation, safety: safety)
+    }
 
+    private func makeContentStack(
+        title: NSTextField,
+        explanation: NSTextField,
+        safety: NSTextField
+    ) -> NSStackView {
+        let modeRow = makeModeRow()
+        let addFolderButton = NSButton(title: "Add Folder…", target: self, action: #selector(addFolder))
+        addFolderButton.bezelStyle = .rounded
+        let rootsTitle = makeSectionTitle("Watched locations")
+        rootRows.orientation = .vertical
+        rootRows.alignment = .leading
+        rootRows.spacing = 10
+
+        let historyTitle = makeSectionTitle("Recent cleanup history")
+        historyRows.orientation = .vertical
+        historyRows.alignment = .leading
+        historyRows.spacing = 6
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.font = .systemFont(ofSize: 12)
+        let stack = NSStackView(views: [
+            title, explanation, safety, modeRow, addFolderButton,
+            rootsTitle, rootRows, historyTitle, historyRows, statusLabel
+        ])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }
+
+    private func makeModeRow() -> NSStackView {
         let modeLabel = NSTextField(labelWithString: "Automatic action")
         let modeRow = NSStackView(views: [modeLabel, defaultModePopup])
         modeRow.orientation = .horizontal
@@ -56,41 +91,20 @@ final class MacArtifactCleanupSettingsView: NSView {
         modeRow.spacing = 10
         defaultModePopup.target = self
         defaultModePopup.action = #selector(defaultModeChanged(_:))
+        return modeRow
+    }
 
-        let addFolderButton = NSButton(title: "Add Folder…", target: self, action: #selector(addFolder))
-        addFolderButton.bezelStyle = .rounded
-        let rootsTitle = NSTextField(labelWithString: "Watched locations")
-        rootsTitle.font = .systemFont(ofSize: 14, weight: .semibold)
-        rootRows.orientation = .vertical
-        rootRows.alignment = .leading
-        rootRows.spacing = 10
+    private func makeSectionTitle(_ title: String) -> NSTextField {
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 14, weight: .semibold)
+        return label
+    }
 
-        let historyTitle = NSTextField(labelWithString: "Recent cleanup history")
-        historyTitle.font = .systemFont(ofSize: 14, weight: .semibold)
-        historyRows.orientation = .vertical
-        historyRows.alignment = .leading
-        historyRows.spacing = 6
-        statusLabel.textColor = .secondaryLabelColor
-        statusLabel.font = .systemFont(ofSize: 12)
-
-        let stack = NSStackView(views: [
-            title,
-            explanation,
-            safety,
-            modeRow,
-            addFolderButton,
-            rootsTitle,
-            rootRows,
-            historyTitle,
-            historyRows,
-            statusLabel
-        ])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 12
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
-
+    private func constrainContentStack(
+        _ stack: NSStackView,
+        explanation: NSTextField,
+        safety: NSTextField
+    ) {
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),

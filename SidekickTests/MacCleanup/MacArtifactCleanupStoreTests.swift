@@ -206,7 +206,6 @@ final class MacArtifactCleanupStoreTests: XCTestCase {
         )
     }
 
-
     func testVolumeEnrollmentRequiresStableIdentifierAndDoesNotDuplicateVolume() throws {
         let (defaults, suiteName) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

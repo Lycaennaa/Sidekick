@@ -128,7 +128,11 @@ nonisolated enum MacArtifactSafeFileSystem {
     ) throws -> URL? {
         let location = try MacArtifactSafeLocation.openLocation(for: match)
         defer { location.descriptors.reversed().forEach { _ = close($0) } }
-        guard try MacArtifactSafeLocation.isCurrent(location, for: match, sourceEntryMustMatch: true) else { return nil }
+        guard try MacArtifactSafeLocation.isCurrent(
+            location,
+            for: match,
+            sourceEntryMustMatch: true
+        ) else { return nil }
         return try MacArtifactSafeTrash.move(
             match,
             source: MacArtifactSafeTrash.Source(
@@ -140,7 +144,12 @@ nonisolated enum MacArtifactSafeFileSystem {
                 },
                 validateMovedEntry: { destinationURL in
                     try beforeMovedEntryValidation(destinationURL)
-                    return try MacArtifactSafeLocation.isCurrent(location, for: match, sourceEntryMustMatch: false, postMove: true)
+                    return try MacArtifactSafeLocation.isCurrent(
+                        location,
+                        for: match,
+                        sourceEntryMustMatch: false,
+                        postMove: true
+                    )
                 }
             ),
             sourceRoot: location.descriptors[0],

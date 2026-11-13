@@ -95,26 +95,6 @@ struct ScreenshotWindowDescriptor: Sendable {
     let isOnScreen: Bool
     let hasOwningApplication: Bool
     let windowLayer: Int
-
-    nonisolated init(
-        id: CGWindowID,
-        title: String,
-        applicationName: String,
-        frame: CGRect,
-        bundleIdentifier: String?,
-        isOnScreen: Bool,
-        hasOwningApplication: Bool,
-        windowLayer: Int
-    ) {
-        self.id = id
-        self.title = title
-        self.applicationName = applicationName
-        self.frame = frame
-        self.bundleIdentifier = bundleIdentifier
-        self.isOnScreen = isOnScreen
-        self.hasOwningApplication = hasOwningApplication
-        self.windowLayer = windowLayer
-    }
 }
 
 enum ScreenshotWindowHitTesting {

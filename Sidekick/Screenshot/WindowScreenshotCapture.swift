@@ -3,7 +3,7 @@ import CoreGraphics
 import ScreenCaptureKit
 
 @MainActor
-fileprivate final class WindowScreenshotCaptureSession {
+private final class WindowScreenshotCaptureSession {
     private var captureWindowsByID: [CGWindowID: SCWindow]
 
     init() {
@@ -284,14 +284,14 @@ enum WindowCaptureError: Error {
 
 @MainActor
 enum WindowScreenshotSelection {
+    private struct Surface {
+        let screenFrame: CGRect
+        let panel: WindowScreenshotSelectionPanel
+        let view: WindowScreenshotSelectionView
+    }
+
     @MainActor
     final class Session {
-        private struct Surface {
-            let screenFrame: CGRect
-            let panel: WindowScreenshotSelectionPanel
-            let view: WindowScreenshotSelectionView
-        }
-
         private let choices: AsyncStream<CGWindowID?>
         private let continuation: AsyncStream<CGWindowID?>.Continuation
         private var surfaces: [Surface] = []
@@ -328,6 +328,7 @@ enum WindowScreenshotSelection {
                 return Surface(screenFrame: screenFrame, panel: panel, view: view)
             }
             self.surfaces = surfaces
+
             surfaces.forEach { surface in
                 surface.view.onCancel = { [weak self] in self?.cancel() }
             }

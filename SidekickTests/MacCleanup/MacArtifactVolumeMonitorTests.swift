@@ -190,84 +190,96 @@ final class MacArtifactVolumeMonitorTests: XCTestCase {
         }
         try await runHdiutilDetached(["attach", "-quiet", "-nobrowse", image.path])
         isMounted = true
-        let volumeTrash = volumeURL.appendingPathComponent(".Trashes", isDirectory: true)
-        try FileManager.default.createDirectory(at: volumeTrash, withIntermediateDirectories: true)
-        try FileManager.default.setAttributes([.posixPermissions: 0o1777], ofItemAtPath: volumeTrash.path)
+        try prepareTrashDirectory(on: volumeURL)
 
         let selectedRoot = volumeURL.appendingPathComponent("Selected", isDirectory: true)
         let outside = volumeURL.appendingPathComponent("Outside", isDirectory: true)
         try FileManager.default.createDirectory(at: selectedRoot, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
-        let firstCandidate = selectedRoot.appendingPathComponent(".DS_Store")
-        try Data([1, 2, 3]).write(to: firstCandidate)
-        let firstMatch = try XCTUnwrap(MacArtifactScanner.scan(root: selectedRoot).matches.first)
+        try verifyFileTrash(at: selectedRoot, outside: outside)
+        try verifyMetadataDirectoryTrash(at: selectedRoot)
+        try verifySymlinkBoundary(at: selectedRoot, outside: outside)
+    }
+
+    private func prepareTrashDirectory(on volumeURL: URL) throws {
+        let volumeTrash = volumeURL.appendingPathComponent(".Trashes", isDirectory: true)
+        try FileManager.default.createDirectory(at: volumeTrash, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o1777], ofItemAtPath: volumeTrash.path)
+    }
+
+    private func verifyFileTrash(at selectedRoot: URL, outside: URL) throws {
+        let candidate = selectedRoot.appendingPathComponent(".DS_Store")
+        try Data([1, 2, 3]).write(to: candidate)
+        let match = try XCTUnwrap(MacArtifactScanner.scan(root: selectedRoot).matches.first)
         XCTAssertThrowsError(
             try MacArtifactSafeFileSystem.moveToTrash(
-                firstMatch,
+                match,
                 beforeMovedEntryValidation: { _ in
                     throw NSError(domain: "MacArtifactSafeTrashTests", code: 1)
                 }
             )
         )
-        XCTAssertEqual(try Data(contentsOf: firstCandidate), Data([1, 2, 3]))
+        XCTAssertEqual(try Data(contentsOf: candidate), Data([1, 2, 3]))
         try assertTrashDestinationReplacementIsNotRestored(
-            match: firstMatch,
-            candidate: firstCandidate,
+            match: match,
+            candidate: candidate,
             displacedOriginal: outside.appendingPathComponent("DisplacedOriginal")
         )
-        let successfulMatch = try XCTUnwrap(
-            MacArtifactScanner.scan(root: selectedRoot).matches.first
-        )
+
+        let successfulMatch = try XCTUnwrap(MacArtifactScanner.scan(root: selectedRoot).matches.first)
         let result = MacArtifactCleaner.apply(successfulMatch, mode: .moveToTrash)
-        guard case .movedToTrash(let firstTrashURL) = result else {
+        guard case .movedToTrash(let trashURL) = result else {
             XCTFail("The default cleaner did not move a real volume artifact to Trash: \(result).")
             return
         }
-        defer { try? FileManager.default.removeItem(at: firstTrashURL) }
-        XCTAssertFalse(FileManager.default.fileExists(atPath: firstCandidate.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: firstTrashURL.path))
+        defer { try? FileManager.default.removeItem(at: trashURL) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: candidate.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: trashURL.path))
+    }
 
+    private func verifyMetadataDirectoryTrash(at selectedRoot: URL) throws {
         let metadataDirectory = selectedRoot.appendingPathComponent("__MACOSX", isDirectory: true)
         try FileManager.default.createDirectory(at: metadataDirectory, withIntermediateDirectories: true)
         try Data([7, 8, 9]).write(to: metadataDirectory.appendingPathComponent(".DS_Store"))
         let metadataMatch = try XCTUnwrap(
             MacArtifactScanner.scan(root: selectedRoot).matches.first { $0.url.path == metadataDirectory.path }
         )
-        guard case .movedToTrash(let metadataTrashURL) = MacArtifactCleaner.apply(
-            metadataMatch,
-            mode: .moveToTrash
-        ) else {
+        guard case .movedToTrash(let trashURL) = MacArtifactCleaner.apply(metadataMatch, mode: .moveToTrash) else {
             XCTFail("The default cleaner did not move a metadata directory to Trash.")
             return
         }
-        defer { try? FileManager.default.removeItem(at: metadataTrashURL) }
+        defer { try? FileManager.default.removeItem(at: trashURL) }
         XCTAssertFalse(FileManager.default.fileExists(atPath: metadataDirectory.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: metadataTrashURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: trashURL.path))
+    }
 
+    private func verifySymlinkBoundary(at selectedRoot: URL, outside: URL) throws {
         let selectedDirectory = selectedRoot.appendingPathComponent("Nested", isDirectory: true)
         let relocatedDirectory = outside.appendingPathComponent("Relocated", isDirectory: true)
         try FileManager.default.createDirectory(at: selectedDirectory, withIntermediateDirectories: true)
-        let nestedCandidate = selectedDirectory.appendingPathComponent(".DS_Store")
+        let candidate = selectedDirectory.appendingPathComponent(".DS_Store")
         let sentinel = outside.appendingPathComponent(".DS_Store")
-        try Data([4, 5, 6]).write(to: nestedCandidate)
+        try Data([4, 5, 6]).write(to: candidate)
         try Data([9, 8, 7]).write(to: sentinel)
-        let nestedMatch = try XCTUnwrap(
-            MacArtifactScanner.scan(root: selectedRoot).matches.first { $0.url.path == nestedCandidate.path }
+        let match = try XCTUnwrap(
+            MacArtifactScanner.scan(root: selectedRoot).matches.first { $0.url.path == candidate.path }
         )
-        let nestedTrashURL = try MacArtifactSafeFileSystem.moveToTrash(
-            nestedMatch,
+        let trashURL = try MacArtifactSafeFileSystem.moveToTrash(
+            match,
             beforeMutation: {
                 try FileManager.default.moveItem(at: selectedDirectory, to: relocatedDirectory)
-                try FileManager.default.createSymbolicLink(at: selectedDirectory, withDestinationURL: outside)
+                try FileManager.default.createSymbolicLink(
+                    at: selectedDirectory,
+                    withDestinationURL: outside
+                )
             }
         )
-        XCTAssertNil(nestedTrashURL)
+        XCTAssertNil(trashURL)
         let relocatedCandidate = relocatedDirectory.appendingPathComponent(".DS_Store")
         XCTAssertTrue(FileManager.default.fileExists(atPath: relocatedCandidate.path))
         XCTAssertEqual(try Data(contentsOf: relocatedCandidate), Data([4, 5, 6]))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
         XCTAssertEqual(try Data(contentsOf: sentinel), Data([9, 8, 7]))
-
     }
 
     private func assertTrashDestinationReplacementIsNotRestored(

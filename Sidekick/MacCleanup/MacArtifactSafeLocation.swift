@@ -300,8 +300,6 @@ nonisolated enum MacArtifactSafeLocation {
         return bytes == MemoryLayout<UInt32>.size && UInt32(bigEndian: header) == 0x0005_1607
     }
 
-
-
     private static func currentPOSIXError() -> POSIXError {
         POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }

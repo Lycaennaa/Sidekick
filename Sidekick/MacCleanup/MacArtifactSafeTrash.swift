@@ -133,7 +133,7 @@ nonisolated enum MacArtifactSafeTrash {
         device: UInt64
     ) throws -> Int32 {
         let created = name.withCString { mkdirat(parent, $0, mode) }
-        if created != 0 && errno != EEXIST { throw currentPOSIXError() }
+        if created != 0, errno != EEXIST { throw currentPOSIXError() }
         let descriptor = name.withCString {
             openat(parent, $0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         }

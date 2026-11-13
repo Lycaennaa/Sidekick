@@ -194,6 +194,7 @@ targets:
       - path: Sidekick/MacCleanup/MacArtifactCleanupNotifier.swift
       - path: Sidekick/MacCleanup/MacArtifactVolumeMonitor.swift
       - path: Sidekick/MacCleanup/MacArtifactCleanupProcessor.swift
+      - path: Sidekick/MacCleanup/MacArtifactCleanupCandidateLifecycle.swift
       - path: Sidekick/MacCleanup/MacArtifactCleanupCoordinator.swift
       - path: Sidekick/App/MacArtifactCleanupSettingsView.swift
       - path: Sidekick/App/MacArtifactCleanupSettingsView+Prompts.swift

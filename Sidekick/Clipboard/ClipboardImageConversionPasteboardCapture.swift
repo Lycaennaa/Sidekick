@@ -2,15 +2,6 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
-private enum ClipboardImageFileCaptureResult: Sendable {
-    case image(Data)
-    case alreadyOutputFormat
-    case nonImage
-    case tooLarge
-    case unavailable
-    case stale
-}
-
 @MainActor
 enum ClipboardImageConversionPasteboardCapture {
     static func captureImage(
@@ -87,18 +78,6 @@ extension ClipboardImageConversionPasteboardCapture {
         let type: NSPasteboard.PasteboardType
     }
 
-    private struct ScannedFiles {
-        let fileURLs: [URL]
-        let ambiguous: [URL]
-        let materializedRepresentations: [PasteboardSnapshot.MaterializedRepresentation]
-        let excludedImageItemIndexes: Set<Int>
-    }
-
-    private enum FileScanResult {
-        case files(ScannedFiles)
-        case terminal(ClipboardImageConversionCapture)
-    }
-
     private enum SourcePreparationResult {
         case source(
             ClipboardImageSource,
@@ -112,7 +91,13 @@ extension ClipboardImageConversionPasteboardCapture {
         outputFormat: ClipboardImageFormat,
         skipAlreadyOutputFormatFiles: Bool
     ) async -> ClipboardImageConversionCapture {
-        switch await scanFileURLs(request) {
+        switch await ClipboardImageConversionFileCapture.scan(
+            pasteboard: request.pasteboard,
+            items: request.items,
+            sourceChangeCount: request.sourceChangeCount,
+            fileURLReader: request.fileURLReader,
+            requireImageFileContents: request.requireImageFileContents
+        ) {
         case let .terminal(result):
             return result
         case let .files(scannedFiles):
@@ -126,7 +111,7 @@ extension ClipboardImageConversionPasteboardCapture {
     }
 
     private static func captureFiles(
-        _ scannedFiles: ScannedFiles,
+        _ scannedFiles: ClipboardImageConversionFileCapture.ScannedFiles,
         request: CaptureRequest,
         outputFormat: ClipboardImageFormat,
         skipAlreadyOutputFormatFiles: Bool
@@ -140,7 +125,7 @@ extension ClipboardImageConversionPasteboardCapture {
             UTType($0.type.rawValue)?.conforms(to: outputFormat.uniformType) == true
         } ?? !scannedFiles.fileURLs.isEmpty
         if request.requireImageFileContents, !scannedFiles.fileURLs.isEmpty {
-            switch await captureImageFiles(
+            switch await ClipboardImageConversionFileCapture.captureImageFiles(
                 scannedFiles.fileURLs,
                 outputFormat: outputFormat,
                 skipAlreadyOutputFormatFiles: skipAlreadyOutputFormatFiles
@@ -228,159 +213,6 @@ extension ClipboardImageConversionPasteboardCapture {
             candidate.itemIndex == fallbackMatch.itemIndex
                 && UTType(candidate.type.rawValue)?.conforms(to: preferredFormat.uniformType) == true
         }) ?? fallbackMatch
-    }
-
-    private static func scanFileURLs(_ request: CaptureRequest) async -> FileScanResult {
-        var fileURLs: [URL] = []
-        var ambiguousFileURLs: [URL] = []
-        var materializedRepresentations: [PasteboardSnapshot.MaterializedRepresentation] = []
-        var excludedImageItemIndexes = Set<Int>()
-
-        for (itemIndex, item) in request.items.enumerated() {
-            guard PasteboardTypePolicy.containsFileURL(
-                in: item,
-                maximumTypesPerItem: PasteboardSnapshotPolicy.maximumTypesPerItem
-            ) else {
-                continue
-            }
-            switch await request.fileURLReader.readFileURLData(
-                from: item,
-                maximumBytes: PasteboardSnapshot.maximumFileURLBytes,
-                timeout: PasteboardSnapshot.maximumFileURLReadDuration
-            ) {
-            case let .data(data):
-                guard !Task.isCancelled,
-                      request.pasteboard.changeCount == request.sourceChangeCount else {
-                    return .terminal(.stale)
-                }
-                materializedRepresentations.append(
-                    .init(itemIndex: itemIndex, type: .fileURL, data: data)
-                )
-                let isDirectory = await isDirectoryFileURL(data)
-                guard !Task.isCancelled,
-                      request.pasteboard.changeCount == request.sourceChangeCount else {
-                    return .terminal(.stale)
-                }
-                if isDirectory {
-                    excludedImageItemIndexes.insert(itemIndex)
-                    continue
-                }
-                if request.requireImageFileContents {
-                    guard let fileURL = PasteboardTypePolicy.url(from: data, localOnly: true) else {
-                        return .terminal(.noImage)
-                    }
-                    excludedImageItemIndexes.insert(itemIndex)
-                    fileURLs.append(fileURL)
-                } else {
-                    appendFileURL(
-                        from: data,
-                        fileURLs: &fileURLs,
-                        ambiguousFileURLs: &ambiguousFileURLs
-                    )
-                }
-            case .missing:
-                guard !request.requireImageFileContents else {
-                    return .terminal(.unavailable)
-                }
-                materializedRepresentations.append(
-                    .init(itemIndex: itemIndex, type: .fileURL, data: nil)
-                )
-            case .tooLarge:
-                guard !request.requireImageFileContents else {
-                    return .terminal(.failed)
-                }
-                materializedRepresentations.append(
-                    .init(itemIndex: itemIndex, type: .fileURL, data: nil)
-                )
-            case .timedOut, .cancelled:
-                return .terminal(.stale)
-            case .unavailable, .failed:
-                return .terminal(.unavailable)
-            }
-        }
-        return .files(
-            ScannedFiles(
-                fileURLs: fileURLs,
-                ambiguous: ambiguousFileURLs,
-                materializedRepresentations: materializedRepresentations,
-                excludedImageItemIndexes: excludedImageItemIndexes
-            )
-        )
-    }
-
-    private static func isDirectoryFileURL(_ data: Data) async -> Bool {
-        guard let url = PasteboardTypePolicy.url(from: data, localOnly: true) else { return false }
-        if url.hasDirectoryPath { return true }
-        return await isDirectory(url)
-    }
-
-    nonisolated private static func isDirectory(_ url: URL) async -> Bool {
-        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
-    }
-
-    nonisolated private static func captureImageFiles(
-        _ fileURLs: [URL],
-        outputFormat: ClipboardImageFormat,
-        skipAlreadyOutputFormatFiles: Bool
-    ) async -> ClipboardImageFileCaptureResult {
-        var remainingSourceBytes = ClipboardImageConversionPolicy.maximumAggregateSourceBytes
-        var firstConvertibleImage: Data?
-        var foundOutputFormatImage = false
-        for fileURL in fileURLs {
-            guard !Task.isCancelled else { return .stale }
-            guard remainingSourceBytes > 0 else { return .tooLarge }
-            do {
-                let data = try ClipboardImageConversionFileService.sourceData(
-                    fileURL,
-                    maximumBytes: remainingSourceBytes,
-                    isCancelled: { Task.isCancelled }
-                )
-                remainingSourceBytes -= data.count
-                guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-                      CGImageSourceGetCount(source) > 0,
-                      let sourceType = CGImageSourceGetType(source) as String?,
-                      let contentType = UTType(sourceType),
-                      contentType.conforms(to: .image) else {
-                    return .nonImage
-                }
-                if skipAlreadyOutputFormatFiles,
-                   contentType.conforms(to: outputFormat.uniformType) {
-                    foundOutputFormatImage = true
-                } else if firstConvertibleImage == nil {
-                    firstConvertibleImage = data
-                }
-            } catch is CancellationError {
-                return .stale
-            } catch let error as ClipboardImageConversionError {
-                switch error {
-                case .invalidImage:
-                    return .nonImage
-                case .tooLarge:
-                    return .tooLarge
-                case .cannotEncode, .cannotWrite, .cannotCreateFilename:
-                    return .unavailable
-                }
-            } catch {
-                return .unavailable
-            }
-        }
-        guard !Task.isCancelled else { return .stale }
-        if let firstConvertibleImage {
-            return .image(firstConvertibleImage)
-        }
-        return foundOutputFormatImage ? .alreadyOutputFormat : .nonImage
-    }
-    private static func appendFileURL(
-        from data: Data,
-        fileURLs: inout [URL],
-        ambiguousFileURLs: inout [URL]
-    ) {
-        guard let url = PasteboardTypePolicy.url(from: data, localOnly: true) else { return }
-        if PasteboardTypePolicy.isImage(url: url) {
-            fileURLs.append(url)
-        } else if UTType(filenameExtension: url.pathExtension) == nil {
-            ambiguousFileURLs.append(url)
-        }
     }
 
     private static func capturePayload(

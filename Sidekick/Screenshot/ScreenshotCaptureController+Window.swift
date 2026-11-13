@@ -42,11 +42,20 @@ extension ScreenshotCaptureController {
                 return
             }
         } catch {
-            if selection.isCancelled {
-                cancelWindowCaptureRequest(request)
-            } else {
-                failWindowCapture(request)
-            }
+            handleWindowCaptureFailure(selection: selection, request: request)
+        }
+    }
+}
+
+private extension ScreenshotCaptureController {
+    func handleWindowCaptureFailure(
+        selection: WindowScreenshotSelection.Session,
+        request: RequestState
+    ) {
+        if selection.isCancelled {
+            cancelWindowCaptureRequest(request)
+        } else {
+            failWindowCapture(request)
         }
     }
 }

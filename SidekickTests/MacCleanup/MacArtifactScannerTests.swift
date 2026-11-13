@@ -173,7 +173,10 @@ final class MacArtifactScannerTests: XCTestCase {
             match,
             beforeMutation: {
                 try FileManager.default.moveItem(at: selectedDirectory, to: relocatedDirectory)
-                try FileManager.default.createSymbolicLink(at: selectedDirectory, withDestinationURL: relocatedDirectory)
+                try FileManager.default.createSymbolicLink(
+                    at: selectedDirectory,
+                    withDestinationURL: relocatedDirectory
+                )
             }
         )
 
@@ -183,7 +186,6 @@ final class MacArtifactScannerTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: sentinel), Data([9, 8, 7]))
         XCTAssertEqual(try Data(contentsOf: relocatedCandidate), Data([1, 2, 3]))
     }
-
 
     func testPermanentRemovalRollsBackWhenPostStageValidationThrows() throws {
         let root = try makeTemporaryDirectory()

@@ -97,7 +97,6 @@ final class MacArtifactFuseVolumeTests: XCTestCase {
         XCTAssertEqual(staleRoot.volumeIdentifier, "mount-uuid-1")
     }
 
-
     func testMountedFuseVolumeSupportsFolderAndAutomaticEnrollment() async throws {
         let volumes = FileManager.default.mountedVolumeURLs(
             includingResourceValuesForKeys: [],
