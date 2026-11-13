@@ -99,6 +99,7 @@ final class ToolsWindowController: NSWindowController, NSWindowDelegate {
     func present() {
         contentController.refreshViews()
         applyAppearance()
+        NSApp.activate(ignoringOtherApps: true)
         window?.deminiaturize(nil)
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)

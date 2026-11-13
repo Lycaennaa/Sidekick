@@ -35,7 +35,6 @@ extension AppDelegate {
         toolsWindowController = windowController
 
         windowController.present()
-        NSApp.activate()
     }
 
     func toolsWindowDidClose() {
