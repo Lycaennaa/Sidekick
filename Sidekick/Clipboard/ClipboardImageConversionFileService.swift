@@ -3,6 +3,7 @@ import Foundation
 nonisolated enum ClipboardImageConversionFileService {
     typealias CancellationCheck = @Sendable () -> Bool
     private static let ioChunkSize = 1 * 1_024 * 1_024
+    private static let randomAlphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
     static func prepareOutputDirectory(_ directory: URL) throws {
         try FileManager.default.createDirectory(
@@ -135,13 +136,21 @@ nonisolated enum ClipboardImageConversionFileService {
         throw ClipboardImageConversionError.cannotCreateFilename
     }
 
+    static func randomString<R: RandomNumberGenerator>(using generator: inout R) -> String {
+        var value = String()
+        value.reserveCapacity(7)
+        for _ in 0..<7 {
+            let index = Int.random(in: 0..<Self.randomAlphabet.count, using: &generator)
+            value.append(Self.randomAlphabet[index])
+        }
+        return value
+    }
+
     private static func randomFilename<R: RandomNumberGenerator>(
         using generator: inout R,
         format: ClipboardImageFormat
     ) -> String {
-        let alphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-        return String((0..<7).map { _ in alphabet.randomElement(using: &generator) ?? "a" })
-            + ".\(format.fileExtension)"
+        "\(randomString(using: &generator)).\(format.fileExtension)"
     }
 
     private static func checkCancellation(_ isCancelled: CancellationCheck) throws {

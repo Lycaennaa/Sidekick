@@ -32,12 +32,14 @@ extension ScreenshotCaptureController {
                 }
                 guard isWindowCaptureRequestActive(request) else { return }
                 selection.close()
+                let windowTitle = inventory.windows.first(where: { $0.id == windowID })?.title ?? ""
                 let image = try await WindowScreenshotCapture.capture(
                     windowID: windowID,
                     from: inventory,
                     showsCursor: request.showsCursor
                 )
                 guard isWindowCaptureRequestActive(request) else { return }
+                request.windowTitle = windowTitle
                 await copyWindowImage(image, mode: mode, request: request)
                 return
             }

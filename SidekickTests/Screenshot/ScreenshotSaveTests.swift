@@ -6,6 +6,29 @@ import XCTest
 @MainActor
 final class ScreenshotSaveTests: XCTestCase {
 
+    func testFilenameTagsAreUsedForSavedScreenshotNames() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let baseName = ScreenshotFilenameTemplate.baseName(
+            template: "{year}-{month}-{day}_{hour}-{minute}-{second}_{windowTitle}_{random}",
+            date: Date(timeIntervalSince1970: 0),
+            timeZone: timeZone,
+            windowTitle: "Window:Name",
+            randomValue: "aB12cD3"
+        )
+
+        let prepared = try ScreenshotSaveService.prepare(
+            pngData: try pngData(width: 8, height: 4),
+            directory: directory,
+            baseName: baseName,
+            isCancelled: { false }
+        )
+        let savedURL = try ScreenshotSaveService.commit(prepared)
+
+        XCTAssertEqual(savedURL.lastPathComponent, "1970-01-01_00-00-00_Window-Name_aB12cD3.webp")
+    }
+
     func testDefaultSaveWritesDecodableWebPAndSuffixesCollisions() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

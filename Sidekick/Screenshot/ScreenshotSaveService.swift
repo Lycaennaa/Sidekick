@@ -6,7 +6,9 @@ nonisolated enum ScreenshotFilenameTemplate {
     static func baseName(
         template: String,
         date: Date,
-        timeZone: TimeZone = .current
+        timeZone: TimeZone = .current,
+        windowTitle: String = "",
+        randomValue: String? = nil
     ) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
@@ -16,12 +18,29 @@ nonisolated enum ScreenshotFilenameTemplate {
         let dateValue = dateFormatter.string(from: date)
         dateFormatter.dateFormat = "HH-mm-ss"
         let timeValue = dateFormatter.string(from: date)
-        return sanitizedBaseName(
-            template
-                .replacingOccurrences(of: "{date}", with: dateValue)
-                .replacingOccurrences(of: "{time}", with: timeValue)
-                .replacingOccurrences(of: "{windowTitle}", with: "")
-        )
+
+        var expandedTemplate = template
+            .replacingOccurrences(of: "{date}", with: dateValue)
+            .replacingOccurrences(of: "{time}", with: timeValue)
+            .replacingOccurrences(of: "{year}", with: String(dateValue.prefix(4)))
+            .replacingOccurrences(of: "{month}", with: String(dateValue.dropFirst(5).prefix(2)))
+            .replacingOccurrences(of: "{day}", with: String(dateValue.suffix(2)))
+            .replacingOccurrences(of: "{hour}", with: String(timeValue.prefix(2)))
+            .replacingOccurrences(of: "{minute}", with: String(timeValue.dropFirst(3).prefix(2)))
+            .replacingOccurrences(of: "{second}", with: String(timeValue.suffix(2)))
+
+        if template.contains("{random}") {
+            let value: String
+            if let randomValue {
+                value = randomValue
+            } else {
+                var generator = SystemRandomNumberGenerator()
+                value = ClipboardImageConversionFileService.randomString(using: &generator)
+            }
+            expandedTemplate = expandedTemplate.replacingOccurrences(of: "{random}", with: value)
+        }
+        expandedTemplate = expandedTemplate.replacingOccurrences(of: "{windowTitle}", with: windowTitle)
+        return sanitizedBaseName(expandedTemplate)
     }
 
     static func sanitizedBaseName(_ value: String) -> String {

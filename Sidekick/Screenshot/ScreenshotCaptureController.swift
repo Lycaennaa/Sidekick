@@ -89,6 +89,7 @@ final class ScreenshotCaptureController {
         let imageFormat: ClipboardImageFormat
         let showsCursor: Bool
         var expectedChangeCount: Int
+        var windowTitle: String?
         var savedURL: URL?
 
         init(
@@ -358,7 +359,8 @@ final class ScreenshotCaptureController {
         }
         let baseName = ScreenshotFilenameTemplate.baseName(
             template: request.filenameTemplate,
-            date: request.startedAt
+            date: request.startedAt,
+            windowTitle: request.windowTitle ?? ""
         )
         pendingSaveRequestID = request.id
         do {
