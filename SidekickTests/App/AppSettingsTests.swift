@@ -321,6 +321,72 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: "clipboardImageOpeningApplicationPath"))
     }
 
+    func testImageConversionQualitiesDefaultAndPersist() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.clipboardImageQuality, 0.75)
+        XCTAssertEqual(settings.screenshotImageQuality, 0.9)
+        settings.clipboardImageQuality = 0.625
+        settings.screenshotImageQuality = 0.375
+
+        let restored = AppSettings(defaults: defaults)
+        XCTAssertEqual(restored.clipboardImageQuality, 0.625)
+        XCTAssertEqual(restored.screenshotImageQuality, 0.375)
+    }
+
+    func testUnsupportedImageQualitiesFallBackToDefaults() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        defaults.set(-0.1, forKey: "clipboardImageQuality")
+        defaults.set(1.5, forKey: "screenshotImageQuality")
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.clipboardImageQuality, 0.75)
+        XCTAssertEqual(settings.screenshotImageQuality, 0.9)
+    }
+
+    func testTwitchToastDurationDefaultsAndPersistsCustomValue() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.twitchToastDuration, 10)
+        settings.twitchToastDuration = 15
+        XCTAssertEqual(AppSettings(defaults: defaults).twitchToastDuration, 15)
+
+        settings.twitchToastDuration = 3
+        XCTAssertEqual(AppSettings(defaults: defaults).twitchToastDuration, 3)
+    }
+
+    private func textField(in view: NSView, placeholder: String) -> NSTextField? {
+        if let field = view as? NSTextField, field.placeholderString == placeholder {
+            return field
+        }
+        for subview in view.subviews {
+            if let field = textField(in: subview, placeholder: placeholder) {
+                return field
+            }
+        }
+        return nil
+    }
+
+    private var defaultsSuiteName: String {
+        "AppSettingsTests"
+    }
+
+    private func makeDefaults() -> UserDefaults {
+        guard let defaults = UserDefaults(suiteName: defaultsSuiteName) else {
+            preconditionFailure("Unable to create test defaults suite")
+        }
+        defaults.removePersistentDomain(forName: defaultsSuiteName)
+        return defaults
+    }
+}
+
+extension AppSettingsTests {
     func testScreenshotCursorDefaultIsOffAndPersistsChanges() {
         let defaults = makeDefaults()
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
@@ -398,72 +464,8 @@ final class AppSettingsTests: XCTestCase {
         view.controlTextDidEndEditing(Notification(name: NSControl.textDidEndEditingNotification, object: field))
         XCTAssertEqual(field.stringValue, "Shot_{date}")
     }
-
-
-    func testImageConversionQualitiesDefaultAndPersist() {
-        let defaults = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
-        let settings = AppSettings(defaults: defaults)
-
-        XCTAssertEqual(settings.clipboardImageQuality, 0.75)
-        XCTAssertEqual(settings.screenshotImageQuality, 0.9)
-        settings.clipboardImageQuality = 0.625
-        settings.screenshotImageQuality = 0.375
-
-        let restored = AppSettings(defaults: defaults)
-        XCTAssertEqual(restored.clipboardImageQuality, 0.625)
-        XCTAssertEqual(restored.screenshotImageQuality, 0.375)
-    }
-
-    func testUnsupportedImageQualitiesFallBackToDefaults() {
-        let defaults = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
-        defaults.set(-0.1, forKey: "clipboardImageQuality")
-        defaults.set(1.5, forKey: "screenshotImageQuality")
-
-        let settings = AppSettings(defaults: defaults)
-
-        XCTAssertEqual(settings.clipboardImageQuality, 0.75)
-        XCTAssertEqual(settings.screenshotImageQuality, 0.9)
-    }
-
-    func testTwitchToastDurationDefaultsAndPersistsCustomValue() {
-        let defaults = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
-        let settings = AppSettings(defaults: defaults)
-
-        XCTAssertEqual(settings.twitchToastDuration, 10)
-        settings.twitchToastDuration = 15
-        XCTAssertEqual(AppSettings(defaults: defaults).twitchToastDuration, 15)
-
-        settings.twitchToastDuration = 3
-        XCTAssertEqual(AppSettings(defaults: defaults).twitchToastDuration, 3)
-    }
-
-    private func textField(in view: NSView, placeholder: String) -> NSTextField? {
-        if let field = view as? NSTextField, field.placeholderString == placeholder {
-            return field
-        }
-        for subview in view.subviews {
-            if let field = textField(in: subview, placeholder: placeholder) {
-                return field
-            }
-        }
-        return nil
-    }
-
-    private var defaultsSuiteName: String {
-        "AppSettingsTests"
-    }
-
-    private func makeDefaults() -> UserDefaults {
-        guard let defaults = UserDefaults(suiteName: defaultsSuiteName) else {
-            preconditionFailure("Unable to create test defaults suite")
-        }
-        defaults.removePersistentDomain(forName: defaultsSuiteName)
-        return defaults
-    }
 }
+
 @MainActor
 final class AppSettingsPollIntervalTests: XCTestCase {
     func testTwitchPollIntervalDefaultsPersistsAndEnforcesMinimum() throws {

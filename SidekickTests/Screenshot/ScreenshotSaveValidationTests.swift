@@ -49,7 +49,6 @@ final class ScreenshotSaveValidationTests: XCTestCase {
         XCTAssertTrue(randomValue.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber) })
     }
 
-
     func testInvalidSaveFolderIsRejected() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
