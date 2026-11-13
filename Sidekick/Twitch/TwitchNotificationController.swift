@@ -46,6 +46,7 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
     var pendingOAuthTokenSave: String?
     var terminating = false
     private var appliedTwitchNotificationsEnabled = false
+    private var appliedPollInterval: TimeInterval
 
     var status: Status = .disabled
     var onStateChange: (() -> Void)?
@@ -84,7 +85,7 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
                 followedChannels: { try await apiClient.followedChannels(for: $0) },
                 notifications: notifications,
                 sleeper: .live,
-                pollInterval: TwitchAPIClient.pollInterval
+                pollInterval: { settings.twitchPollInterval }
             )
         )
         let deliveryOwner = TwitchDeliveryOwner(
@@ -128,6 +129,7 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
         oauthBrowserFallback: TwitchOAuthBrowserFallback = TwitchOAuthBrowserFallback()
     ) {
         self.settings = settings
+        appliedPollInterval = settings.twitchPollInterval
         notificationCenter = dependencies.notificationCenter
         tokenOwner = dependencies.tokenOwner
         pollingOwner = dependencies.pollingOwner
@@ -154,6 +156,14 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
         guard shouldApplyTwitchSettings() else { return }
         applyStoredTokenState(storedTokenState)
     }
+    private func applyPollIntervalSetting() {
+        let pollInterval = settings.twitchPollInterval
+        guard pollInterval != appliedPollInterval else { return }
+        appliedPollInterval = pollInterval
+        pollingOwner.pollIntervalDidChange()
+        guard case .polling(.active) = status else { return }
+        setStatus(.polling(.active(pollInterval)))
+    }
 
     private func shouldApplyTwitchSettings() -> Bool {
         guard !terminating else { return false }
@@ -169,6 +179,7 @@ final class TwitchNotificationController: NSObject, UNUserNotificationCenterDele
             return false
         }
         appliedTwitchNotificationsEnabled = true
+        applyPollIntervalSetting()
         return !tokenOwner.isSaving && !keychainAccessPromptOwner.isRequesting
     }
 

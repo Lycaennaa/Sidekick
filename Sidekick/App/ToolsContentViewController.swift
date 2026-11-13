@@ -12,6 +12,7 @@ final class ToolsContentViewController: NSViewController {
     private let appearanceView: AppearanceSettingsView
     private let permissionsView = PermissionsSettingsView()
     private let macCleanupView: MacArtifactCleanupSettingsView
+    private let tunablesView: TunablesSettingsView
     private var pageHost: ToolsSettingsPageHost?
     private(set) var selectedPage = ToolsSettingsPage.clipboard
 
@@ -43,6 +44,7 @@ final class ToolsContentViewController: NSViewController {
         )
         outputVolumeView = OutputVolumeSettingsView(menu: outputVolumeMenu)
         appearanceView = AppearanceSettingsView(settings: settings)
+        tunablesView = TunablesSettingsView(settings: settings)
         let cleanupView = MacArtifactCleanupSettingsView(
             store: macArtifactCleanupStore,
             coordinator: macArtifactCleanupCoordinator
@@ -77,6 +79,8 @@ final class ToolsContentViewController: NSViewController {
             permissionsView.refresh()
         case .macCleanup:
             macCleanupView.refresh()
+        case .tunables:
+            tunablesView.refresh()
         case .clipboard, .screenshots, .audio, .outputVolume, .appearance:
             break
         }
@@ -97,6 +101,7 @@ final class ToolsContentViewController: NSViewController {
         screenshotSaveSettingsView.refresh()
         twitchView.refresh()
         audioView.refresh()
+        tunablesView.refresh()
         if selectedPage == .permissions {
             permissionsView.refresh()
         }
@@ -126,6 +131,7 @@ final class ToolsContentViewController: NSViewController {
         case .appearance: appearanceView
         case .permissions: permissionsView
         case .macCleanup: macCleanupView
+        case .tunables: tunablesView
         }
     }
 

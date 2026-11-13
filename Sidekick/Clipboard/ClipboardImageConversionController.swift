@@ -18,6 +18,7 @@ final class ClipboardImageConversionController {
     private let fileURLReader: any PasteboardFileURLReading
     private let payloadReader: any PasteboardPayloadReading
     private let outputFormat: () -> ClipboardImageFormat
+    private let outputQuality: () -> Double
     private let installer: ClipboardImagePasteboardInstaller
     private var captureTask: Task<Void, Never>?
 
@@ -26,6 +27,7 @@ final class ClipboardImageConversionController {
         expirationInterval: TimeInterval = 60,
         outputDirectory: URL = ClipboardImageConversionPolicy.defaultOutputDirectory,
         outputFormat: @escaping () -> ClipboardImageFormat = { .webP },
+        outputQuality: @escaping () -> Double = { ClipboardImageConversionPolicy.quality },
         worker: ClipboardImageConversionWorker = ClipboardImageConversionWorker(),
         fileURLReader: any PasteboardFileURLReading = SystemPasteboardFileURLReader(),
         payloadReader: any PasteboardPayloadReading = SystemPasteboardPayloadReader(),
@@ -38,6 +40,7 @@ final class ClipboardImageConversionController {
         self.worker = worker
         self.fileURLReader = fileURLReader
         self.outputFormat = outputFormat
+        self.outputQuality = outputQuality
         self.payloadReader = payloadReader
         installer = ClipboardImagePasteboardInstaller(
             pasteboard: pasteboard,
@@ -63,13 +66,13 @@ final class ClipboardImageConversionController {
         captureTask?.cancel()
         worker.cancelAll()
         let pasteboard = self.pasteboard
-        let format = outputFormat()
+        let encoding = (format: outputFormat(), quality: outputQuality())
         captureTask = Task { @MainActor [weak self] in
             guard let self else { return }
             await self.captureAndEnqueue(
                 pasteboard: pasteboard,
                 requestToken: requestToken,
-                outputFormat: format,
+                encoding: encoding,
                 skipAlreadyOutputFormatFiles: skipAlreadyOutputFormatFiles,
                 completion: completion
             )
@@ -108,6 +111,7 @@ final class ClipboardImageConversionController {
             captured,
             requestToken: requestToken,
             outputFormat: outputFormat,
+            quality: outputQuality(),
             completion: completion
         )
     }
@@ -135,13 +139,13 @@ extension ClipboardImageConversionController {
     private func captureAndEnqueue(
         pasteboard: any PasteboardAccess,
         requestToken: UInt64,
-        outputFormat: ClipboardImageFormat,
+        encoding: (format: ClipboardImageFormat, quality: Double),
         skipAlreadyOutputFormatFiles: Bool,
         completion: @escaping (Result) -> Void
     ) async {
         let capture = await ClipboardImageConversionPasteboardCapture.captureImage(
             from: pasteboard,
-            outputFormat: outputFormat,
+            outputFormat: encoding.format,
             skipAlreadyOutputFormatFiles: skipAlreadyOutputFormatFiles,
             fileURLReader: fileURLReader,
             payloadReader: payloadReader
@@ -159,7 +163,8 @@ extension ClipboardImageConversionController {
         enqueueCaptured(
             captured,
             requestToken: requestToken,
-            outputFormat: outputFormat,
+            outputFormat: encoding.format,
+            quality: encoding.quality,
             completion: completion
         )
     }
@@ -167,6 +172,7 @@ extension ClipboardImageConversionController {
         _ captured: ClipboardImageConversionCapturedSource,
         requestToken: UInt64,
         outputFormat: ClipboardImageFormat,
+        quality: Double,
         completion: @escaping (Result) -> Void
     ) {
         let installer = self.installer
@@ -174,6 +180,7 @@ extension ClipboardImageConversionController {
             source: captured.source,
             outputDirectory: installer.outputDirectory,
             format: outputFormat,
+            quality: quality,
             cleanup: { url in
                 installer.removeGeneratedFile(at: url)
             },

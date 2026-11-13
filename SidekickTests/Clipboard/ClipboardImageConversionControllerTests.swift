@@ -44,7 +44,6 @@ final class ClipboardImageConversionControllerTests: XCTestCase {
             of: "^[A-Za-z0-9]{7}\\.webp$",
             options: .regularExpression
         ) != nil)
-        XCTAssertEqual(ClipboardImageConversionPolicy.quality, 0.75)
         XCTAssertEqual(
             ClipboardImageConversionPolicy.maximumOutputBytes,
             ClipboardImageDecoder.maximumSourceBytes
@@ -68,6 +67,41 @@ final class ClipboardImageConversionControllerTests: XCTestCase {
         )
         XCTAssertEqual((properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue, 4)
         XCTAssertEqual((properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue, 3)
+    }
+
+    @MainActor
+    func testConfiguredClipboardQualityChangesEncodedOutputSize() async throws {
+        let pasteboard = makePasteboard()
+        let directory = try temporaryDirectory()
+        var quality = 0.625
+        var messages: [String] = []
+        let controller = ClipboardImageConversionController(
+            pasteboard: pasteboard,
+            outputDirectory: directory,
+            outputQuality: { quality },
+            onMessage: { messages.append($0) }
+        )
+        defer {
+            controller.terminate()
+            pasteboard.clearContents()
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let imageData = try noisyPNGData(width: 128, height: 128)
+        var outputSizes: [Int] = []
+
+        for selectedQuality in [0.625, 1.0] {
+            quality = selectedQuality
+            pasteboard.clearContents()
+            XCTAssertTrue(pasteboard.setData(imageData, forType: .png))
+            let result = await convert(with: controller)
+            guard case let .converted(url) = result else {
+                return XCTFail("Expected image conversion at quality \(selectedQuality), got \(result)")
+            }
+            outputSizes.append(try Data(contentsOf: url).count)
+        }
+
+        XCTAssertLessThan(outputSizes[0], outputSizes[1])
+        XCTAssertTrue(messages.isEmpty)
     }
     @MainActor
     func testDefaultProductionDependenciesConvertNamedPasteboardImage() async throws {
@@ -263,7 +297,7 @@ extension ClipboardImageConversionControllerTests {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
         var messages: [String] = []
-        let worker = ClipboardImageConversionWorker(convert: { _, _, _, _ in
+        let worker = ClipboardImageConversionWorker(convert: { _, _, _, _, _ in
             throw CancellationError()
         })
         let controller = ClipboardImageConversionController(
@@ -293,7 +327,7 @@ extension ClipboardImageConversionControllerTests {
         let pasteboard = makeTransactionalPasteboard()
         let directory = try temporaryDirectory()
         var messages: [String] = []
-        let worker = ClipboardImageConversionWorker(convert: { _, _, _, _ in
+        let worker = ClipboardImageConversionWorker(convert: { _, _, _, _, _ in
             throw ClipboardImageConversionError.cannotEncode
         })
         let controller = ClipboardImageConversionController(

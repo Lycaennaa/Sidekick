@@ -2,7 +2,6 @@ import Foundation
 import ImageIO
 
 struct TwitchAPIClient: Sendable {
-    static let pollInterval: TimeInterval = 150
     static let pageSize = 100
     static let maximumPages = 100
     static let maximumProfileImageBytes = 1_048_576

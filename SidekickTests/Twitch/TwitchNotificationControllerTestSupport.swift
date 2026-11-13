@@ -38,7 +38,7 @@ class TwitchNotificationControllerTestSupport: XCTestCase {
                 followedChannels: followedChannels,
                 notifications: notifications,
                 sleeper: sleeper,
-                pollInterval: 1
+                pollInterval: { settings.twitchPollInterval }
             )
         )
         let deliveryOwner = TwitchDeliveryOwner(

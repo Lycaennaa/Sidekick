@@ -305,7 +305,7 @@ final class ClipboardImageConversionLifecycleTests: XCTestCase {
         let target = URL(fileURLWithPath: "/tmp/timeout.webp")
         let reader = TimeoutFileURLReader()
         let workerStarted = ThreadSafeFlag()
-        let worker = ClipboardImageConversionWorker(convert: { _, outputDirectory, _, _ in
+        let worker = ClipboardImageConversionWorker(convert: { _, outputDirectory, _, _, _ in
             workerStarted.mark()
             return outputDirectory.appendingPathComponent("unexpected.webp")
         })
@@ -350,7 +350,7 @@ final class ClipboardImageConversionLifecycleTests: XCTestCase {
         var converted = false
         var result: ClipboardImageConversionController.Result?
         let completion = expectation(description: "Cancelled snapshot capture completion")
-        let worker = ClipboardImageConversionWorker(convert: { _, _, _, _ in
+        let worker = ClipboardImageConversionWorker(convert: { _, _, _, _, _ in
             workerStarted.mark()
             return outputURL
         })

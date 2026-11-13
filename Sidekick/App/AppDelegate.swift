@@ -217,6 +217,9 @@ extension AppDelegate {
     private func installImageConversionController() {
         clipboardImageConversionController = ClipboardImageConversionController(
             outputFormat: { [weak self] in self?.settings.imageOutputFormat ?? .webP },
+            outputQuality: { [weak self] in
+                self?.settings.clipboardImageQuality ?? ClipboardImageConversionPolicy.quality
+            },
             onConverted: { [weak self] url, changeCount, sourceChangeCount in
                 guard let self else { return }
                 let copyContext = self.convertedImageToastCopyContext(

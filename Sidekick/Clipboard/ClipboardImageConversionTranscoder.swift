@@ -9,6 +9,7 @@ nonisolated enum ClipboardImageConversionTranscoder {
         outputDirectory: URL,
         format: ClipboardImageFormat = .webP,
         aggregateSourceBytes: Int = ClipboardImageConversionPolicy.maximumAggregateSourceBytes,
+        quality: Double = ClipboardImageConversionPolicy.quality,
         isCancelled: CancellationCheck = { false }
     ) throws -> URL {
         try checkCancellation(isCancelled)
@@ -16,6 +17,7 @@ nonisolated enum ClipboardImageConversionTranscoder {
             source,
             format: format,
             aggregateSourceBytes: max(0, aggregateSourceBytes),
+            quality: quality,
             isCancelled: isCancelled
         )
         guard outputData.count <= ClipboardImageConversionPolicy.maximumOutputBytes else {
@@ -42,6 +44,7 @@ nonisolated enum ClipboardImageConversionTranscoder {
         _ source: ClipboardImageSource,
         format: ClipboardImageFormat,
         aggregateSourceBytes: Int,
+        quality: Double,
         isCancelled: CancellationCheck
     ) throws -> Data {
         switch source {
@@ -50,7 +53,12 @@ nonisolated enum ClipboardImageConversionTranscoder {
                   data.count <= aggregateSourceBytes else {
                 throw ConversionError.tooLarge
             }
-            return try ClipboardImageEncoder.encode(data, format: format, isCancelled: isCancelled)
+            return try ClipboardImageEncoder.encode(
+                data,
+                format: format,
+                quality: quality,
+                isCancelled: isCancelled
+            )
         case let .files(urls, fallback):
             var remainingSourceBytes = aggregateSourceBytes
             var lastError: Error?
@@ -64,7 +72,12 @@ nonisolated enum ClipboardImageConversionTranscoder {
                         isCancelled: isCancelled
                     )
                     remainingSourceBytes -= data.count
-                    return try ClipboardImageEncoder.encode(data, format: format, isCancelled: isCancelled)
+                    return try ClipboardImageEncoder.encode(
+                        data,
+                        format: format,
+                        quality: quality,
+                        isCancelled: isCancelled
+                    )
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch ConversionError.invalidImage {
@@ -80,7 +93,12 @@ nonisolated enum ClipboardImageConversionTranscoder {
                     throw ConversionError.tooLarge
                 }
                 remainingSourceBytes -= fallback.count
-                return try ClipboardImageEncoder.encode(fallback, format: format, isCancelled: isCancelled)
+                return try ClipboardImageEncoder.encode(
+                    fallback,
+                    format: format,
+                    quality: quality,
+                    isCancelled: isCancelled
+                )
             }
             throw lastError ?? ConversionError.invalidImage
         }

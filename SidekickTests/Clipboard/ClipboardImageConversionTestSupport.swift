@@ -27,6 +27,40 @@ func pngData(width: Int, height: Int) throws -> Data {
     return try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
 }
 
+func noisyPNGData(width: Int, height: Int) throws -> Data {
+    let bitmap = try XCTUnwrap(
+        NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: width,
+            pixelsHigh: height,
+            bitsPerSample: 8,
+            samplesPerPixel: 3,
+            hasAlpha: false,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 24
+        )
+    )
+    var state: UInt32 = 0x1ACE_B00C
+    for pixelRow in 0..<height {
+        for pixelColumn in 0..<width {
+            state = state &* 1_664_525 &+ 1_013_904_223
+            let red = CGFloat((state >> 16) & 0xFF) / 255
+            state = state &* 1_664_525 &+ 1_013_904_223
+            let green = CGFloat((state >> 16) & 0xFF) / 255
+            state = state &* 1_664_525 &+ 1_013_904_223
+            let blue = CGFloat((state >> 16) & 0xFF) / 255
+            bitmap.setColor(
+                NSColor(calibratedRed: red, green: green, blue: blue, alpha: 1),
+                atX: pixelColumn,
+                y: pixelRow
+            )
+        }
+    }
+    return try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+}
+
 func temporaryDirectory() throws -> URL {
     let directory = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()

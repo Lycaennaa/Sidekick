@@ -164,6 +164,7 @@ targets:
       - path: Sidekick/System/KeychainStore.swift
       - path: Sidekick/System/GlobalHotKey.swift
       - path: Sidekick/App/AppSettings.swift
+      - path: Sidekick/App/AppSettings+Tunables.swift
       - path: Sidekick/App/ScreenshotHotKeyRecorderView.swift
       - path: Sidekick/App/AppTheme.swift
       - path: Sidekick/App/ToolsSidebarViewController.swift
@@ -178,6 +179,7 @@ targets:
       - path: Sidekick/App/OutputVolumeSettingsView.swift
       - path: Sidekick/App/AppearanceSettingsView.swift
       - path: Sidekick/App/ClipboardImageOpeningApplicationPickerView.swift
+      - path: Sidekick/App/TunablesSettingsView.swift
       - path: Sidekick/Twitch/TwitchNotificationView.swift
       - path: Sidekick/App/SettingsPageStackLayout.swift
       - path: Sidekick/App/ToastPresentationCoordinator.swift

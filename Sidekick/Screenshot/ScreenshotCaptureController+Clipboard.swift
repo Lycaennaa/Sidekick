@@ -43,6 +43,7 @@ extension ScreenshotCaptureController {
         _ selection: SelectedClipboardItem,
         copyAsOutputFormat: Bool,
         imageFormat: ClipboardImageFormat,
+        imageQuality: Double,
         preparedOutputFormatData: Data?
     ) async throws -> SelectedClipboardItem {
         guard copyAsOutputFormat,
@@ -54,7 +55,7 @@ extension ScreenshotCaptureController {
         if let preparedOutputFormatData {
             outputData = preparedOutputFormatData
         } else {
-            outputData = try await prepareClipboardImage(pngData, imageFormat)
+            outputData = try await prepareClipboardImage(pngData, imageFormat, imageQuality)
         }
         let item = NSPasteboardItem()
         guard item.setData(outputData, forType: NSPasteboard.PasteboardType(imageFormat.typeIdentifier)) else {

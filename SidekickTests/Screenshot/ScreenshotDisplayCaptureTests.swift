@@ -73,6 +73,7 @@ extension ScreenshotCaptureIntegrationTests {
             filenameTemplate: "capture",
             screenshotCopyAsOutputFormat: false,
             imageFormat: .webP,
+            screenshotImageQuality: ClipboardImageConversionPolicy.screenshotQuality,
             showsCursor: false
         )
 

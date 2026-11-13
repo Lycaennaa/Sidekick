@@ -10,6 +10,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
     case appearance
     case permissions
     case macCleanup
+    case tunables
 
     var title: String {
         switch self {
@@ -22,6 +23,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         case .appearance: "Appearance"
         case .permissions: "Permissions"
         case .macCleanup: "Mac Cleanup"
+        case .tunables: "Tunables"
         }
     }
 
@@ -36,6 +38,7 @@ enum ToolsSettingsPage: Int, CaseIterable {
         case .appearance: "paintpalette"
         case .permissions: "lock.shield"
         case .macCleanup: "trash"
+        case .tunables: "slider.horizontal.3"
         }
     }
 }

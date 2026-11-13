@@ -13,6 +13,7 @@ nonisolated final class ClipboardImageConversionWorker: Sendable {
         ClipboardImageSource,
         URL,
         ClipboardImageFormat,
+        Double,
         @Sendable () -> Bool
     ) throws -> URL
     private typealias ConversionResult = Result
@@ -21,6 +22,7 @@ nonisolated final class ClipboardImageConversionWorker: Sendable {
         let source: ClipboardImageSource
         let outputDirectory: URL
         let format: ClipboardImageFormat
+        let quality: Double
         let cleanup: Cleanup
         let completion: Completion
     }
@@ -29,11 +31,12 @@ nonisolated final class ClipboardImageConversionWorker: Sendable {
     private let convert: Convert
 
     init(
-        convert: @escaping Convert = { source, outputDirectory, format, isCancelled in
+        convert: @escaping Convert = { source, outputDirectory, format, quality, isCancelled in
             try ClipboardImageConversionTranscoder.convert(
                 source,
                 outputDirectory: outputDirectory,
                 format: format,
+                quality: quality,
                 isCancelled: isCancelled
             )
         }
@@ -47,7 +50,7 @@ nonisolated final class ClipboardImageConversionWorker: Sendable {
     convenience init(
         convert: @escaping @Sendable (ClipboardImageSource, URL) throws -> URL
     ) {
-        self.init(convert: { source, outputDirectory, _, _ in
+        self.init(convert: { source, outputDirectory, _, _, _ in
             try convert(source, outputDirectory)
         })
     }
@@ -56,6 +59,7 @@ nonisolated final class ClipboardImageConversionWorker: Sendable {
         source: ClipboardImageSource,
         outputDirectory: URL,
         format: ClipboardImageFormat = .webP,
+        quality: Double = ClipboardImageConversionPolicy.quality,
         cleanup: @escaping Cleanup,
         completion: @escaping Completion
     ) {
@@ -63,6 +67,7 @@ nonisolated final class ClipboardImageConversionWorker: Sendable {
             source: source,
             outputDirectory: outputDirectory,
             format: format,
+            quality: quality,
             cleanup: cleanup,
             completion: completion
         )
@@ -70,7 +75,15 @@ nonisolated final class ClipboardImageConversionWorker: Sendable {
             work,
             operation: { [convert] work, isCancelled in
                 do {
-                    return .success(try convert(work.source, work.outputDirectory, work.format, isCancelled))
+                    return .success(
+                        try convert(
+                            work.source,
+                            work.outputDirectory,
+                            work.format,
+                            work.quality,
+                            isCancelled
+                        )
+                    )
                 } catch is CancellationError {
                     return .cancelled
                 } catch {

@@ -15,7 +15,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 followedChannels: { _ in [followedChannel] },
                 notifications: notifications.client,
                 sleeper: .init(sleep: { interval in try await sleeper.sleep(interval) }),
-                pollInterval: 150
+                pollInterval: { 150 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -28,7 +28,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 followedChannelIDs = channels?.map(\.id) ?? []
             }
         )
-        await twitchEventually { statuses.contains(.active) }
+        await twitchEventually { statuses.contains(.active(150)) }
         await twitchEventually { followedChannelIDs == ["channel-id"] }
 
         owner.stop()
@@ -38,7 +38,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
         XCTAssertNil(owner.token)
         XCTAssertEqual(
             Array(statuses.prefix(3)),
-            [.requestingPermission, .checking, .active]
+            [.requestingPermission, .checking, .active(150)]
         )
     }
 
@@ -51,7 +51,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 followedChannels: { _ in [] },
                 notifications: makeTwitchNotificationClient(authorizationStatus: .denied),
                 sleeper: .init(sleep: { _ in try Task.checkCancellation() }),
-                pollInterval: 1
+                pollInterval: { 1 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -90,7 +90,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 followedChannels: { _ in [] },
                 notifications: notifications,
                 sleeper: .init(sleep: { _ in try Task.checkCancellation() }),
-                pollInterval: 1
+                pollInterval: { 1 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -128,7 +128,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                     await retryGate.wait()
                     try Task.checkCancellation()
                 }),
-                pollInterval: 1
+                pollInterval: { 1 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -142,7 +142,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
         await twitchEventually { statuses.contains(.notificationPermissionError) }
         await twitchEventuallyAsync { await retryGate.hasWaiter }
         await retryGate.open()
-        await twitchEventually { statuses.contains(.active) }
+        await twitchEventually { statuses.contains(.active(1)) }
         await twitchEventuallyAsync { await retryGate.hasWaiter }
 
         owner.stop()
@@ -151,7 +151,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
 
         XCTAssertEqual(
             Array(statuses.prefix(4)),
-            [.requestingPermission, .notificationPermissionError, .checking, .active]
+            [.requestingPermission, .notificationPermissionError, .checking, .active(1)]
         )
     }
 
@@ -166,7 +166,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 sleeper: .init(sleep: { _ in
                     try await twitchSuspendUntilCancelled()
                 }),
-                pollInterval: 1
+                pollInterval: { 1 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -197,7 +197,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 sleeper: .init(sleep: { _ in
                     try await twitchSuspendUntilCancelled()
                 }),
-                pollInterval: 1
+                pollInterval: { 1 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -228,7 +228,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 followedChannels: { _ in [] },
                 notifications: notifications.client,
                 sleeper: .init(sleep: { interval in try await sleeper.sleep(interval) }),
-                pollInterval: 150
+                pollInterval: { 150 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -266,7 +266,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                     await sleeperGate.wait()
                     try Task.checkCancellation()
                 }),
-                pollInterval: 1
+                pollInterval: { 1 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -305,7 +305,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                 sleeper: .init(sleep: { _ in
                     try await twitchSuspendUntilCancelled()
                 }),
-                pollInterval: 1
+                pollInterval: { 1 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -341,7 +341,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
                     await sleeperGate.wait()
                     try Task.checkCancellation()
                 }),
-                pollInterval: 1
+                pollInterval: { 1 }
             )
         )
         var statuses: [TwitchPollingOwner.Status] = []
@@ -363,7 +363,7 @@ final class TwitchPollingOwnerTests: XCTestCase {
         await twitchEventually { deliveredStreamIDs.count == 1 }
         XCTAssertEqual(
             Array(statuses.prefix(3)),
-            [.requestingPermission, .checking, .active]
+            [.requestingPermission, .checking, .active(1)]
         )
         XCTAssertEqual(deliveredStreamIDs, [[]])
 
@@ -384,6 +384,42 @@ final class TwitchPollingOwnerTests: XCTestCase {
         XCTAssertFalse(owner.isRunning)
     }
 }
+@MainActor
+final class TwitchPollingOwnerIntervalTests: XCTestCase {
+    func testPollIntervalChangeReschedulesCurrentWait() async throws {
+        let suiteName = "TwitchPollIntervalTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettings(defaults: defaults)
+        settings.twitchPollInterval = 45
+
+        let intervalRecorder = TwitchPollIntervalRecorder()
+        let session = twitchTestSession()
+        let owner = TwitchPollingOwner(
+            dependencies: .init(
+                authenticate: { _ in session },
+                followedStreams: { _ in [] },
+                followedChannels: { _ in [] },
+                notifications: makeTwitchNotificationClient(authorizationStatus: .authorized),
+                sleeper: .init(sleep: { interval in
+                    await intervalRecorder.record(interval)
+                    try await twitchSuspendUntilCancelled()
+                }),
+                pollInterval: { settings.twitchPollInterval }
+            )
+        )
+        defer { owner.stop() }
+
+        owner.start(token: "token", onStatus: { _ in }, onStreams: { _, _, _ in [] })
+        let firstInterval = await intervalRecorder.next()
+        XCTAssertEqual(firstInterval, 45)
+
+        settings.twitchPollInterval = 75
+        owner.pollIntervalDidChange()
+        let updatedInterval = await intervalRecorder.next()
+        XCTAssertEqual(updatedInterval, 75)
+    }
+}
 
 @MainActor
 final class TwitchPollingOwnerStatusTests: XCTestCase {
@@ -392,8 +428,8 @@ final class TwitchPollingOwnerStatusTests: XCTestCase {
             (.requestingPermission, "requesting notification permission…"),
             (.checking, "checking twitch…"),
             (
-                .active,
-                "watching followed channels · checks every \(TwitchAPIClient.pollInterval.formatted()) seconds"
+                .active(300),
+                "watching followed channels · checks every 300 seconds"
             ),
             (.notificationPermissionDenied, "macos notifications are denied for this app"),
             (.invalidOAuthToken, "oauth token is invalid or expired"),
@@ -407,6 +443,26 @@ final class TwitchPollingOwnerStatusTests: XCTestCase {
         }
     }
 }
+private actor TwitchPollIntervalRecorder {
+    private var intervals: [TimeInterval] = []
+    private var nextIntervalWaiters: [CheckedContinuation<TimeInterval, Never>] = []
+
+    func record(_ interval: TimeInterval) {
+        guard !nextIntervalWaiters.isEmpty else {
+            intervals.append(interval)
+            return
+        }
+        nextIntervalWaiters.removeFirst().resume(returning: interval)
+    }
+
+    func next() async -> TimeInterval {
+        if !intervals.isEmpty {
+            return intervals.removeFirst()
+        }
+        return await withCheckedContinuation { nextIntervalWaiters.append($0) }
+    }
+}
+
 @MainActor
 private func makeTwitchNotificationClient(
     authorizationStatus: UNAuthorizationStatus,

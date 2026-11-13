@@ -295,12 +295,13 @@ final class ScreenshotSaveTests: XCTestCase {
             select: { _, _ in .selected(image) },
             onCopied: { XCTFail("Terminated save was reported as copied") },
             onFailure: { XCTFail("Terminated save reported stale failure: \($0)") },
-            prepareSave: { data, saveDirectory, baseName, format in
+            prepareSave: { data, saveDirectory, baseName, format, quality in
                 let prepared = try ScreenshotSaveService.prepare(
                     pngData: data,
                     directory: saveDirectory,
                     baseName: baseName,
                     format: format,
+                    quality: quality,
                     isCancelled: { false }
                 )
                 return await gate.suspend(prepared)
@@ -332,21 +333,27 @@ final class ScreenshotSaveTests: XCTestCase {
         let image = try XCTUnwrap(ScreenshotCaptureTestSupport.makePixelImage())
         let screenshot = ScreenshotCaptureTestSupport.capturedScreenshot(from: image)
         let pasteboard = ScreenshotCaptureTestSupport.ScreenshotRacePasteboard(value: "before")
+        configuration.settings.screenshotImageQuality = 0.625
         let gate = SavePreparationGate()
         var failure: ScreenshotCaptureController.Failure?
         let controller = ScreenshotCaptureController(
             pasteboard: pasteboard,
             settings: configuration.settings,
             capture: { _ in screenshot },
-            select: { _, _ in .selected(image) },
+            select: { _, _ in
+                configuration.settings.screenshotImageQuality = 1.0
+                return .selected(image)
+            },
             onCopied: { XCTFail("Stale clipboard was replaced") },
             onFailure: { failure = $0 },
-            prepareSave: { data, saveDirectory, baseName, format in
+            prepareSave: { data, saveDirectory, baseName, format, quality in
+                XCTAssertEqual(quality, 0.625)
                 let prepared = try ScreenshotSaveService.prepare(
                     pngData: data,
                     directory: saveDirectory,
                     baseName: baseName,
                     format: format,
+                    quality: quality,
                     isCancelled: { false }
                 )
                 return await gate.suspend(prepared)

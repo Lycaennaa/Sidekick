@@ -69,10 +69,11 @@ nonisolated enum ScreenshotSaveService {
         pngData: Data,
         directory: URL,
         baseName: String,
-        format: ClipboardImageFormat = .webP
+        format: ClipboardImageFormat = .webP,
+        quality: Double = ClipboardImageConversionPolicy.screenshotQuality
     ) async throws -> Prepared {
         let worker = Task.detached(priority: .utility) {
-            try prepare(pngData: pngData, directory: directory, baseName: baseName, format: format) {
+            try prepare(pngData: pngData, directory: directory, baseName: baseName, format: format, quality: quality) {
                 Task.isCancelled
             }
         }
@@ -88,6 +89,7 @@ nonisolated enum ScreenshotSaveService {
         directory: URL,
         baseName: String,
         format: ClipboardImageFormat = .webP,
+        quality: Double = ClipboardImageConversionPolicy.screenshotQuality,
         isCancelled: ClipboardImageConversionPolicy.CancellationCheck
     ) throws -> Prepared {
         try checkCancellation(isCancelled)
@@ -98,7 +100,7 @@ nonisolated enum ScreenshotSaveService {
         let imageData = try ClipboardImageEncoder.encode(
             pngData,
             format: format,
-            quality: ClipboardImageConversionPolicy.screenshotQuality,
+            quality: quality,
             isCancelled: isCancelled
         )
         try checkCancellation(isCancelled)

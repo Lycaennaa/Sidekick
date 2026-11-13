@@ -403,7 +403,7 @@ extension StatusMenuController {
     private func addDurationMenu(to menu: NSMenu) {
         let durationMenu = NSMenu()
         durationMenu.autoenablesItems = false
-        for duration in AppSettings.allowedToastDurations {
+        for duration in AppSettings.toastDurationPresets {
             let item = NSMenuItem(
                 title: Self.durationTitle(duration),
                 action: #selector(selectDuration(_:)),

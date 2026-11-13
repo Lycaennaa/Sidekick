@@ -73,6 +73,27 @@ final class TwitchNotificationControllerTests: TwitchNotificationControllerTestS
         XCTAssertEqual(snapshots, [["live"], []])
         XCTAssertTrue(controller.onlineStreams.isEmpty)
     }
+    func testPollFrequencySettingUpdatesActiveStatus() async {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        let session = twitchTestSession()
+        settings.twitchNotificationsEnabled = true
+        let controller = makeController(
+            settings: settings,
+            authenticate: { _ in session },
+            followedStreams: { _ in [] },
+            sleeper: sleepForever
+        )
+        defer { controller.terminate() }
+        settings.onTwitchSettingsChange = { controller.applySettings() }
+
+        controller.applySettings()
+        await twitchEventually { controller.status == .polling(.active(150)) }
+
+        settings.twitchPollInterval = 45
+        XCTAssertEqual(controller.status, .polling(.active(45)))
+    }
 
     func testOnlySelectedFollowedChannelsDeliverLiveNotifications() async {
         let defaults = makeDefaults()
@@ -301,6 +322,54 @@ final class TwitchNotificationControllerTests: TwitchNotificationControllerTestS
         XCTAssertEqual(storage.value, "controller-token")
     }
 
+}
+@MainActor
+final class TwitchNotificationControllerPollFrequencyTests: TwitchNotificationControllerTestSupport {
+    func testPollIntervalChangeDuringOAuthSaveReschedulesActiveWait() async {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+        settings.twitchNotificationsEnabled = true
+        let session = twitchTestSession()
+        let tokenAuthenticationGate = AsyncGate()
+        let intervalRecorder = TwitchNotificationPollIntervalRecorder()
+        let controller = makeController(
+            settings: settings,
+            authenticate: { _ in session },
+            tokenAuthenticate: { _ in await tokenAuthenticationGate.wait() },
+            followedStreams: { _ in [] },
+            sleeper: .init(sleep: { interval in
+                await intervalRecorder.record(interval)
+                try await twitchSuspendUntilCancelled()
+            })
+        )
+        defer { controller.terminate() }
+        settings.onTwitchSettingsChange = { controller.applySettings() }
+
+        controller.applySettings()
+        await twitchEventually { controller.status == .polling(.active(150)) }
+        await twitchEventuallyAsync { await intervalRecorder.hasRecorded(150) }
+
+        XCTAssertTrue(controller.saveOAuthToken("replacement-token"))
+        await tokenAuthenticationGate.waitUntilWaiterAttached()
+        settings.twitchPollInterval = 45
+        await twitchEventuallyAsync { await intervalRecorder.hasRecorded(45) }
+
+        await tokenAuthenticationGate.open()
+        await twitchEventually { !controller.isSavingOAuthToken }
+    }
+}
+
+private actor TwitchNotificationPollIntervalRecorder {
+    private var intervals: [TimeInterval] = []
+
+    func record(_ interval: TimeInterval) {
+        intervals.append(interval)
+    }
+
+    func hasRecorded(_ interval: TimeInterval) -> Bool {
+        intervals.contains(interval)
+    }
 }
 
 private actor AuthenticationPlan {

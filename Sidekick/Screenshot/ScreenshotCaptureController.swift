@@ -85,6 +85,7 @@ final class ScreenshotCaptureController {
         let saveDirectory: URL
         let filenameTemplate: String
         let screenshotCopyAsOutputFormat: Bool
+        let screenshotImageQuality: Double
         let imageFormat: ClipboardImageFormat
         let showsCursor: Bool
         var expectedChangeCount: Int
@@ -99,6 +100,7 @@ final class ScreenshotCaptureController {
             filenameTemplate: String,
             screenshotCopyAsOutputFormat: Bool,
             imageFormat: ClipboardImageFormat,
+            screenshotImageQuality: Double,
             showsCursor: Bool
         ) {
             self.id = id
@@ -109,6 +111,7 @@ final class ScreenshotCaptureController {
             self.filenameTemplate = filenameTemplate
             self.screenshotCopyAsOutputFormat = screenshotCopyAsOutputFormat
             self.imageFormat = imageFormat
+            self.screenshotImageQuality = screenshotImageQuality
             self.showsCursor = showsCursor
         }
     }
@@ -132,13 +135,6 @@ final class ScreenshotCaptureController {
         CapturedDisplayScreenshot,
         ScreenshotPixelValueCopy
     ) async -> ScreenshotSelectionResult
-    typealias SavePreparation = @MainActor (
-        Data,
-        URL,
-        String,
-        ClipboardImageFormat
-    ) async throws -> ScreenshotSaveService.Prepared
-    typealias ImagePreparation = @MainActor (Data, ClipboardImageFormat) async throws -> Data
     typealias WindowInventory = @MainActor () async throws -> WindowScreenshotInventory
     typealias WindowCaptureAccess = @MainActor () -> Bool
 
@@ -202,19 +198,20 @@ final class ScreenshotCaptureController {
         self.onPixelValueCopied = onPixelValueCopied
         self.onFailure = onFailure
         self.onSavedAndCopied = onSavedAndCopied
-        self.prepareClipboardImage = prepareClipboardImage ?? { data, format in
+        self.prepareClipboardImage = prepareClipboardImage ?? { data, format, quality in
             try await ClipboardImageEncoder.encodeInBackground(
                 data,
                 format: format,
-                quality: ClipboardImageConversionPolicy.screenshotQuality
+                quality: quality
             )
         }
-        self.prepareSave = prepareSave ?? { pngData, directory, baseName, format in
+        self.prepareSave = prepareSave ?? { pngData, directory, baseName, format, quality in
             try await ScreenshotSaveService.prepareInBackground(
                 pngData: pngData,
                 directory: directory,
                 baseName: baseName,
-                format: format
+                format: format,
+                quality: quality
             )
         }
     }
@@ -235,6 +232,7 @@ final class ScreenshotCaptureController {
             screenshotCopyAsOutputFormat:
                 settings.screenshotCopyAsOutputFormat && !settings.automaticImageConversionEnabled,
             imageFormat: settings.imageOutputFormat,
+            screenshotImageQuality: settings.screenshotImageQuality,
             showsCursor: showsCursor
         )
         activeRequestID = request.id
@@ -319,6 +317,7 @@ final class ScreenshotCaptureController {
                 selection,
                 copyAsOutputFormat: request.screenshotCopyAsOutputFormat,
                 imageFormat: request.imageFormat,
+                imageQuality: request.screenshotImageQuality,
                 preparedOutputFormatData: preparedOutputFormatData
             )
             guard validateClipboardRequest(request) else { return nil }
@@ -367,7 +366,8 @@ final class ScreenshotCaptureController {
                 pngData,
                 request.saveDirectory,
                 baseName,
-                request.imageFormat
+                request.imageFormat,
+                request.screenshotImageQuality
             )
             return publishPreparedScreenshot(prepared, request: request)
         } catch {
@@ -429,6 +429,25 @@ final class ScreenshotCaptureController {
 
 }
 
+extension ScreenshotCaptureController {
+    typealias SavePreparation = @MainActor (
+        Data,
+        URL,
+        String,
+        ClipboardImageFormat,
+        Double
+    ) async throws -> ScreenshotSaveService.Prepared
+    typealias ImagePreparation = @MainActor (Data, ClipboardImageFormat, Double) async throws -> Data
+}
+
+    typealias SavePreparation = @MainActor (
+        Data,
+        URL,
+        String,
+        ClipboardImageFormat,
+        Double
+    ) async throws -> ScreenshotSaveService.Prepared
+    typealias ImagePreparation = @MainActor (Data, ClipboardImageFormat, Double) async throws -> Data
 extension ScreenshotCaptureController {
     func copyWindowImage(
         _ image: CGImage,

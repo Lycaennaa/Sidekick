@@ -10,7 +10,7 @@ func shouldSuppressClipboardToast(
 
 @MainActor
 final class AppSettings {
-    static let allowedToastDurations: [TimeInterval] = [1.5, 2.5, 4, 6]
+    static let toastDurationPresets: [TimeInterval] = [1.5, 2.5, 4, 6]
     static let defaultToastDuration: TimeInterval = 2.5
 
     var onChange: (() -> Void)?
@@ -23,7 +23,7 @@ final class AppSettings {
             .appendingPathComponent("Pictures", isDirectory: true)
     }
 
-    private enum Key {
+    enum Key {
         static let clipboardToastEnabled = "clipboardToastEnabled"
         static let twitchNotificationsEnabled = "twitchNotificationsEnabled"
         static let twitchNotificationChannelMode = "twitchNotificationChannelMode"
@@ -32,6 +32,8 @@ final class AppSettings {
         static let twitchKeepChannelSelectionsBetweenModes = "twitchKeepChannelSelectionsBetweenModes"
         static let twitchOAuthClientID = "twitchOAuthClientID"
         static let excludedToastApplicationBundleIdentifiers = "excludedToastApplicationBundleIdentifiers"
+        static let clipboardImageQuality = "clipboardImageQuality"
+        static let screenshotImageQuality = "screenshotImageQuality"
         static let toastDuration = "toastDuration"
         static let imageConversionEnabled = "imageConversionEnabled"
         static let automaticImageConversionEnabled = "automaticImageConversionEnabled"
@@ -61,7 +63,7 @@ final class AppSettings {
         }
     }
 
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
 
@@ -71,8 +73,11 @@ final class AppSettings {
             Key.clipboardToastEnabled: true,
             Key.excludedToastApplicationBundleIdentifiers: [String](),
             Key.toastDuration: Self.defaultToastDuration,
+            TwitchToastTiming.key: Self.defaultTwitchToastDuration,
+            TwitchPollFrequency.key: TwitchPollFrequency.defaultInterval,
+            Key.clipboardImageQuality: ClipboardImageConversionPolicy.quality,
+            Key.screenshotImageQuality: ClipboardImageConversionPolicy.screenshotQuality,
             Key.imageConversionEnabled: true,
-            Key.automaticImageConversionEnabled: false,
             Key.imageOutputFormat: ClipboardImageFormat.webP.rawValue,
             Key.markdownClipboardCleanerEnabled: true,
             Key.clearURLsClipboardEnabled: true,
@@ -86,8 +91,13 @@ final class AppSettings {
         ])
 
         let storedDuration = defaults.double(forKey: Key.toastDuration)
-        if !Self.allowedToastDurations.contains(storedDuration) {
+        if !storedDuration.isFinite || storedDuration <= 0 {
             defaults.set(Self.defaultToastDuration, forKey: Key.toastDuration)
+        }
+        let storedPollInterval = defaults.double(forKey: TwitchPollFrequency.key)
+        let normalizedPollInterval = TwitchPollFrequency.normalized(storedPollInterval)
+        if normalizedPollInterval != storedPollInterval {
+            defaults.set(normalizedPollInterval, forKey: TwitchPollFrequency.key)
         }
     }
 
@@ -317,18 +327,6 @@ final class AppSettings {
                 "modifiers": Int(newValue.modifiers),
                 "keyName": newValue.keyName
             ], forKey: Key.screenshotSaveAndCopyShortcut)
-            onChange?()
-        }
-    }
-
-    var toastDuration: TimeInterval {
-        get { defaults.double(forKey: Key.toastDuration) }
-        set {
-            let normalized = Self.allowedToastDurations.contains(newValue)
-                ? newValue
-                : Self.defaultToastDuration
-            guard normalized != toastDuration else { return }
-            defaults.set(normalized, forKey: Key.toastDuration)
             onChange?()
         }
     }

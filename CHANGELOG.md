@@ -7,6 +7,7 @@ User-visible changes are listed here. No public release tag exists yet.
 ### Added
 
 - Select WebP or AVIF for clipboard conversions and screenshot output when the OS provides an AVIF encoder.
+- Add typed numeric Tunables for clipboard and screenshot image quality, utility and Twitch toast durations, and Twitch poll frequency (30-second minimum).
 - Clipboard image toasts distinguish advertised types from encoded image formats.
 - Window-aware screenshot selection, aspect-ratio guides, and pixel inspection.
 - Exclude elevated, display-covering windows from full-display screenshots to avoid screen-wide overlays.

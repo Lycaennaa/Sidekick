@@ -183,9 +183,13 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
             onCopied: { XCTFail("Save-and-copy used copy-only completion") },
             onFailure: { failure = $0 },
             onSavedAndCopied: { savedURL = $0 },
-            prepareClipboardImage: { pngData, format in
+            prepareClipboardImage: { pngData, format, quality in
                 clipboardImagePreparations += 1
-                return try await ClipboardImageEncoder.encodeInBackground(pngData, format: format)
+                return try await ClipboardImageEncoder.encodeInBackground(
+                    pngData,
+                    format: format,
+                    quality: quality
+                )
             }
         )
 
@@ -211,6 +215,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let settings = AppSettings(defaults: defaults)
         settings.screenshotCopyAsOutputFormat = true
+        settings.screenshotImageQuality = 0.625
         let pasteboard = PasteboardSnapshotFakePasteboard(
             items: [makePasteboardSnapshotItem(text: "before")]
         )
@@ -221,12 +226,20 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
             pasteboard: pasteboard,
             settings: settings,
             capture: { _ in ScreenshotCaptureTestSupport.capturedScreenshot(from: image) },
-            select: { _, _ in .selected(image) },
+            select: { _, _ in
+                settings.screenshotImageQuality = 1.0
+                return .selected(image)
+            },
             payloadReader: InlinePasteboardPayloadReader(),
             onCopied: { copied = true },
             onFailure: { failure = $0 },
-            prepareClipboardImage: { pngData, format in
-                let outputData = try await ClipboardImageEncoder.encodeInBackground(pngData, format: format)
+            prepareClipboardImage: { pngData, format, quality in
+                XCTAssertEqual(quality, 0.625)
+                let outputData = try await ClipboardImageEncoder.encodeInBackground(
+                    pngData,
+                    format: format,
+                    quality: quality
+                )
                 return await gate.suspend(outputData)
             }
         )
@@ -262,7 +275,7 @@ final class ScreenshotImageCopyIntegrationTests: XCTestCase {
             select: { _, _ in .selected(image) },
             onCopied: { XCTFail("Failed image encoding was reported as copied") },
             onFailure: { failure = $0 },
-            prepareClipboardImage: { _, _ in throw ClipboardImageConversionError.cannotEncode }
+            prepareClipboardImage: { _, _, _ in throw ClipboardImageConversionError.cannotEncode }
         )
 
         await controller.copyActiveDisplayToClipboard()

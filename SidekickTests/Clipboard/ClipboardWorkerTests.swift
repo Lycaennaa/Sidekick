@@ -297,7 +297,7 @@ final class ClipboardWorkerTests: XCTestCase {
 
     func testWebPWorkerStopsActiveConversionAtCancellationCheckpoint() async {
         let started = expectation(description: "Active WebP conversion started")
-        let worker = ClipboardImageConversionWorker(convert: { source, outputDirectory, _, isCancelled in
+        let worker = ClipboardImageConversionWorker(convert: { source, outputDirectory, _, _, isCancelled in
             let id = clipboardWorkerID(source)
             if id == 1 {
                 started.fulfill()

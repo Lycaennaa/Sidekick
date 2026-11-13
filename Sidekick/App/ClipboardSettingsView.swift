@@ -11,7 +11,6 @@ final class ClipboardSettingsView: NSView {
     private let markdownSwitch = NSSwitch()
     private let clearURLsSwitch = NSSwitch()
     private let clipboardToastSwitch = NSSwitch()
-    private let toastDurationPopup = NSPopUpButton()
 
     init(
         settings: AppSettings,
@@ -39,8 +38,6 @@ final class ClipboardSettingsView: NSView {
         clearURLsSwitch.state = clearURLsAvailable && settings.clearURLsClipboardEnabled ? .on : .off
         clearURLsSwitch.isEnabled = clearURLsAvailable
         clipboardToastSwitch.state = settings.clipboardToastEnabled ? .on : .off
-        let selectedDuration = AppSettings.allowedToastDurations.firstIndex(of: settings.toastDuration) ?? 0
-        toastDurationPopup.selectItem(at: selectedDuration)
         let selectedFormat = ClipboardImageFormat.availableForEncoding
             .firstIndex(of: settings.imageOutputFormat) ?? 0
         imageOutputFormatPopup.selectItem(at: selectedFormat)
@@ -73,11 +70,6 @@ final class ClipboardSettingsView: NSView {
 
     @objc private func toggleClipboardToast() {
         settings.clipboardToastEnabled = clipboardToastSwitch.state == .on
-    }
-
-    @objc private func selectToastDuration() {
-        guard let duration = toastDurationPopup.selectedItem?.representedObject as? NSNumber else { return }
-        settings.toastDuration = duration.doubleValue
     }
 
     private func buildView() {
@@ -143,13 +135,6 @@ final class ClipboardSettingsView: NSView {
         clipboardToastSwitch.target = self
         clipboardToastSwitch.action = #selector(toggleClipboardToast)
         clipboardToastSwitch.setAccessibilityLabel("Clipboard notifications")
-        toastDurationPopup.target = self
-        toastDurationPopup.action = #selector(selectToastDuration)
-        toastDurationPopup.setAccessibilityLabel("Clipboard toast duration")
-        for duration in AppSettings.allowedToastDurations {
-            toastDurationPopup.addItem(withTitle: Self.durationTitle(duration))
-            toastDurationPopup.lastItem?.representedObject = NSNumber(value: duration)
-        }
     }
     private func makeImageOutputFormatRow() -> NSView {
         let title = NSTextField(labelWithString: "Image output format")
@@ -182,25 +167,7 @@ final class ClipboardSettingsView: NSView {
             toggle: clipboardToastSwitch
         )
 
-        let durationTitle = NSTextField(labelWithString: "Toast duration")
-        durationTitle.font = .systemFont(ofSize: 14, weight: .semibold)
-        let durationDetail = NSTextField(
-            wrappingLabelWithString: "How long clipboard toasts remain visible."
-        )
-        durationDetail.textColor = .secondaryLabelColor
-        let durationLabels = NSStackView(views: [durationTitle, durationDetail])
-        durationLabels.orientation = .vertical
-        durationLabels.alignment = .leading
-        durationLabels.distribution = .fill
-        durationLabels.spacing = 4
-        durationLabels.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let durationRow = NSStackView(views: [durationLabels, toastDurationPopup])
-        durationRow.orientation = .horizontal
-        durationRow.alignment = .centerY
-        durationRow.distribution = .fill
-        durationRow.spacing = 18
-
-        let stack = NSStackView(views: [title, notificationRow, durationRow])
+        let stack = NSStackView(views: [title, notificationRow])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.distribution = .fill
@@ -227,10 +194,6 @@ final class ClipboardSettingsView: NSView {
         row.distribution = .fill
         row.spacing = 18
         return row
-    }
-
-    private static func durationTitle(_ duration: TimeInterval) -> String {
-        duration == duration.rounded() ? "\(Int(duration)) seconds" : "\(duration) seconds"
     }
 
     private func makeToolRows() -> [NSView] {

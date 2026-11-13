@@ -3,6 +3,10 @@ import Foundation
 nonisolated enum ClipboardImageConversionPolicy {
     typealias CancellationCheck = @Sendable () -> Bool
 
+    static let qualityPresets = [0.25, 0.5, 0.75, 0.9, 1.0]
+    static func isValidQuality(_ quality: Double) -> Bool {
+        quality.isFinite && (0...1).contains(quality)
+    }
     static let quality = 0.75
     static let screenshotQuality = 0.90
     static let maximumSourceBytes = 100 * 1_024 * 1_024

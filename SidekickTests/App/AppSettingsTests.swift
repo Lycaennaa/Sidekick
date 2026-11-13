@@ -368,6 +368,46 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(restored.screenshotFilenameTemplate, "Shot_{date}_{time}")
         XCTAssertEqual(changeCount, 2)
     }
+    func testImageConversionQualitiesDefaultAndPersist() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.clipboardImageQuality, 0.75)
+        XCTAssertEqual(settings.screenshotImageQuality, 0.9)
+        settings.clipboardImageQuality = 0.625
+        settings.screenshotImageQuality = 0.375
+
+        let restored = AppSettings(defaults: defaults)
+        XCTAssertEqual(restored.clipboardImageQuality, 0.625)
+        XCTAssertEqual(restored.screenshotImageQuality, 0.375)
+    }
+
+    func testUnsupportedImageQualitiesFallBackToDefaults() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        defaults.set(-0.1, forKey: "clipboardImageQuality")
+        defaults.set(1.5, forKey: "screenshotImageQuality")
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.clipboardImageQuality, 0.75)
+        XCTAssertEqual(settings.screenshotImageQuality, 0.9)
+    }
+
+    func testTwitchToastDurationDefaultsAndPersistsCustomValue() {
+        let defaults = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.twitchToastDuration, 10)
+        settings.twitchToastDuration = 15
+        XCTAssertEqual(AppSettings(defaults: defaults).twitchToastDuration, 15)
+
+        settings.twitchToastDuration = 3
+        XCTAssertEqual(AppSettings(defaults: defaults).twitchToastDuration, 3)
+    }
+
     private var defaultsSuiteName: String {
         "AppSettingsTests"
     }
@@ -378,5 +418,27 @@ final class AppSettingsTests: XCTestCase {
         }
         defaults.removePersistentDomain(forName: defaultsSuiteName)
         return defaults
+    }
+}
+@MainActor
+final class AppSettingsPollIntervalTests: XCTestCase {
+    func testTwitchPollIntervalDefaultsPersistsAndEnforcesMinimum() throws {
+        let suiteName = "AppSettingsPollIntervalTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettings(defaults: defaults)
+        var generalChangeCount = 0
+        var twitchChangeCount = 0
+        settings.onChange = { generalChangeCount += 1 }
+        settings.onTwitchSettingsChange = { twitchChangeCount += 1 }
+
+        XCTAssertEqual(settings.twitchPollInterval, 150)
+        settings.twitchPollInterval = 45
+        XCTAssertEqual(AppSettings(defaults: defaults).twitchPollInterval, 45)
+
+        settings.twitchPollInterval = 29
+        XCTAssertEqual(AppSettings(defaults: defaults).twitchPollInterval, 30)
+        XCTAssertEqual(generalChangeCount, 2)
+        XCTAssertEqual(twitchChangeCount, 2)
     }
 }

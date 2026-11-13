@@ -1,7 +1,6 @@
 import AppKit
 
 extension AppDelegate {
-    private static let twitchToastDuration: TimeInterval = 10
 
     func presentTwitchToast(
         for stream: TwitchFollowedStream,
@@ -21,7 +20,7 @@ extension AppDelegate {
                 icon: icon,
                 footer: stream.notificationSubtitle
             ),
-            duration: Self.twitchToastDuration
+            duration: settings.twitchToastDuration
         )
     }
     func presentTwitchProfileTest(_ payload: TwitchProfileTestPayload) {
@@ -39,7 +38,7 @@ extension AppDelegate {
                 icon: icon,
                 footer: "Twitch"
             ),
-            duration: Self.twitchToastDuration
+            duration: settings.twitchToastDuration
         )
     }
 
@@ -55,7 +54,7 @@ extension AppDelegate {
                     accessibilityDescription: "More Twitch channels are live"
                 )
             ),
-            duration: Self.twitchToastDuration
+            duration: settings.twitchToastDuration
         )
     }
 }

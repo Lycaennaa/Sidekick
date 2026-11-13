@@ -9,13 +9,13 @@ final class TwitchPollingOwner {
         let followedChannels: @Sendable (TwitchAPIClient.Session) async throws -> [TwitchFollowedChannel]
         let notifications: TwitchNotificationCenterClient
         let sleeper: TwitchSleepClient
-        let pollInterval: TimeInterval
+        let pollInterval: @MainActor @Sendable () -> TimeInterval
     }
 
     enum Status: Equatable, Sendable {
         case requestingPermission
         case checking
-        case active
+        case active(TimeInterval)
         case notificationPermissionDenied
         case notificationPermissionError
         case invalidOAuthToken
@@ -37,8 +37,8 @@ final class TwitchPollingOwner {
                 "requesting notification permission…"
             case .checking:
                 "checking twitch…"
-            case .active:
-                "watching followed channels · checks every \(TwitchAPIClient.pollInterval.formatted()) seconds"
+            case let .active(interval):
+                "watching followed channels · checks every \(interval.formatted()) seconds"
             case .notificationPermissionDenied:
                 "macos notifications are denied for this app"
             case .invalidOAuthToken:
@@ -110,6 +110,8 @@ final class TwitchPollingOwner {
     private let dependencies: Dependencies
     private let authorization: TwitchNotificationAuthorization
     private var task: Task<Void, Never>?
+    private var pollIntervalSleepTask: Task<Void, Error>?
+    private var pollIntervalSleepGeneration: UInt64 = 0
     private var generation: UInt64 = 0
     private var streamBaseline: StreamBaseline = .awaitingFirstFetch
     private(set) var token: String?
@@ -167,10 +169,17 @@ final class TwitchPollingOwner {
 
     func stop() {
         task?.cancel()
+        pollIntervalSleepTask?.cancel()
+        pollIntervalSleepTask = nil
+        pollIntervalSleepGeneration &+= 1
         task = nil
         generation &+= 1
         token = nil
         streamBaseline = .awaitingFirstFetch
+    }
+
+    func pollIntervalDidChange() {
+        pollIntervalSleepTask?.cancel()
     }
 
     private func run(token: String, generation: UInt64, callbacks: Callbacks) async {
@@ -208,12 +217,41 @@ extension TwitchPollingOwner {
                 return false
             case .requestFailed:
                 onStatus(.notificationPermissionError, generation)
-                do {
-                    try await dependencies.sleeper.sleep(dependencies.pollInterval)
-                } catch {
+                guard await sleepForPollInterval(generation: generation) else { return false }
+            }
+        }
+        return false
+    }
+    private func sleepForPollInterval(generation: UInt64) async -> Bool {
+        while isCurrent(generation) {
+            let interval = dependencies.pollInterval()
+            pollIntervalSleepGeneration &+= 1
+            let requestedGeneration = pollIntervalSleepGeneration
+            let sleepTask = Task {
+                try await dependencies.sleeper.sleep(interval)
+            }
+            pollIntervalSleepTask = sleepTask
+
+            do {
+                try await sleepTask.value
+            } catch is CancellationError {
+                guard isCurrent(generation), pollIntervalSleepGeneration == requestedGeneration else {
                     return false
                 }
+                pollIntervalSleepTask = nil
+                continue
+            } catch {
+                guard isCurrent(generation), pollIntervalSleepGeneration == requestedGeneration else {
+                    return false
+                }
+                pollIntervalSleepTask = nil
+                return false
             }
+
+            guard isCurrent(generation), pollIntervalSleepGeneration == requestedGeneration else { return false }
+            pollIntervalSleepTask = nil
+            guard interval == dependencies.pollInterval() else { continue }
+            return true
         }
         return false
     }
@@ -224,11 +262,7 @@ extension TwitchPollingOwner {
                 return
             }
             guard isCurrent(generation) else { return }
-            do {
-                try await dependencies.sleeper.sleep(dependencies.pollInterval)
-            } catch {
-                return
-            }
+            guard await sleepForPollInterval(generation: generation) else { return }
         }
     }
 
@@ -260,7 +294,7 @@ extension TwitchPollingOwner {
 
         let newStreams = streamBaseline.streamsToNotify(currentStreams: streams)
         streamBaseline = streamBaseline.afterSuccessfulFetch(streams)
-        callbacks.onStatus(.active, generation)
+        callbacks.onStatus(.active(dependencies.pollInterval()), generation)
         guard isCurrent(generation) else { throw CancellationError() }
         let failedIDs = await callbacks.onStreams(newStreams, session, generation)
         guard isCurrent(generation) else { throw CancellationError() }
